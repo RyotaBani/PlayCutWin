@@ -1,48 +1,36 @@
-using System;
-using System.Globalization;
-using System.IO;
-using System.Windows;
+using System.Collections.Specialized;
 using System.Windows.Controls;
-using System.Windows.Data;
 
 namespace PlayCutWin.Views
 {
     public partial class ClipsView : UserControl
     {
-        // XAMLから参照するためのstaticインスタンス（Converter）
-        public static IValueConverter FileExtConverterInstance { get; } = new FileExtConverter();
-
         public ClipsView()
         {
             InitializeComponent();
+
+            VideosGrid.ItemsSource = AppState.Current.ImportedVideos;
+
+            AppState.Current.ImportedVideos.CollectionChanged += ImportedVideos_CollectionChanged;
+            UpdateCount();
         }
 
-        private void VideoList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ImportedVideos_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            if (VideoList.SelectedItem is string path)
-            {
-                // 選択中動画を共有状態に保存
-                AppState.Current.SetSelected(path);
-
-                // ステータスバー更新
-                if (Application.Current.MainWindow is MainWindow mw)
-                    mw.UpdateStatusSelected();
-            }
+            UpdateCount();
         }
 
-        private sealed class FileExtConverter : IValueConverter
+        private void UpdateCount()
         {
-            public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            CountText.Text = $"Count: {AppState.Current.ImportedVideos.Count}";
+        }
+
+        private void VideosGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (VideosGrid.SelectedItem is VideoItem item)
             {
-                var path = value as string;
-                if (string.IsNullOrWhiteSpace(path)) return "";
-
-                var ext = Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
-                return string.IsNullOrWhiteSpace(ext) ? "FILE" : ext;
+                AppState.Current.SetSelected(item); // ← ここが今回の共有ポイント
             }
-
-            public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-                => Binding.DoNothing;
         }
     }
 }

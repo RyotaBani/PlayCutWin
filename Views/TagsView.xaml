@@ -2,37 +2,46 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent">
-
     <Grid Margin="16">
-        <StackPanel>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <TextBlock Text="Tags"
-                       Foreground="White"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Margin="0,0,0,12"/>
+        <TextBlock Text="Tags"
+                   Foreground="White"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,10"/>
 
-            <TextBlock Text="Selected video"
-                       Foreground="#B0B0B0"
-                       FontSize="12"/>
+        <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="16">
+            <StackPanel>
+                <TextBlock Text="Selected video:"
+                           Foreground="#B0B0B0"
+                           FontSize="12"/>
 
-            <Border Background="#1A1A1A"
-                    BorderBrush="#2A2A2A"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="10"
-                    Margin="0,6,0,12">
-
-                <TextBlock x:Name="SelectedVideoText"
+                <TextBlock x:Name="SelectedPathText"
                            Text="(none)"
                            Foreground="White"
-                           FontSize="13"
-                           TextWrapping="Wrap"/>
-            </Border>
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,14"/>
 
-            <TextBlock Text="（次のステップでここにタグ追加UIを作る）"
-                       Foreground="#9A9A9A"
-                       FontSize="12"/>
-        </StackPanel>
+                <TextBlock Text="(placeholder) ここにタグUIを作る"
+                           Foreground="#B0B0B0"
+                           FontSize="12"
+                           Margin="0,0,0,12"/>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBox x:Name="TagInput" Width="220" Margin="0,0,8,0"/>
+                    <Button Content="Add Tag (dummy)" Padding="10,6" Click="AddTag_Click"/>
+                </StackPanel>
+
+                <TextBlock x:Name="InfoText"
+                           Text=""
+                           Foreground="#AFAFAF"
+                           FontSize="12"
+                           Margin="0,10,0,0"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

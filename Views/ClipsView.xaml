@@ -11,9 +11,10 @@
         <DockPanel Margin="0,0,0,10">
             <TextBlock Text="Imported Videos"
                        Foreground="White"
-                       FontSize="16"
+                       FontSize="14"
                        FontWeight="SemiBold"
                        DockPanel.Dock="Left"/>
+
             <TextBlock x:Name="CountText"
                        Text="Count: 0"
                        Foreground="#B0B0B0"
@@ -21,19 +22,20 @@
                        DockPanel.Dock="Right"/>
         </DockPanel>
 
-        <ListView Grid.Row="1"
-                  x:Name="VideoList"
-                  Background="#141414"
-                  Foreground="White"
-                  BorderBrush="#2A2A2A"
-                  BorderThickness="1"
-                  SelectionChanged="VideoList_SelectionChanged">
-            <ListView.View>
-                <GridView>
-                    <GridViewColumn Header="Name" Width="260" DisplayMemberBinding="{Binding Name}"/>
-                    <GridViewColumn Header="Path" Width="720" DisplayMemberBinding="{Binding Path}"/>
-                </GridView>
-            </ListView.View>
-        </ListView>
+        <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="10">
+            <DataGrid x:Name="VideosGrid"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      SelectionChanged="VideosGrid_SelectionChanged">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
+                    <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="3*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
     </Grid>
 </UserControl>

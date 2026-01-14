@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
 
 namespace PlayCutWin.Views
@@ -8,24 +9,46 @@ namespace PlayCutWin.Views
         public TagsView()
         {
             InitializeComponent();
-            Update();
 
-            PlayCutWin.AppState.Instance.PropertyChanged += AppState_PropertyChanged;
+            UpdateSelected();
+            AppState.Current.PropertyChanged += Current_PropertyChanged;
         }
 
-        private void AppState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        private void Current_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath) ||
-                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoFileName))
+            if (e.PropertyName == nameof(AppState.SelectedVideo) ||
+                e.PropertyName == nameof(AppState.SelectedVideoDisplay))
             {
-                Dispatcher.Invoke(Update);
+                UpdateSelected();
             }
         }
 
-        private void Update()
+        private void UpdateSelected()
         {
-            var path = PlayCutWin.AppState.Instance.SelectedVideoPath;
-            SelectedVideoText.Text = string.IsNullOrWhiteSpace(path) ? "(none)" : path;
+            var sel = AppState.Current.SelectedVideo;
+            SelectedPathText.Text = sel == null ? "(none)" : sel.Path;
+        }
+
+        private void AddTag_Click(object sender, RoutedEventArgs e)
+        {
+            var sel = AppState.Current.SelectedVideo;
+            if (sel == null)
+            {
+                MessageBox.Show("先に Clips で動画を選択してね。", "PlayCut",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var tag = TagInput.Text?.Trim();
+            if (string.IsNullOrEmpty(tag))
+            {
+                InfoText.Text = "タグが空です。";
+                return;
+            }
+
+            // まだタグモデルは作ってないので表示だけ
+            InfoText.Text = $"(dummy) Added tag '{tag}' to {sel.Name}";
+            TagInput.Text = "";
         }
     }
 }

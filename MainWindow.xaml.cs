@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using PlayCutWin.Views;
@@ -7,105 +8,87 @@ namespace PlayCutWin
 {
     public partial class MainWindow : Window
     {
-        private readonly DashboardView _dashboardView = new();
-        private readonly ClipsView _clipsView = new();
-        private readonly TagsView _tagsView = new();
-        private readonly ExportsView _exportsView = new();
-
         public MainWindow()
         {
             InitializeComponent();
 
-            // 初期選択
+            // 初期表示
             MenuList.SelectedIndex = 0;
+            ShowPage("Dashboard");
 
-            // AppState変更に追従してステータス更新
-            AppState.Current.PropertyChanged += (_, __) => UpdateStatusSelected();
-            UpdateStatusSelected();
+            // 状態変化でステータス更新
+            AppState.Current.PropertyChanged += AppState_PropertyChanged;
+        }
+
+        private void AppState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AppState.SelectedVideo) ||
+                e.PropertyName == nameof(AppState.SelectedVideoDisplay))
+            {
+                var sel = AppState.Current.SelectedVideo;
+                if (sel == null)
+                {
+                    StatusText.Text = $"Ready - {PageTitle.Text}";
+                }
+                else
+                {
+                    StatusText.Text = $"Selected: {sel.Name} - {PageTitle.Text}";
+                }
+            }
         }
 
         private void MenuList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (MenuList.SelectedItem is not ListBoxItem item) return;
-            var name = item.Content?.ToString() ?? "Dashboard";
-
-            PageTitle.Text = name;
-
-            MainContent.Content = name switch
+            if (MenuList.SelectedItem is ListBoxItem item && item.Content is string label)
             {
-                "Dashboard" => _dashboardView,
-                "Clips" => _clipsView,
-                "Tags" => _tagsView,
-                "Exports" => _exportsView,
-                _ => _dashboardView
-            };
-
-            UpdateStatusSelected();
+                ShowPage(label);
+            }
         }
 
-        public void UpdateStatusSelected()
+        private void ShowPage(string label)
         {
-            var sel = AppState.Current.SelectedVideoFileName;
-            if (sel == "(none)")
+            PageTitle.Text = label;
+
+            UserControl view = label switch
             {
-                StatusText.Text = $"Ready - {PageTitle.Text}";
-            }
-            else
-            {
-                StatusText.Text = $"Selected: {sel} - {PageTitle.Text}";
-            }
+                "Clips" => new ClipsView(),
+                "Tags" => new TagsView(),
+                "Exports" => new ExportsView(),
+                _ => new DashboardView()
+            };
+
+            MainContent.Content = view;
+
+            // ステータスも更新
+            AppState_PropertyChanged(null, new PropertyChangedEventArgs(nameof(AppState.SelectedVideo)));
         }
 
         private void ImportVideo_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
-                Title = "Import Video",
-                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.mkv|All Files|*.*",
-                Multiselect = false
+                Title = "Select Video",
+                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.wmv|All Files|*.*"
             };
 
             if (dlg.ShowDialog() == true)
             {
                 AppState.Current.AddImportedVideo(dlg.FileName);
-
-                // Clips に飛ぶ（分かりやすい）
-                MenuList.SelectedIndex = 1;
-
-                MessageBox.Show(
-                    $"Selected:\n{dlg.FileName}",
-                    "Import",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information
-                );
-
-                UpdateStatusSelected();
-            }
-            else
-            {
-                StatusText.Text = "Import cancelled";
+                StatusText.Text = $"Imported: {System.IO.Path.GetFileName(dlg.FileName)} - {PageTitle.Text}";
             }
         }
 
         private void ExportClip_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(
-                "Export (placeholder)\nここに後でクリップ書き出しを実装します。",
-                "PlayCut",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information
-            );
+            MessageBox.Show("Export (placeholder)\nここに書き出し処理を実装する。", "PlayCut",
+                MessageBoxButton.OK, MessageBoxImage.Information);
             StatusText.Text = "Export clicked";
         }
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(
-                "Settings (placeholder)\nここに後で設定画面を追加します。",
-                "PlayCut",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information
-            );
+            MessageBox.Show("Settings (placeholder)\nここに設定画面を追加する。", "PlayCut",
+                MessageBoxButton.OK, MessageBoxImage.Information);
             StatusText.Text = "Settings clicked";
         }
     }

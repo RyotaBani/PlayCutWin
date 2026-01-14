@@ -1,72 +1,76 @@
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows;
 
 namespace PlayCutWin
 {
     public sealed class AppState : INotifyPropertyChanged
     {
-        // 互換：旧コードが Current を参照
-        public static AppState Current => Instance;
+        // ---- Singleton (両方の名前でアクセス可能にする) ----
+        private static readonly Lazy<AppState> _instance = new(() => new AppState());
 
-        // 現行：Instance でも参照可
-        public static AppState Instance { get; } = new AppState();
+        public static AppState Instance => _instance.Value;
+        public static AppState Current => _instance.Value;
 
         private AppState() { }
 
+        // ---- Data ----
+        public ObservableCollection<VideoItem> ImportedVideos { get; } = new();
+
+        private VideoItem? _selectedVideo;
+        public VideoItem? SelectedVideo
+        {
+            get => _selectedVideo;
+            private set
+            {
+                if (!Equals(_selectedVideo, value))
+                {
+                    _selectedVideo = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedVideoDisplay));
+                }
+            }
+        }
+
+        public string SelectedVideoDisplay =>
+            SelectedVideo == null ? "(none)" : $"{SelectedVideo.Name}";
+
+        // ---- Operations ----
+        public void AddImportedVideo(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            var item = new VideoItem(filePath);
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                ImportedVideos.Add(item);
+            });
+
+            SetSelected(item);
+        }
+
+        // 互換用：どっちの名前で呼んでもOK
+        public void SetSelected(VideoItem? item) => SelectedVideo = item;
+        public void SetSelectedVideo(VideoItem? item) => SelectedVideo = item;
+
+        // ---- INotifyPropertyChanged ----
         public event PropertyChangedEventHandler? PropertyChanged;
-
-        private string? _selectedVideoPath;
-
-        public string? SelectedVideoPath
-        {
-            get => _selectedVideoPath;
-            set
-            {
-                if (_selectedVideoPath == value) return;
-                _selectedVideoPath = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedVideoFileName));
-            }
-        }
-
-        public string SelectedVideoFileName
-        {
-            get
-            {
-                if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return "(none)";
-                return Path.GetFileName(SelectedVideoPath);
-            }
-        }
-
-        // Importした動画一覧（フルパス）
-        public ObservableCollection<string> ImportedVideos { get; } = new ObservableCollection<string>();
-
-        public void AddImportedVideo(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return;
-
-            if (!ImportedVideos.Contains(path))
-                ImportedVideos.Add(path);
-
-            SelectedVideoPath = path;
-        }
-
-        // 現行API
-        public void SelectVideo(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return;
-            SelectedVideoPath = path;
-        }
-
-        // ✅ 互換API：ClipsViewが呼んでいる可能性が高い
-        public void SetSelected(string path) => SelectVideo(path);
-
-        // ✅ 互換API：将来別名が出ても困らないように（あっても害なし）
-        public void SetSelectedVideo(string path) => SelectVideo(path);
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    public sealed class VideoItem
+    {
+        public string Path { get; }
+        public string Name { get; }
+
+        public VideoItem(string path)
+        {
+            Path = path;
+            Name = System.IO.Path.GetFileName(path);
+        }
     }
 }
