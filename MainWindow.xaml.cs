@@ -10,57 +10,69 @@ namespace PlayCutWin
         {
             InitializeComponent();
 
-            // 起動時はDashboard
+            // Default page
             MenuList.SelectedIndex = 0;
-            NavigateTo("Dashboard");
+        }
+
+        private void SetStatus(string text)
+        {
+            StatusText.Text = text;
         }
 
         private void MenuList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (MenuList.SelectedItem is ListBoxItem item && item.Tag is string key)
-            {
-                NavigateTo(key);
-            }
-        }
+            if (MenuList.SelectedItem is not ListBoxItem item) return;
 
-        private void NavigateTo(string key)
-        {
-            PageTitle.Text = key;
-            StatusText.Text = $"Ready - {key}";
+            var key = item.Content?.ToString() ?? "Dashboard";
 
             switch (key)
             {
                 case "Dashboard":
-                    PageHost.Content = new DashboardView();
+                    ContentHost.Content = new DashboardView();
+                    SetStatus("Ready - Dashboard");
                     break;
+
                 case "Clips":
-                    PageHost.Content = new ClipsView();
+                    ContentHost.Content = new ClipsView();
+                    SetStatus("Ready - Clips");
                     break;
+
                 case "Tags":
-                    PageHost.Content = new TagsView();
+                    ContentHost.Content = new TagsView();
+                    SetStatus("Ready - Tags");
                     break;
+
                 case "Exports":
-                    PageHost.Content = new ExportsView();
+                    ContentHost.Content = new ExportsView();
+                    SetStatus("Ready - Exports");
                     break;
+
                 default:
-                    PageHost.Content = new DashboardView();
+                    ContentHost.Content = new DashboardView();
+                    SetStatus("Ready - Dashboard");
                     break;
             }
         }
 
         private void ImportVideo_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Import Video (placeholder)", "PlayCut");
+            MessageBox.Show("Import (placeholder)\nここにOpenFileDialogで動画選択を入れる。",
+                "PlayCut", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("Import clicked");
         }
 
         private void ExportClip_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Export Clip (placeholder)", "PlayCut");
+            MessageBox.Show("Export (placeholder)\nここにクリップ書き出し処理を入れる。",
+                "PlayCut", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("Export clicked");
         }
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Settings (placeholder)", "PlayCut");
+            MessageBox.Show("Settings (placeholder)\n次にここへ設定画面(UserControl/Window)を追加する。",
+                "PlayCut", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("Settings clicked");
         }
     }
 }

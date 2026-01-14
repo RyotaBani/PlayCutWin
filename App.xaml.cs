@@ -2,5 +2,7 @@ using System.Windows;
 
 namespace PlayCutWin
 {
-    public partial class App : Application { }
+    public partial class App : Application
+    {
+    }
 }
