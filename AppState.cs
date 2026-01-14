@@ -1,24 +1,25 @@
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    /// <summary>
-    /// 画面間で共有する状態（最小版）
-    /// </summary>
     public sealed class AppState : INotifyPropertyChanged
     {
-        public static AppState Current { get; } = new AppState();
+        // ✅ これが無いせいで Instance エラーになってた
+        public static AppState Instance { get; } = new AppState();
+
+        private AppState() { }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private string? _selectedVideoPath;
 
-        /// <summary>Import された動画一覧</summary>
-        public ObservableCollection<string> ImportedVideos { get; } = new();
-
-        /// <summary>現在選択中の動画パス（画面間共有）</summary>
+        /// <summary>
+        /// 今選択されている動画のフルパス
+        /// </summary>
         public string? SelectedVideoPath
         {
             get => _selectedVideoPath;
@@ -31,31 +32,22 @@ namespace PlayCutWin
             }
         }
 
+        /// <summary>
+        /// 今選択されている動画のファイル名（表示用）
+        /// </summary>
         public string SelectedVideoFileName
-            => string.IsNullOrWhiteSpace(SelectedVideoPath)
-                ? "(none)"
-                : System.IO.Path.GetFileName(SelectedVideoPath);
-
-        private readonly Dictionary<string, ObservableCollection<string>> _tagsByVideo = new();
-
-        /// <summary>選択中動画のタグ（Tags画面で表示する用）</summary>
-        public ObservableCollection<string> CurrentTags
         {
             get
             {
-                if (string.IsNullOrWhiteSpace(SelectedVideoPath))
-                    return _emptyTags;
-
-                if (!_tagsByVideo.TryGetValue(SelectedVideoPath!, out var tags))
-                {
-                    tags = new ObservableCollection<string>();
-                    _tagsByVideo[SelectedVideoPath!] = tags;
-                }
-                return tags;
+                if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return "(none)";
+                return Path.GetFileName(SelectedVideoPath);
             }
         }
 
-        private readonly ObservableCollection<string> _emptyTags = new();
+        /// <summary>
+        /// Importされた動画（フルパス）一覧
+        /// </summary>
+        public ObservableCollection<string> ImportedVideos { get; } = new ObservableCollection<string>();
 
         public void AddImportedVideo(string path)
         {
@@ -64,27 +56,14 @@ namespace PlayCutWin
             if (!ImportedVideos.Contains(path))
                 ImportedVideos.Add(path);
 
+            // 追加したら自動的にそれを選択にしておく
             SelectedVideoPath = path;
-            OnPropertyChanged(nameof(CurrentTags));
         }
 
-        public void SetSelected(string? path)
+        public void SelectVideo(string path)
         {
+            if (string.IsNullOrWhiteSpace(path)) return;
             SelectedVideoPath = path;
-            OnPropertyChanged(nameof(CurrentTags));
-        }
-
-        public void AddTagToSelected(string tag)
-        {
-            if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return;
-            tag = tag.Trim();
-            if (tag.Length == 0) return;
-
-            var tags = CurrentTags;
-            if (!tags.Contains(tag))
-                tags.Add(tag);
-
-            OnPropertyChanged(nameof(CurrentTags));
         }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
