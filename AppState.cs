@@ -7,10 +7,10 @@ namespace PlayCutWin
 {
     public sealed class AppState : INotifyPropertyChanged
     {
-        // ✅ 互換用：いまのコードが AppState.Current を参照してるので必須
+        // 互換：旧コードが Current を参照
         public static AppState Current => Instance;
 
-        // ✅ こちらでも参照できるように残す
+        // 現行：Instance でも参照可
         public static AppState Instance { get; } = new AppState();
 
         private AppState() { }
@@ -53,11 +53,18 @@ namespace PlayCutWin
             SelectedVideoPath = path;
         }
 
+        // 現行API
         public void SelectVideo(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
             SelectedVideoPath = path;
         }
+
+        // ✅ 互換API：ClipsViewが呼んでいる可能性が高い
+        public void SetSelected(string path) => SelectVideo(path);
+
+        // ✅ 互換API：将来別名が出ても困らないように（あっても害なし）
+        public void SetSelectedVideo(string path) => SelectVideo(path);
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
