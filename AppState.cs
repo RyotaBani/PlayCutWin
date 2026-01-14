@@ -1,4 +1,3 @@
-using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -8,7 +7,10 @@ namespace PlayCutWin
 {
     public sealed class AppState : INotifyPropertyChanged
     {
-        // ✅ これが無いせいで Instance エラーになってた
+        // ✅ 互換用：いまのコードが AppState.Current を参照してるので必須
+        public static AppState Current => Instance;
+
+        // ✅ こちらでも参照できるように残す
         public static AppState Instance { get; } = new AppState();
 
         private AppState() { }
@@ -17,9 +19,6 @@ namespace PlayCutWin
 
         private string? _selectedVideoPath;
 
-        /// <summary>
-        /// 今選択されている動画のフルパス
-        /// </summary>
         public string? SelectedVideoPath
         {
             get => _selectedVideoPath;
@@ -32,9 +31,6 @@ namespace PlayCutWin
             }
         }
 
-        /// <summary>
-        /// 今選択されている動画のファイル名（表示用）
-        /// </summary>
         public string SelectedVideoFileName
         {
             get
@@ -44,9 +40,7 @@ namespace PlayCutWin
             }
         }
 
-        /// <summary>
-        /// Importされた動画（フルパス）一覧
-        /// </summary>
+        // Importした動画一覧（フルパス）
         public ObservableCollection<string> ImportedVideos { get; } = new ObservableCollection<string>();
 
         public void AddImportedVideo(string path)
@@ -56,7 +50,6 @@ namespace PlayCutWin
             if (!ImportedVideos.Contains(path))
                 ImportedVideos.Add(path);
 
-            // 追加したら自動的にそれを選択にしておく
             SelectedVideoPath = path;
         }
 
