@@ -9,45 +9,37 @@ namespace PlayCutWin.Views
         public TagsView()
         {
             InitializeComponent();
+            Refresh();
 
-            UpdateSelected();
-            AppState.Current.PropertyChanged += Current_PropertyChanged;
+            PlayCutWin.AppState.Current.PropertyChanged += OnStateChanged;
         }
 
-        private void Current_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppState.SelectedVideo) ||
-                e.PropertyName == nameof(AppState.SelectedVideoDisplay))
+            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideo) ||
+                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
             {
-                UpdateSelected();
+                Refresh();
             }
         }
 
-        private void UpdateSelected()
+        private void Refresh()
         {
-            var sel = AppState.Current.SelectedVideo;
-            SelectedPathText.Text = sel == null ? "(none)" : sel.Path;
+            var path = PlayCutWin.AppState.Current.SelectedVideoPath;
+            SelectedPathText.Text = string.IsNullOrWhiteSpace(path) ? "(none)" : path;
         }
 
         private void AddTag_Click(object sender, RoutedEventArgs e)
         {
-            var sel = AppState.Current.SelectedVideo;
-            if (sel == null)
+            var tag = TagInput.Text?.Trim() ?? "";
+            if (tag.Length == 0)
             {
-                MessageBox.Show("先に Clips で動画を選択してね。", "PlayCut",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("タグを入力してね（仮）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            var tag = TagInput.Text?.Trim();
-            if (string.IsNullOrEmpty(tag))
-            {
-                InfoText.Text = "タグが空です。";
-                return;
-            }
-
-            // まだタグモデルは作ってないので表示だけ
-            InfoText.Text = $"(dummy) Added tag '{tag}' to {sel.Name}";
+            var selected = PlayCutWin.AppState.Current.SelectedVideoName;
+            MessageBox.Show($"(dummy)\nTag: {tag}\nSelected: {selected}", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
             TagInput.Text = "";
         }
     }

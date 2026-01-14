@@ -3,49 +3,48 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent">
     <Grid Margin="16">
-        <Border Background="#1A1A1A" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="0" Padding="16">
-            <StackPanel>
-                <TextBlock Text="✅ Windows build is working"
-                           Foreground="#EDEDED"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,6"/>
+        <StackPanel>
+            <TextBlock Text="✅ Windows build is working"
+                       Foreground="#EDEDED"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,6"/>
 
-                <TextBlock Text="Next: replace this area with real PlayCut UI (timeline / tags / clip list)."
-                           Foreground="#B0B0B0"
-                           FontSize="13"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10"/>
+            <TextBlock Text="Next: replace this area with real PlayCut UI (timeline / tags / clip list)."
+                       Foreground="#B0B0B0"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12"/>
 
-                <TextBlock x:Name="SelectedText"
-                           Text="Selected: (none)"
-                           Foreground="#CFCFCF"
-                           FontSize="12"
-                           Margin="0,0,0,14"/>
+            <TextBlock x:Name="SelectedText"
+                       Text="(selected video will appear here)"
+                       Foreground="#D0D0D0"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,14"/>
 
-                <WrapPanel>
-                    <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="Import" Foreground="White" FontWeight="SemiBold"/>
-                            <TextBlock Text="動画読み込み（上のボタン）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Border>
+            <WrapPanel>
+                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="Import" Foreground="White" FontWeight="SemiBold"/>
+                        <TextBlock Text="動画読み込み（上のボタン）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
 
-                    <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="Clips" Foreground="White" FontWeight="SemiBold"/>
-                            <TextBlock Text="動画一覧（選択共有）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Border>
+                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="Clips" Foreground="White" FontWeight="SemiBold"/>
+                        <TextBlock Text="動画一覧（選択共有）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
 
-                    <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="Tags" Foreground="White" FontWeight="SemiBold"/>
-                            <TextBlock Text="選択動画にタグ追加（仮）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Border>
-                </WrapPanel>
-            </StackPanel>
-        </Border>
+                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="Tags" Foreground="White" FontWeight="SemiBold"/>
+                        <TextBlock Text="選択動画にタグ追加（仮）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+            </WrapPanel>
+        </StackPanel>
     </Grid>
 </UserControl>

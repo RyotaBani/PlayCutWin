@@ -9,37 +9,30 @@ namespace PlayCutWin.Views
         public ExportsView()
         {
             InitializeComponent();
+            Refresh();
 
-            UpdateSelected();
-            AppState.Current.PropertyChanged += Current_PropertyChanged;
+            PlayCutWin.AppState.Current.PropertyChanged += OnStateChanged;
         }
 
-        private void Current_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppState.SelectedVideo) ||
-                e.PropertyName == nameof(AppState.SelectedVideoDisplay))
+            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideo) ||
+                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
             {
-                UpdateSelected();
+                Refresh();
             }
         }
 
-        private void UpdateSelected()
+        private void Refresh()
         {
-            var sel = AppState.Current.SelectedVideo;
-            SelectedPathText.Text = sel == null ? "(none)" : sel.Path;
+            var path = PlayCutWin.AppState.Current.SelectedVideoPath;
+            SelectedPathText.Text = string.IsNullOrWhiteSpace(path) ? "(none)" : path;
         }
 
-        private void ExportDummy_Click(object sender, RoutedEventArgs e)
+        private void Export_Click(object sender, RoutedEventArgs e)
         {
-            var sel = AppState.Current.SelectedVideo;
-            if (sel == null)
-            {
-                MessageBox.Show("先に Clips で動画を選択してね。", "PlayCut",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            InfoText.Text = $"(dummy) Export requested for: {sel.Name}";
+            var selected = PlayCutWin.AppState.Current.SelectedVideoName;
+            MessageBox.Show($"Export dummy\nSelected: {selected}", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 }

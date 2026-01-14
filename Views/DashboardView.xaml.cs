@@ -8,24 +8,27 @@ namespace PlayCutWin.Views
         public DashboardView()
         {
             InitializeComponent();
-            UpdateSelected();
+            Refresh();
 
-            AppState.Current.PropertyChanged += Current_PropertyChanged;
+            PlayCutWin.AppState.Current.PropertyChanged += OnAppStateChanged;
         }
 
-        private void Current_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        private void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppState.SelectedVideo) ||
-                e.PropertyName == nameof(AppState.SelectedVideoDisplay))
+            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideo) ||
+                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoName) ||
+                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
             {
-                UpdateSelected();
+                Refresh();
             }
         }
 
-        private void UpdateSelected()
+        private void Refresh()
         {
-            var sel = AppState.Current.SelectedVideo;
-            SelectedText.Text = sel == null ? "Selected: (none)" : $"Selected: {sel.Name}";
+            var s = PlayCutWin.AppState.Current;
+            SelectedText.Text = s.SelectedVideoPath.Length > 0
+                ? s.SelectedVideoPath
+                : "(no video selected)";
         }
     }
 }

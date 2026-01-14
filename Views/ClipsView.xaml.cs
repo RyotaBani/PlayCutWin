@@ -1,4 +1,4 @@
-using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows.Controls;
 
 namespace PlayCutWin.Views
@@ -9,27 +9,36 @@ namespace PlayCutWin.Views
         {
             InitializeComponent();
 
-            VideosGrid.ItemsSource = AppState.Current.ImportedVideos;
+            VideosGrid.ItemsSource = PlayCutWin.AppState.Current.ImportedVideos;
 
-            AppState.Current.ImportedVideos.CollectionChanged += ImportedVideos_CollectionChanged;
-            UpdateCount();
+            RefreshCount();
+            PlayCutWin.AppState.Current.PropertyChanged += OnStateChanged;
+            PlayCutWin.AppState.Current.ImportedVideos.CollectionChanged += (_, __) => RefreshCount();
         }
 
-        private void ImportedVideos_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            UpdateCount();
+            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideo))
+            {
+                // 選択が外から変わった時も DataGrid の選択を合わせる
+                var s = PlayCutWin.AppState.Current.SelectedVideo;
+                if (s != null && VideosGrid.SelectedItem != s)
+                    VideosGrid.SelectedItem = s;
+            }
         }
 
-        private void UpdateCount()
+        private void RefreshCount()
         {
-            CountText.Text = $"Count: {AppState.Current.ImportedVideos.Count}";
+            var count = PlayCutWin.AppState.Current.ImportedCount;
+            CountText.Text = $"Count: {count}";
+            RightCount.Text = $"Count: {count}";
         }
 
         private void VideosGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (VideosGrid.SelectedItem is VideoItem item)
+            if (VideosGrid.SelectedItem is PlayCutWin.VideoItem item)
             {
-                AppState.Current.SetSelected(item); // ← ここが今回の共有ポイント
+                PlayCutWin.AppState.Current.SetSelected(item);
             }
         }
     }
