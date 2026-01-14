@@ -1,39 +1,41 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    public sealed class AppState : INotifyPropertyChanged
+    public class ImportedVideo
     {
-        public static AppState Current { get; } = new AppState();
-        public static AppState Instance => Current;
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+    }
 
-        private AppState() { }
+    public class TagEntry
+    {
+        public string Time { get; set; } = "00:00";   // mm:ss
+        public string Text { get; set; } = "";
+        public string VideoPath { get; set; } = "";
+    }
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    public class AppState : INotifyPropertyChanged
+    {
+        // Singleton
+        private static readonly AppState _instance = new AppState();
+        public static AppState Instance => _instance;
 
-        // ---- Status ----
-        private string _statusMessage = "Ready";
-        public string StatusMessage
+        // 互換用（以前のコードが AppState.Current / AppState.Instance 両方参照しても落ちないように）
+        public static AppState Current => _instance;
+
+        private AppState()
         {
-            get => _statusMessage;
-            set
-            {
-                if (_statusMessage == value) return;
-                _statusMessage = value;
-                OnPropertyChanged();
-            }
+            ImportedVideos = new ObservableCollection<ImportedVideo>();
+            Tags = new ObservableCollection<TagEntry>();
         }
 
-        // ---- Imported videos ----
-        public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
+        public ObservableCollection<ImportedVideo> ImportedVideos { get; }
+        public ObservableCollection<TagEntry> Tags { get; }
 
-        // ---- Selected video ----
         private string? _selectedVideoPath;
         public string? SelectedVideoPath
         {
@@ -44,9 +46,6 @@ namespace PlayCutWin
                 _selectedVideoPath = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedVideoName));
-
-                // 動画を切り替えたら、その動画のタグ一覧に切り替え
-                SyncTagsForSelectedVideo();
             }
         }
 
@@ -54,119 +53,53 @@ namespace PlayCutWin
         {
             get
             {
-                if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return "";
-                return Path.GetFileName(SelectedVideoPath);
+                if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return "(none)";
+                return System.IO.Path.GetFileName(SelectedVideoPath);
             }
         }
 
-        // ---- Playback position shared ----
-        private double _playbackSeconds;
-        public double PlaybackSeconds
+        private TimeSpan _playbackPosition = TimeSpan.Zero;
+        public TimeSpan PlaybackPosition
         {
-            get => _playbackSeconds;
+            get => _playbackPosition;
             set
             {
-                if (Math.Abs(_playbackSeconds - value) < 0.001) return;
-                _playbackSeconds = value;
+                if (_playbackPosition == value) return;
+                _playbackPosition = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(PlaybackTimeText));
+                OnPropertyChanged(nameof(PlaybackPositionText));
             }
         }
 
-        public string PlaybackTimeText
+        public string PlaybackPositionText => FormatTime(PlaybackPosition);
+
+        public void SetSelected(string? videoPath)
         {
-            get
-            {
-                var t = TimeSpan.FromSeconds(Math.Max(0, PlaybackSeconds));
-                if (t.TotalHours >= 1) return t.ToString(@"hh\:mm\:ss");
-                return t.ToString(@"mm\:ss");
-            }
+            SelectedVideoPath = videoPath;
         }
 
-        // ---- Tags ----
-        // 選択中動画のタグ（表示用）
-        public ObservableCollection<TagItem> Tags { get; } = new ObservableCollection<TagItem>();
-
-        // 全動画ぶんのタグを保持（キー：動画パス）
-        private readonly Dictionary<string, ObservableCollection<TagItem>> _tagsByVideoPath
-            = new Dictionary<string, ObservableCollection<TagItem>>(StringComparer.OrdinalIgnoreCase);
-
-        public void AddImportedVideo(string fullPath)
+        public void AddTag(string tagText)
         {
-            if (string.IsNullOrWhiteSpace(fullPath)) return;
-
-            var item = new VideoItem
-            {
-                Name = Path.GetFileName(fullPath),
-                Path = fullPath
-            };
-
-            ImportedVideos.Add(item);
-
-            // 追加したらそれを選択にする
-            SetSelected(fullPath);
-
-            StatusMessage = $"Imported: {item.Name}";
-        }
-
-        public void SetSelected(string? fullPath)
-        {
-            if (string.IsNullOrWhiteSpace(fullPath)) return;
-            SelectedVideoPath = fullPath;
-            StatusMessage = $"Selected: {Path.GetFileName(fullPath)}";
-        }
-
-        private void SyncTagsForSelectedVideo()
-        {
-            Tags.Clear();
-
             if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return;
 
-            if (!_tagsByVideoPath.TryGetValue(SelectedVideoPath, out var list))
+            Tags.Add(new TagEntry
             {
-                list = new ObservableCollection<TagItem>();
-                _tagsByVideoPath[SelectedVideoPath] = list;
-            }
-
-            foreach (var t in list) Tags.Add(t);
+                Time = PlaybackPositionText,
+                Text = tagText.Trim(),
+                VideoPath = SelectedVideoPath!
+            });
         }
 
-        public void AddTagToSelectedVideo(string tagText)
+        public static string FormatTime(TimeSpan ts)
         {
-            if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return;
-            tagText = tagText.Trim();
-            if (string.IsNullOrWhiteSpace(tagText)) return;
-
-            if (!_tagsByVideoPath.TryGetValue(SelectedVideoPath, out var list))
-            {
-                list = new ObservableCollection<TagItem>();
-                _tagsByVideoPath[SelectedVideoPath] = list;
-            }
-
-            var item = new TagItem
-            {
-                TimeSeconds = PlaybackSeconds,
-                TimeText = PlaybackTimeText,
-                Tag = tagText
-            };
-
-            list.Add(item);
-            Tags.Add(item);
-
-            StatusMessage = $"Tag added: {tagText} @ {item.TimeText}";
+            var totalSeconds = (int)Math.Max(0, ts.TotalSeconds);
+            var mm = totalSeconds / 60;
+            var ss = totalSeconds % 60;
+            return $"{mm:00}:{ss:00}";
         }
-    }
 
-    public sealed class VideoItem
-    {
-        public string Name { get; set; } = "";
-        public string Path { get; set; } = "";
-    }
-
-    public sealed class TagItem
-    {
-        public double TimeSeconds { get; set; }
-        public string TimeText { get; set; } = "";
-        public string Tag { get; set; } = "";
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }
