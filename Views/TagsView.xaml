@@ -21,7 +21,7 @@
                 </DockPanel>
 
                 <DockPanel>
-                    <TextBox x:Name="TagInput" Height="28" ReminderText="tag..." Margin="0,0,10,0"/>
+                    <TextBox x:Name="TagInput" Height="28" Margin="0,0,10,0"/>
                     <Button Content="Add Tag" Width="120" Click="AddTag_Click"/>
                 </DockPanel>
             </StackPanel>
