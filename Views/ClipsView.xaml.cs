@@ -32,7 +32,7 @@ namespace PlayCutWin.Views
         private void VideoGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var item = VideoGrid.SelectedItem as VideoItem;
-            AppState.Current.SetSelected(item);
+            AppState.Current.SelectedVideo = item;
 
             if (item == null)
             {
