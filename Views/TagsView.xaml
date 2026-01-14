@@ -8,10 +8,22 @@
                        Foreground="White"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Margin="0,0,0,6"/>
-            <TextBlock Text="（次のステップでタグ管理UIを作る）"
+                       Margin="0,0,0,10"/>
+
+            <TextBlock Text="Selected video:"
                        Foreground="#B0B0B0"
-                       FontSize="13"/>
+                       FontSize="12"/>
+
+            <TextBlock x:Name="SelectedVideoText"
+                       Text="(none)"
+                       Foreground="White"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,6,0,14"/>
+
+            <TextBlock Text="（次：ここにタグ追加UIを作る）"
+                       Foreground="#9A9A9A"
+                       FontSize="12"/>
         </StackPanel>
     </Border>
 </UserControl>

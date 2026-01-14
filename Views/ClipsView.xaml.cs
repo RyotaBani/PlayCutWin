@@ -1,4 +1,5 @@
-using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Controls;
@@ -7,30 +8,70 @@ namespace PlayCutWin.Views
 {
     public partial class ClipsView : UserControl
     {
+        private bool _suppressSelection = false;
+
         public ClipsView()
         {
             InitializeComponent();
 
-            // 初期表示
             Refresh();
 
-            // 追加/削除を反映
             PlayCutWin.AppState.Instance.ImportedVideos.CollectionChanged += (_, __) =>
-            {
-                // UI更新
                 Dispatcher.Invoke(Refresh);
-            };
+
+            PlayCutWin.AppState.Instance.PropertyChanged += AppState_PropertyChanged;
+        }
+
+        private void AppState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
+            {
+                Dispatcher.Invoke(SyncSelectionFromState);
+            }
+        }
+
+        private sealed class VideoRow
+        {
+            public string Name { get; set; } = "";
+            public string Path { get; set; } = "";
         }
 
         private void Refresh()
         {
-            // ListBoxにはファイル名を表示（裏ではフルパス）
-            var items = PlayCutWin.AppState.Instance.ImportedVideos
-                .Select(p => $"{Path.GetFileName(p)}   |   {p}")
+            var rows = PlayCutWin.AppState.Instance.ImportedVideos
+                .Select(p => new VideoRow { Name = Path.GetFileName(p), Path = p })
                 .ToList();
 
-            VideoList.ItemsSource = items;
-            CountText.Text = $"Count: {items.Count}";
+            VideoList.ItemsSource = rows;
+            CountText.Text = $"Count: {rows.Count}";
+
+            SyncSelectionFromState();
+        }
+
+        private void SyncSelectionFromState()
+        {
+            if (VideoList.ItemsSource is not IEnumerable<VideoRow> rows) return;
+
+            var selectedPath = PlayCutWin.AppState.Instance.SelectedVideoPath;
+            if (string.IsNullOrWhiteSpace(selectedPath)) return;
+
+            var target = rows.FirstOrDefault(r => r.Path == selectedPath);
+            if (target == null) return;
+
+            _suppressSelection = true;
+            VideoList.SelectedItem = target;
+            VideoList.ScrollIntoView(target);
+            _suppressSelection = false;
+        }
+
+        private void VideoList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressSelection) return;
+
+            if (VideoList.SelectedItem is VideoRow row)
+            {
+                PlayCutWin.AppState.Instance.SelectedVideoPath = row.Path;
+            }
         }
     }
 }
