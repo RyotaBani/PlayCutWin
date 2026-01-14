@@ -8,16 +8,10 @@
                        Foreground="White"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Margin="0,0,0,8"/>
-            <TextBlock Text="ここにタグ編集UI（追加/削除/プリセット/ショートカット割当など）を実装する。"
+                       Margin="0,0,0,6"/>
+            <TextBlock Text="（次のステップでタグ管理UIを作る）"
                        Foreground="#B0B0B0"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,12"/>
-
-            <Border Background="#222222" CornerRadius="8" Padding="12" BorderBrush="#2A2A2A" BorderThickness="1">
-                <TextBlock Text="(placeholder) tags editor"
-                           Foreground="#AFAFAF"/>
-            </Border>
+                       FontSize="13"/>
         </StackPanel>
     </Border>
 </UserControl>

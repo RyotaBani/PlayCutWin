@@ -1,6 +1,9 @@
 using Microsoft.Win32;
+using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using PlayCutWin.Views;
 
 namespace PlayCutWin
 {
@@ -11,83 +14,93 @@ namespace PlayCutWin
             InitializeComponent();
 
             // 初期表示
-            MenuList.SelectedIndex = 0;
-            SetPage("Dashboard");
+            MenuList.SelectedIndex = 0; // Dashboard
         }
 
         private void MenuList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (MenuList.SelectedItem is ListBoxItem item && item.Tag is string tag)
-            {
-                SetPage(tag);
-            }
+            if (MenuList.SelectedItem is not ListBoxItem item) return;
+
+            var key = item.Content?.ToString() ?? "Dashboard";
+            NavigateTo(key);
         }
 
-        private void SetPage(string key)
+        private void NavigateTo(string key)
         {
+            PageTitle.Text = key;
+
             switch (key)
             {
                 case "Dashboard":
-                    PageTitle.Text = "Dashboard";
-                    MainContent.ContentTemplate = (DataTemplate)Resources["DashboardTemplate"];
+                    MainContent.Content = new DashboardView();
                     StatusText.Text = "Ready - Dashboard";
                     break;
 
                 case "Clips":
-                    PageTitle.Text = "Clips";
-                    MainContent.ContentTemplate = (DataTemplate)Resources["ClipsTemplate"];
+                    MainContent.Content = new ClipsView();
                     StatusText.Text = "Ready - Clips";
                     break;
 
                 case "Tags":
-                    PageTitle.Text = "Tags";
-                    MainContent.ContentTemplate = (DataTemplate)Resources["TagsTemplate"];
+                    MainContent.Content = new TagsView();
                     StatusText.Text = "Ready - Tags";
                     break;
 
                 case "Exports":
-                    PageTitle.Text = "Exports";
-                    MainContent.ContentTemplate = (DataTemplate)Resources["ExportsTemplate"];
+                    MainContent.Content = new ExportsView();
                     StatusText.Text = "Ready - Exports";
                     break;
 
                 default:
-                    PageTitle.Text = "Dashboard";
-                    MainContent.ContentTemplate = (DataTemplate)Resources["DashboardTemplate"];
-                    StatusText.Text = "Ready - Dashboard";
+                    MainContent.Content = new DashboardView();
+                    StatusText.Text = "Ready";
                     break;
             }
         }
 
         private void ImportVideo_Click(object sender, RoutedEventArgs e)
         {
-            // まずは “Windowsでファイル選べる” を確実にする
             var dlg = new OpenFileDialog
             {
-                Title = "Select a video file",
-                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.mkv|All Files|*.*"
+                Title = "Import Video",
+                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.mkv|All Files|*.*",
+                Multiselect = true
             };
 
-            if (dlg.ShowDialog() == true)
+            if (dlg.ShowDialog() != true)
             {
-                StatusText.Text = $"Imported: {System.IO.Path.GetFileName(dlg.FileName)}";
-                MessageBox.Show($"Selected:\n{dlg.FileName}", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusText.Text = "Import cancelled";
+                return;
             }
-            else
+
+            foreach (var file in dlg.FileNames)
             {
-                StatusText.Text = "Import canceled";
+                if (File.Exists(file))
+                {
+                    AppState.Instance.ImportedVideos.Add(file);
+                }
             }
+
+            // 先頭だけ見せる（複数選択も対応）
+            var first = dlg.FileNames.Length > 0 ? dlg.FileNames[0] : "(none)";
+            MessageBox.Show($"Selected:\n{first}", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
+            StatusText.Text = $"Imported: {Path.GetFileName(first)}";
+
+            // Importしたら自動で Clips に移動
+            MenuList.SelectedIndex = 1; // Clips
         }
 
         private void ExportClip_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Export (placeholder)\nここに Export 処理を追加する。", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Export (placeholder)\nここにクリップ書き出しを追加する。", "PlayCut",
+                MessageBoxButton.OK, MessageBoxImage.Information);
             StatusText.Text = "Export clicked";
         }
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Settings (placeholder)\nここに設定画面を追加する。", "Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Settings (placeholder)\n次にここに設定画面を追加する。", "PlayCut",
+                MessageBoxButton.OK, MessageBoxImage.Information);
             StatusText.Text = "Settings clicked";
         }
     }

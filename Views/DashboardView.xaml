@@ -20,7 +20,14 @@
                 <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <StackPanel>
                         <TextBlock Text="Import" Foreground="White" FontWeight="SemiBold"/>
-                        <TextBlock Text="動画読み込み（仮ボタン）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                        <TextBlock Text="動画読み込み（上のImport Video）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="Clips" Foreground="White" FontWeight="SemiBold"/>
+                        <TextBlock Text="Importした動画を一覧表示（次のステップ）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
 
@@ -28,13 +35,6 @@
                     <StackPanel>
                         <TextBlock Text="Tagging" Foreground="White" FontWeight="SemiBold"/>
                         <TextBlock Text="タグ付けUI（ここに実装）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Export" Foreground="White" FontWeight="SemiBold"/>
-                        <TextBlock Text="クリップ書き出し（後で）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
             </WrapPanel>

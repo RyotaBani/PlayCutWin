@@ -7,58 +7,6 @@
         WindowStartupLocation="CenterScreen"
         Background="#111111">
 
-    <Window.Resources>
-        <!-- 左メニューの見た目 -->
-        <Style TargetType="ListBox">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-
-        <Style TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                BorderBrush="#2A2A2A"
-                                BorderThickness="1"
-                                Opacity="0.95">
-                            <ContentPresenter Margin="4,2"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#222222"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1D1D1D"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- 右側の ContentControl に表示する View を登録 -->
-        <DataTemplate x:Key="DashboardTemplate">
-            <views:DashboardView/>
-        </DataTemplate>
-        <DataTemplate x:Key="ClipsTemplate">
-            <views:ClipsView/>
-        </DataTemplate>
-        <DataTemplate x:Key="TagsTemplate">
-            <views:TagsView/>
-        </DataTemplate>
-        <DataTemplate x:Key="ExportsTemplate">
-            <views:ExportsView/>
-        </DataTemplate>
-    </Window.Resources>
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="56"/>   <!-- Top bar -->
@@ -95,12 +43,11 @@
             <Border Grid.Column="0" Background="#151515" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
                 <StackPanel Margin="12">
                     <TextBlock Text="Library" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
-
                     <ListBox x:Name="MenuList" SelectionChanged="MenuList_SelectionChanged">
-                        <ListBoxItem Content="Dashboard" Tag="Dashboard"/>
-                        <ListBoxItem Content="Clips"     Tag="Clips"/>
-                        <ListBoxItem Content="Tags"      Tag="Tags"/>
-                        <ListBoxItem Content="Exports"   Tag="Exports"/>
+                        <ListBoxItem Content="Dashboard"/>
+                        <ListBoxItem Content="Clips"/>
+                        <ListBoxItem Content="Tags"/>
+                        <ListBoxItem Content="Exports"/>
                     </ListBox>
 
                     <Separator Margin="0,14,0,14" Background="#2A2A2A"/>
@@ -125,10 +72,8 @@
                            FontWeight="SemiBold"
                            Margin="0,0,0,12"/>
 
-                <!-- ここに View を差し替えて表示 -->
-                <ContentControl x:Name="MainContent"
-                                Grid.Row="1"
-                                ContentTemplate="{StaticResource DashboardTemplate}"/>
+                <!-- ここを差し替える（Dashboard / Clips / Tags / Exports） -->
+                <ContentControl x:Name="MainContent" Grid.Row="1"/>
             </Grid>
         </Grid>
 

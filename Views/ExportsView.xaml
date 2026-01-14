@@ -8,16 +8,10 @@
                        Foreground="White"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Margin="0,0,0,8"/>
-            <TextBlock Text="ここに書き出し履歴（ファイル名/時間/タグ/保存先など）を表示する予定。"
+                       Margin="0,0,0,6"/>
+            <TextBlock Text="（ここに書き出し履歴・保存先などを作る）"
                        Foreground="#B0B0B0"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,12"/>
-
-            <Border Background="#222222" CornerRadius="8" Padding="12" BorderBrush="#2A2A2A" BorderThickness="1">
-                <TextBlock Text="(placeholder) export history"
-                           Foreground="#AFAFAF"/>
-            </Border>
+                       FontSize="13"/>
         </StackPanel>
     </Border>
 </UserControl>
