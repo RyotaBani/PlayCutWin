@@ -25,9 +25,9 @@
                            DockPanel.Dock="Left"/>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center">
-                    <Button Content="Import Video" Margin="0,0,8,0" Click="ImportVideo_Click"/>
-                    <Button Content="Export Clip"  Margin="0,0,8,0" Click="ExportClip_Click"/>
-                    <Button Content="Settings"     Click="Settings_Click"/>
+                    <Button Content="Import Video" Margin="0,0,8,0" Padding="12,6" Click="ImportVideo_Click"/>
+                    <Button Content="Export Clip"  Margin="0,0,8,0" Padding="12,6" Click="ExportClip_Click"/>
+                    <Button Content="Settings"     Padding="12,6" Click="Settings_Click"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -58,7 +58,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Main Area -->
+            <!-- Main -->
             <Grid Grid.Column="1" Margin="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>

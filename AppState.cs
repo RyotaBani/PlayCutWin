@@ -6,83 +6,87 @@ using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    public class VideoItem
-    {
-        public string Name { get; set; } = "";
-        public string Path { get; set; } = "";
-    }
-
     public sealed class AppState : INotifyPropertyChanged
     {
-        // Singleton
-        private static readonly AppState _instance = new AppState();
-
-        // どっちで呼ばれても動くように alias を用意
-        public static AppState Instance => _instance;
-        public static AppState Current => _instance;
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
-
-        private VideoItem? _selectedVideo;
-        public VideoItem? SelectedVideo
-        {
-            get => _selectedVideo;
-            private set
-            {
-                _selectedVideo = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedVideoName));
-                OnPropertyChanged(nameof(SelectedVideoPath));
-            }
-        }
-
-        public string SelectedVideoName => SelectedVideo?.Name ?? "(none)";
-        public string SelectedVideoPath => SelectedVideo?.Path ?? "";
+        // ✅ singleton（どっちで呼んでもOKにしておく）
+        public static AppState Current { get; } = new AppState();
+        public static AppState Instance => Current;
 
         private AppState() { }
 
-        public void AddImportedVideo(string filePath)
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+        // ---- Status ----
+        private string _statusMessage = "Ready";
+        public string StatusMessage
         {
+            get => _statusMessage;
+            set
+            {
+                if (_statusMessage == value) return;
+                _statusMessage = value;
+                OnPropertyChanged();
+            }
+        }
+
+        // ---- Imported videos ----
+        public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
+
+        // ---- Selected video ----
+        private string? _selectedVideoPath;
+        public string? SelectedVideoPath
+        {
+            get => _selectedVideoPath;
+            set
+            {
+                if (_selectedVideoPath == value) return;
+                _selectedVideoPath = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedVideoName));
+            }
+        }
+
+        public string SelectedVideoName
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return "";
+                return Path.GetFileName(SelectedVideoPath);
+            }
+        }
+
+        public void AddImportedVideo(string fullPath)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath)) return;
+
             var item = new VideoItem
             {
-                Name = System.IO.Path.GetFileName(filePath),
-                Path = filePath
+                Name = Path.GetFileName(fullPath),
+                Path = fullPath
             };
 
             ImportedVideos.Add(item);
 
-            // 追加したらそれを選択にする（使いやすい）
-            SetSelected(item);
-            OnPropertyChanged(nameof(ImportedCount));
+            // 追加したらそれを選択にする（UXよし）
+            SetSelected(fullPath);
+
+            StatusMessage = $"Imported: {item.Name}";
         }
 
-        public int ImportedCount => ImportedVideos.Count;
-
-        public void SetSelected(VideoItem? item)
+        public void SetSelected(string? fullPath)
         {
-            SelectedVideo = item;
+            if (string.IsNullOrWhiteSpace(fullPath)) return;
+            SelectedVideoPath = fullPath;
+            StatusMessage = $"Selected: {Path.GetFileName(fullPath)}";
         }
+    }
 
-        public void SetSelectedByPath(string filePath)
-        {
-            foreach (var v in ImportedVideos)
-            {
-                if (string.Equals(v.Path, filePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    SetSelected(v);
-                    return;
-                }
-            }
-        }
-
-        public void ClearSelection()
-        {
-            SelectedVideo = null;
-        }
-
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    public sealed class VideoItem
+    {
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
     }
 }

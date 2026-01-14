@@ -3,23 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent">
     <Grid Margin="16">
-        <Border Background="#141414" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="14">
+        <Border Background="#151515" CornerRadius="8" BorderBrush="#2A2A2A" BorderThickness="1" Padding="14">
             <StackPanel>
                 <TextBlock Text="Tags" Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
 
                 <TextBlock Text="Selected video:" Foreground="#B0B0B0" FontSize="12"/>
-                <TextBlock x:Name="SelectedPathText"
-                           Text="(none)"
-                           Foreground="#EDEDED"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,4,0,12"/>
+                <TextBlock Text="{Binding SelectedVideoPath}" Foreground="White" TextWrapping="Wrap" Margin="0,6,0,10"/>
 
-                <TextBlock Text="(placeholder) ここにタグUIを作る" Foreground="#9A9A9A" FontSize="12" Margin="0,0,0,10"/>
+                <TextBlock Text="(placeholder) ここにタグUIを作る" Foreground="#8F8F8F" Margin="0,0,0,10"/>
 
                 <DockPanel>
-                    <TextBox x:Name="TagInput" Width="260" Margin="0,0,10,0"/>
-                    <Button Content="Add Tag (dummy)" Click="AddTag_Click"/>
+                    <TextBox x:Name="TagInput" Height="28" Margin="0,0,10,0"/>
+                    <Button Content="Add Tag (dummy)" Width="160" Click="AddTag_Click"/>
                 </DockPanel>
             </StackPanel>
         </Border>

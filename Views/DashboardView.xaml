@@ -10,41 +10,28 @@
                        FontWeight="SemiBold"
                        Margin="0,0,0,6"/>
 
-            <TextBlock Text="Next: replace this area with real PlayCut UI (timeline / tags / clip list)."
+            <TextBlock Text="Next: add video preview playback (MediaElement)."
                        Foreground="#B0B0B0"
                        FontSize="13"
                        TextWrapping="Wrap"
-                       Margin="0,0,0,12"/>
-
-            <TextBlock x:Name="SelectedText"
-                       Text="(selected video will appear here)"
-                       Foreground="#D0D0D0"
-                       FontSize="12"
-                       TextWrapping="Wrap"
                        Margin="0,0,0,14"/>
 
-            <WrapPanel>
-                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Import" Foreground="White" FontWeight="SemiBold"/>
-                        <TextBlock Text="動画読み込み（上のボタン）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
+            <Border Background="#222222" CornerRadius="8" Padding="12" BorderBrush="#2A2A2A" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Selected video:"
+                               Foreground="#B0B0B0"
+                               FontSize="12"/>
+                    <TextBlock Text="{Binding SelectedVideoPath}"
+                               Foreground="White"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
 
-                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Clips" Foreground="White" FontWeight="SemiBold"/>
-                        <TextBlock Text="動画一覧（選択共有）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Tags" Foreground="White" FontWeight="SemiBold"/>
-                        <TextBlock Text="選択動画にタグ追加（仮）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-            </WrapPanel>
+            <TextBlock Text="Tip: まず Clips で選択 → そのまま再生できるようにする（次のコミット）"
+                       Foreground="#8F8F8F"
+                       Margin="0,12,0,0"/>
         </StackPanel>
     </Grid>
 </UserControl>

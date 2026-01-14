@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -9,38 +8,20 @@ namespace PlayCutWin.Views
         public TagsView()
         {
             InitializeComponent();
-            Refresh();
-
-            PlayCutWin.AppState.Current.PropertyChanged += OnStateChanged;
-        }
-
-        private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideo) ||
-                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
-            {
-                Refresh();
-            }
-        }
-
-        private void Refresh()
-        {
-            var path = PlayCutWin.AppState.Current.SelectedVideoPath;
-            SelectedPathText.Text = string.IsNullOrWhiteSpace(path) ? "(none)" : path;
+            DataContext = AppState.Current;
         }
 
         private void AddTag_Click(object sender, RoutedEventArgs e)
         {
-            var tag = TagInput.Text?.Trim() ?? "";
-            if (tag.Length == 0)
+            var text = TagInput.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(text))
             {
-                MessageBox.Show("タグを入力してね（仮）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("タグを入れてね（仮）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            var selected = PlayCutWin.AppState.Current.SelectedVideoName;
-            MessageBox.Show($"(dummy)\nTag: {tag}\nSelected: {selected}", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
-            TagInput.Text = "";
+            MessageBox.Show($"Add Tag (dummy): {text}\n（将来：選択動画にタグ付けして保存）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+            TagInput.Clear();
         }
     }
 }

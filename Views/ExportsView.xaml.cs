@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -9,30 +8,12 @@ namespace PlayCutWin.Views
         public ExportsView()
         {
             InitializeComponent();
-            Refresh();
-
-            PlayCutWin.AppState.Current.PropertyChanged += OnStateChanged;
-        }
-
-        private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideo) ||
-                e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
-            {
-                Refresh();
-            }
-        }
-
-        private void Refresh()
-        {
-            var path = PlayCutWin.AppState.Current.SelectedVideoPath;
-            SelectedPathText.Text = string.IsNullOrWhiteSpace(path) ? "(none)" : path;
+            DataContext = AppState.Current;
         }
 
         private void Export_Click(object sender, RoutedEventArgs e)
         {
-            var selected = PlayCutWin.AppState.Current.SelectedVideoName;
-            MessageBox.Show($"Export dummy\nSelected: {selected}", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Export (dummy)\n（将来：選択範囲の切り出し→保存）", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 }
