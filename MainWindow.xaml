@@ -1,115 +1,96 @@
-using Microsoft.Win32;
-using System.ComponentModel;
-using System.IO;
-using System.Windows;
-using System.Windows.Controls;
-using PlayCutWin.Views;
+<Window x:Class="PlayCutWin.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:PlayCutWin.Views"
+        Title="PlayCut (Windows)"
+        Width="1100" Height="700"
+        WindowStartupLocation="CenterScreen"
+        Background="#111111">
 
-namespace PlayCutWin
-{
-    public partial class MainWindow : Window
-    {
-        public MainWindow()
-        {
-            InitializeComponent();
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>   <!-- Top bar -->
+            <RowDefinition Height="*"/>    <!-- Body -->
+            <RowDefinition Height="28"/>   <!-- Status -->
+        </Grid.RowDefinitions>
 
-            // AppState の変更を StatusBar に反映
-            AppState.Instance.PropertyChanged += AppState_PropertyChanged;
-            UpdateStatusBar();
+        <!-- Top Bar -->
+        <Border Grid.Row="0" Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" Margin="12,0">
+                <TextBlock Text="PlayCut"
+                           Foreground="White"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           DockPanel.Dock="Left"/>
 
-            // 初期表示
-            MenuList.SelectedIndex = 0; // Dashboard
-        }
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <Button Content="Import Video" Margin="0,0,8,0" Padding="12,6" Click="ImportVideo_Click"/>
+                    <Button Content="Export Clip"  Margin="0,0,8,0" Padding="12,6" Click="ExportClip_Click"/>
+                    <Button Content="Settings"     Padding="12,6" Click="Settings_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
-        private void AppState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(AppState.SelectedVideoPath) ||
-                e.PropertyName == nameof(AppState.SelectedVideoFileName))
-            {
-                Dispatcher.Invoke(UpdateStatusBar);
-            }
-        }
+        <!-- Body -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240"/> <!-- Left menu -->
+                <ColumnDefinition Width="*"/>   <!-- Main -->
+            </Grid.ColumnDefinitions>
 
-        private void UpdateStatusBar()
-        {
-            var selected = AppState.Instance.SelectedVideoFileName;
-            StatusText.Text = $"Ready - {PageTitle.Text} | Selected: {selected}";
-        }
+            <!-- Left Menu -->
+            <Border Grid.Column="0" Background="#151515" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
+                <StackPanel Margin="12">
+                    <TextBlock Text="Library" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
 
-        private void MenuList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (MenuList.SelectedItem is not ListBoxItem item) return;
-            var key = item.Content?.ToString() ?? "Dashboard";
-            NavigateTo(key);
-        }
+                    <ListBox x:Name="MenuList" SelectionChanged="MenuList_SelectionChanged">
+                        <ListBoxItem Content="Dashboard"/>
+                        <ListBoxItem Content="Clips"/>
+                        <ListBoxItem Content="Tags"/>
+                        <ListBoxItem Content="Exports"/>
+                    </ListBox>
 
-        private void NavigateTo(string key)
-        {
-            PageTitle.Text = key;
+                    <Separator Margin="0,14,0,14" Background="#2A2A2A"/>
 
-            switch (key)
-            {
-                case "Dashboard":
-                    MainContent.Content = new DashboardView();
-                    break;
-                case "Clips":
-                    MainContent.Content = new ClipsView();
-                    break;
-                case "Tags":
-                    MainContent.Content = new TagsView();
-                    break;
-                case "Exports":
-                    MainContent.Content = new ExportsView();
-                    break;
-                default:
-                    MainContent.Content = new DashboardView();
-                    break;
-            }
+                    <TextBlock Text="Project" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
+                    <TextBlock Text="PlayCutWin" Foreground="White" FontSize="14" FontWeight="SemiBold"/>
+                    <TextBlock Text="Windows build / skeleton UI" Foreground="#9A9A9A" FontSize="12" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
 
-            UpdateStatusBar();
-        }
+            <!-- Main Area -->
+            <Grid Grid.Column="1" Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-        private void ImportVideo_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title = "Import Video",
-                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.mkv|All Files|*.*",
-                Multiselect = true
-            };
+                <TextBlock x:Name="PageTitle"
+                           Text="Dashboard"
+                           Foreground="White"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,12"/>
 
-            if (dlg.ShowDialog() != true)
-            {
-                StatusText.Text = "Import cancelled";
-                return;
-            }
+                <!-- ★ここにページを差し替えて表示 -->
+                <ContentControl x:Name="MainContent" Grid.Row="1"/>
+            </Grid>
+        </Grid>
 
-            foreach (var file in dlg.FileNames)
-            {
-                if (File.Exists(file))
-                    AppState.Instance.ImportedVideos.Add(file);
-            }
-
-            // 先頭を「選択中」にする（複数選択でもOK）
-            if (dlg.FileNames.Length > 0)
-                AppState.Instance.SelectedVideoPath = dlg.FileNames[0];
-
-            MessageBox.Show($"Selected:\n{dlg.FileNames[0]}", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
-
-            // Importしたら自動で Clips に移動
-            MenuList.SelectedIndex = 1; // Clips
-        }
-
-        private void ExportClip_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Export (placeholder)\nここにクリップ書き出しを追加する。", "PlayCut",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void Settings_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Settings (placeholder)\n次にここに設定画面を追加する。", "PlayCut",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
-}
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#141414" BorderBrush="#2A2A2A" BorderThickness="0,1,0,0">
+            <DockPanel Margin="12,0" LastChildFill="True">
+                <TextBlock x:Name="StatusText"
+                           Text="Ready"
+                           Foreground="#BFBFBF"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="PlayCutWin"
+                           Foreground="#6F6F6F"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           DockPanel.Dock="Right"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
