@@ -6,7 +6,7 @@
     <Grid Margin="0">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="360"/>
+            <ColumnDefinition Width="420"/>
         </Grid.ColumnDefinitions>
 
         <!-- Left: list -->
@@ -17,6 +17,7 @@
                 BorderThickness="1"
                 Padding="16"
                 Margin="0,0,16,0">
+
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -34,35 +35,30 @@
                     <TextBlock Text="Imported Videos"
                                Foreground="#EDEDED"
                                FontSize="14"
-                               FontWeight="SemiBold"
-                               DockPanel.Dock="Left"/>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <TextBlock Text="Count: "
-                                   Foreground="#9A9A9A"
-                                   FontSize="12"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock x:Name="CountText"
-                                   Text="0"
-                                   Foreground="#EDEDED"
-                                   FontSize="12"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
+                               FontWeight="SemiBold"/>
+                    <TextBlock x:Name="CountText"
+                               DockPanel.Dock="Right"
+                               Text="Count: 0"
+                               Foreground="#BFBFBF"
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
                 </DockPanel>
 
-                <ListView x:Name="VideoList"
+                <DataGrid x:Name="VideoGrid"
                           Grid.Row="2"
-                          SelectionChanged="VideoList_SelectionChanged"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          SelectionChanged="VideoGrid_SelectionChanged"
                           Background="#111111"
                           BorderBrush="#2A2A2A"
                           BorderThickness="1"
                           Foreground="#EDEDED">
-                    <ListView.View>
-                        <GridView>
-                            <GridViewColumn Header="Name" Width="280" DisplayMemberBinding="{Binding Name}" />
-                            <GridViewColumn Header="Path" Width="520" DisplayMemberBinding="{Binding Path}" />
-                        </GridView>
-                    </ListView.View>
-                </ListView>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
+                        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="3*" />
+                    </DataGrid.Columns>
+                </DataGrid>
             </Grid>
         </Border>
 
@@ -73,6 +69,7 @@
                 BorderBrush="#2A2A2A"
                 BorderThickness="1"
                 Padding="16">
+
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -81,11 +78,12 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="Preview"
+                <TextBlock x:Name="SelectedTitle"
+                           Text="Selected: (none)"
                            Foreground="#EDEDED"
-                           FontSize="14"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,10"/>
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,8"/>
 
                 <Border Grid.Row="1"
                         Background="#111111"
@@ -93,26 +91,33 @@
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="8">
-                    <Grid>
-                        <MediaElement x:Name="Player"
-                                      LoadedBehavior="Manual"
-                                      UnloadedBehavior="Manual"
-                                      Stretch="Uniform"/>
-                    </Grid>
+
+                    <MediaElement x:Name="Player"
+                                  LoadedBehavior="Manual"
+                                  UnloadedBehavior="Manual"
+                                  Stretch="Uniform"/>
                 </Border>
 
-                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,8">
-                    <Button Content="Play"  Width="90" Margin="0,0,10,0" Click="Play_Click"/>
-                    <Button Content="Pause" Width="90" Margin="0,0,10,0" Click="Pause_Click"/>
-                    <Button Content="Stop"  Width="90" Click="Stop_Click"/>
-                </StackPanel>
+                <Slider x:Name="SeekBar"
+                        Grid.Row="2"
+                        Minimum="0"
+                        Maximum="1"
+                        ValueChanged="SeekBar_ValueChanged"
+                        Margin="0,12,0,6"/>
 
-                <TextBlock Grid.Row="3"
-                           x:Name="StatusText"
-                           Text="Ready"
-                           Foreground="#BFBFBF"
-                           FontSize="12"
-                           TextWrapping="Wrap"/>
+                <DockPanel Grid.Row="3">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <Button Content="Play" Width="90" Margin="0,0,8,0" Click="Play_Click"/>
+                        <Button Content="Pause" Width="90" Margin="0,0,8,0" Click="Pause_Click"/>
+                        <Button Content="Stop" Width="90" Click="Stop_Click"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="TimeText"
+                               DockPanel.Dock="Right"
+                               Text="00:00 / 00:00"
+                               Foreground="#BFBFBF"
+                               VerticalAlignment="Center"/>
+                </DockPanel>
             </Grid>
         </Border>
     </Grid>

@@ -1,102 +1,157 @@
 using System;
+using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using System.Windows;
-using System.Windows.Input;
 
 namespace PlayCutWin.Views
 {
     public partial class ClipsView : UserControl
     {
-        private readonly DispatcherTimer _timer = new DispatcherTimer();
-        private bool _isDragging = false;
-        private TimeSpan _duration = TimeSpan.Zero;
+        private readonly DispatcherTimer _timer;
+        private bool _isDraggingSeek = false;
+        private bool _ignoreSeekEvent = false;
 
         public ClipsView()
         {
             InitializeComponent();
-            DataContext = AppState.Current;
 
-            _timer.Interval = TimeSpan.FromMilliseconds(200);
-            _timer.Tick += (_, __) => UpdateTime();
+            VideoGrid.ItemsSource = AppState.Current.ImportedVideos;
+            RefreshCount();
+
+            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            _timer.Tick += (_, __) => UpdateTimeUI();
             _timer.Start();
         }
 
-        private void VideosGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void RefreshCount()
         {
-            if (VideosGrid.SelectedItem is not PlayCutWin.VideoItem item) return;
-
-            AppState.Current.SetSelected(item.Path);
-            LoadAndPlay(item.Path);
+            CountText.Text = $"Count: {AppState.Current.ImportedVideos.Count}";
         }
 
-        private void LoadAndPlay(string path)
+        private void VideoGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var item = VideoGrid.SelectedItem as VideoItem;
+            AppState.Current.SetSelected(item);
+
+            if (item == null)
+            {
+                SelectedTitle.Text = "Selected: (none)";
+                StopPlayer();
+                return;
+            }
+
+            SelectedTitle.Text = $"Selected: {item.Name}";
+            LoadAndPlay(item.Path, autoPlay: false);
+        }
+
+        private void LoadAndPlay(string path, bool autoPlay)
+        {
+            try
+            {
+                StopPlayer();
+
+                Player.Source = new Uri(path);
+                Player.Position = TimeSpan.Zero;
+
+                // すぐ Duration が取れないことがあるので、一旦UI更新
+                _ignoreSeekEvent = true;
+                SeekBar.Value = 0;
+                SeekBar.Maximum = 1;
+                _ignoreSeekEvent = false;
+
+                UpdateTimeUI();
+
+                if (autoPlay) Player.Play();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Player error");
+            }
+        }
+
+        private void Play_Click(object sender, RoutedEventArgs e)
+        {
+            if (Player.Source == null)
+            {
+                // 未ロードなら選択中を再ロード
+                var item = AppState.Current.SelectedVideo;
+                if (item != null) LoadAndPlay(item.Path, autoPlay: true);
+                return;
+            }
+
+            Player.Play();
+            AppState.Current.StatusMessage = $"Playing: {AppState.Current.SelectedVideo?.Name ?? ""}";
+        }
+
+        private void Pause_Click(object sender, RoutedEventArgs e)
+        {
+            Player.Pause();
+            AppState.Current.StatusMessage = "Paused";
+        }
+
+        private void Stop_Click(object sender, RoutedEventArgs e)
+        {
+            StopPlayer();
+            AppState.Current.StatusMessage = "Stopped";
+        }
+
+        private void StopPlayer()
         {
             try
             {
                 Player.Stop();
-                Player.Source = new Uri(path, UriKind.Absolute);
-                Player.Play();
-                AppState.Current.StatusMessage = $"Playing: {System.IO.Path.GetFileName(path)}";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to play.\n{ex.Message}", "PlayCut", MessageBoxButton.OK, MessageBoxImage.Error);
-                AppState.Current.StatusMessage = "Play failed";
-            }
-        }
+                Player.Source = null;
 
-        private void Player_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            if (Player.NaturalDuration.HasTimeSpan)
-            {
-                _duration = Player.NaturalDuration.TimeSpan;
-                Seek.Maximum = Math.Max(1, _duration.TotalSeconds);
-            }
-        }
+                _ignoreSeekEvent = true;
+                SeekBar.Value = 0;
+                SeekBar.Maximum = 1;
+                _ignoreSeekEvent = false;
 
-        private void Player_MediaEnded(object sender, RoutedEventArgs e)
-        {
-            Player.Stop();
-        }
-
-        private void Play_Click(object sender, RoutedEventArgs e) => Player.Play();
-        private void Pause_Click(object sender, RoutedEventArgs e) => Player.Pause();
-        private void Stop_Click(object sender, RoutedEventArgs e) => Player.Stop();
-
-        private void Seek_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            _isDragging = true;
-        }
-
-        private void Seek_PreviewMouseUp(object sender, MouseButtonEventArgs e)
-        {
-            if (!_duration.Equals(TimeSpan.Zero))
-            {
-                Player.Position = TimeSpan.FromSeconds(Seek.Value);
-            }
-            _isDragging = false;
-        }
-
-        private void UpdateTime()
-        {
-            if (_isDragging) return;
-
-            // ✅ ここで再生位置を全画面共有（Tags/Exportsが見れる）
-            AppState.Current.PlaybackSeconds = Player.Position.TotalSeconds;
-
-            if (_duration.TotalSeconds > 0)
-            {
-                Seek.Value = Player.Position.TotalSeconds;
-                TimeText.Text = $"{Fmt(Player.Position)} / {Fmt(_duration)}";
-            }
-            else
-            {
                 TimeText.Text = "00:00 / 00:00";
             }
+            catch { }
         }
 
-        private static string Fmt(TimeSpan t)
+        private void SeekBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_ignoreSeekEvent) return;
+            if (Player.Source == null) return;
+
+            // WPFは ValueChanged が連発されるので、ドラッグ中扱いに寄せる
+            if (_isDraggingSeek) return;
+
+            Seek(e.NewValue);
+        }
+
+        private void Seek(double seconds)
+        {
+            try
+            {
+                Player.Position = TimeSpan.FromSeconds(seconds);
+            }
+            catch { }
+        }
+
+        private void UpdateTimeUI()
+        {
+            if (Player.Source == null) return;
+
+            var pos = Player.Position;
+            var dur = Player.NaturalDuration.HasTimeSpan ? Player.NaturalDuration.TimeSpan : TimeSpan.Zero;
+
+            if (dur.TotalSeconds > 0)
+            {
+                _ignoreSeekEvent = true;
+                SeekBar.Maximum = dur.TotalSeconds;
+                SeekBar.Value = Math.Min(pos.TotalSeconds, dur.TotalSeconds);
+                _ignoreSeekEvent = false;
+            }
+
+            TimeText.Text = $"{Format(pos)} / {Format(dur)}";
+        }
+
+        private static string Format(TimeSpan t)
         {
             if (t.TotalHours >= 1) return t.ToString(@"hh\:mm\:ss");
             return t.ToString(@"mm\:ss");
