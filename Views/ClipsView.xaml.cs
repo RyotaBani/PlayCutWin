@@ -1,77 +1,48 @@
-using System.Collections.Generic;
-using System.ComponentModel;
+using System;
+using System.Globalization;
 using System.IO;
-using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 
 namespace PlayCutWin.Views
 {
     public partial class ClipsView : UserControl
     {
-        private bool _suppressSelection = false;
+        // XAMLから参照するためのstaticインスタンス（Converter）
+        public static IValueConverter FileExtConverterInstance { get; } = new FileExtConverter();
 
         public ClipsView()
         {
             InitializeComponent();
-
-            Refresh();
-
-            PlayCutWin.AppState.Instance.ImportedVideos.CollectionChanged += (_, __) =>
-                Dispatcher.Invoke(Refresh);
-
-            PlayCutWin.AppState.Instance.PropertyChanged += AppState_PropertyChanged;
-        }
-
-        private void AppState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(PlayCutWin.AppState.SelectedVideoPath))
-            {
-                Dispatcher.Invoke(SyncSelectionFromState);
-            }
-        }
-
-        private sealed class VideoRow
-        {
-            public string Name { get; set; } = "";
-            public string Path { get; set; } = "";
-        }
-
-        private void Refresh()
-        {
-            var rows = PlayCutWin.AppState.Instance.ImportedVideos
-                .Select(p => new VideoRow { Name = Path.GetFileName(p), Path = p })
-                .ToList();
-
-            VideoList.ItemsSource = rows;
-            CountText.Text = $"Count: {rows.Count}";
-
-            SyncSelectionFromState();
-        }
-
-        private void SyncSelectionFromState()
-        {
-            if (VideoList.ItemsSource is not IEnumerable<VideoRow> rows) return;
-
-            var selectedPath = PlayCutWin.AppState.Instance.SelectedVideoPath;
-            if (string.IsNullOrWhiteSpace(selectedPath)) return;
-
-            var target = rows.FirstOrDefault(r => r.Path == selectedPath);
-            if (target == null) return;
-
-            _suppressSelection = true;
-            VideoList.SelectedItem = target;
-            VideoList.ScrollIntoView(target);
-            _suppressSelection = false;
         }
 
         private void VideoList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_suppressSelection) return;
-
-            if (VideoList.SelectedItem is VideoRow row)
+            if (VideoList.SelectedItem is string path)
             {
-                PlayCutWin.AppState.Instance.SelectedVideoPath = row.Path;
+                // 選択中動画を共有状態に保存
+                AppState.Current.SetSelected(path);
+
+                // ステータスバー更新
+                if (Application.Current.MainWindow is MainWindow mw)
+                    mw.UpdateStatusSelected();
             }
+        }
+
+        private sealed class FileExtConverter : IValueConverter
+        {
+            public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                var path = value as string;
+                if (string.IsNullOrWhiteSpace(path)) return "";
+
+                var ext = Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
+                return string.IsNullOrWhiteSpace(ext) ? "FILE" : ext;
+            }
+
+            public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+                => Binding.DoNothing;
         }
     }
 }

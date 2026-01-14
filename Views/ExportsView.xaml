@@ -2,16 +2,28 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent">
-    <Border Background="#1A1A1A" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="16">
+
+    <Grid Margin="16">
         <StackPanel>
+
             <TextBlock Text="Exports"
                        Foreground="White"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Margin="0,0,0,6"/>
-            <TextBlock Text="（ここに書き出し履歴・保存先などを作る）"
-                       Foreground="#B0B0B0"
-                       FontSize="13"/>
+                       Margin="0,0,0,12"/>
+
+            <Border Background="#1A1A1A"
+                    BorderBrush="#2A2A2A"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+
+                <TextBlock Text="（ここに書き出し済みクリップ一覧・保存先などを実装予定）"
+                           Foreground="#B0B0B0"
+                           FontSize="13"
+                           TextWrapping="Wrap"/>
+            </Border>
+
         </StackPanel>
-    </Border>
+    </Grid>
 </UserControl>
