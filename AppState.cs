@@ -1,19 +1,41 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
+    // 取り回ししやすい最小モデル（ClipsView側でも使える）
+    public class VideoItem
+    {
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+    }
+
     public sealed class AppState : INotifyPropertyChanged
     {
-        // 互換のため Instance/Current 両方用意
+        // ✅ 互換: AppState.Instance / AppState.Current 両方を使えるようにする
         public static AppState Instance { get; } = new AppState();
         public static AppState Current => Instance;
 
-        // ---- Imported videos ----
-        public ObservableCollection<VideoItem> ImportedVideos { get; } = new();
+        private AppState()
+        {
+            ImportedVideos = new ObservableCollection<VideoItem>();
+            ImportedVideos.CollectionChanged += (_, __) => RaiseImportedSummary();
+
+            // 初期状態（選択なし）
+            _tagsForSelectedVideo = new ObservableCollection<string>();
+            HookTagsCollection(_tagsForSelectedVideo);
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        // ----------------------------
+        // Imported videos
+        // ----------------------------
+        public ObservableCollection<VideoItem> ImportedVideos { get; }
 
         private VideoItem? _selectedVideo;
         public VideoItem? SelectedVideo
@@ -23,23 +45,50 @@ namespace PlayCutWin
             {
                 if (_selectedVideo == value) return;
                 _selectedVideo = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedPath));
+                OnPropertyChanged(nameof(SelectedVideo));
                 OnPropertyChanged(nameof(SelectedVideoPath));
+                OnPropertyChanged(nameof(SelectedVideoName));
+
+                // 選択が変わったら、その動画のタグ一覧へ切り替える
+                SwitchTagsCollectionForSelectedVideo();
 
                 StatusMessage = _selectedVideo == null
                     ? "Ready"
-                    : $"Selected: {_selectedVideo.Name}";
+                    : $"Selected: {SelectedVideoName}";
             }
         }
 
-        // 既存互換
-        public string SelectedPath => SelectedVideo?.Path ?? "";
-
-        // ★ TagsView.xaml.cs が要求している名前（互換）
         public string SelectedVideoPath => SelectedVideo?.Path ?? "";
+        public string SelectedVideoName => SelectedVideo?.Name ?? "";
 
-        // ---- Status ----
+        public void AddImportedVideo(string fullPath)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath)) return;
+
+            // 同一パスは重複登録しない（必要ならここを変更）
+            if (ImportedVideos.Any(v => string.Equals(v.Path, fullPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                StatusMessage = $"Already imported: {System.IO.Path.GetFileName(fullPath)}";
+                return;
+            }
+
+            var item = new VideoItem
+            {
+                Path = fullPath,
+                Name = System.IO.Path.GetFileName(fullPath)
+            };
+
+            ImportedVideos.Add(item);
+
+            // 追加した動画を選択
+            SelectedVideo = item;
+
+            StatusMessage = $"Imported: {item.Name}";
+        }
+
+        // ----------------------------
+        // Status
+        // ----------------------------
         private string _statusMessage = "Ready";
         public string StatusMessage
         {
@@ -48,108 +97,133 @@ namespace PlayCutWin
             {
                 if (_statusMessage == value) return;
                 _statusMessage = value;
-                OnPropertyChanged();
+                OnPropertyChanged(nameof(StatusMessage));
             }
         }
 
-        // ---- Playback position (placeholder) ----
-        private TimeSpan _playbackPosition = TimeSpan.Zero;
-        public TimeSpan PlaybackPosition
+        private void RaiseImportedSummary()
         {
-            get => _playbackPosition;
-            set
+            OnPropertyChanged(nameof(ImportedCountText));
+        }
+
+        public string ImportedCountText => $"Count: {ImportedVideos.Count}";
+
+        // ----------------------------
+        // Tags (per-video)
+        // ----------------------------
+        // Pathごとにタグ一覧を持つ
+        private readonly Dictionary<string, ObservableCollection<string>> _tagsByVideoPath
+            = new Dictionary<string, ObservableCollection<string>>(StringComparer.OrdinalIgnoreCase);
+
+        private ObservableCollection<string> _tagsForSelectedVideo;
+
+        /// <summary>
+        /// TagsView / Dashboard / Exports が参照する「選択中動画のタグ一覧」
+        /// </summary>
+        public ObservableCollection<string> TagsForSelectedVideo
+        {
+            get => _tagsForSelectedVideo;
+            private set
             {
-                if (_playbackPosition == value) return;
-                _playbackPosition = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PlaybackPositionText));
+                if (ReferenceEquals(_tagsForSelectedVideo, value)) return;
+
+                UnhookTagsCollection(_tagsForSelectedVideo);
+                _tagsForSelectedVideo = value;
+                HookTagsCollection(_tagsForSelectedVideo);
+
+                OnPropertyChanged(nameof(TagsForSelectedVideo));
+                RaiseTagSummary();
             }
         }
 
-        // ★ TagsView.xaml.cs が要求している名前（互換）
-        public string PlaybackPositionText => FormatTime(PlaybackPosition);
+        public string TagCountText => SelectedVideo == null
+            ? "Tags: 0"
+            : $"Tags: {TagsForSelectedVideo.Count}";
 
-        // ---- Tags (placeholder) ----
-        // ★ TagsView.xaml.cs が要求している名前（互換）
-        public ObservableCollection<TagItem> Tags { get; } = new();
+        public string LatestTagText => (TagsForSelectedVideo.Count == 0)
+            ? "Latest: -"
+            : $"Latest: {TagsForSelectedVideo.Last()}";
 
-        private AppState() { }
-
-        public void AddImportedVideo(string path)
+        public void AddTag(string tag)
         {
-            if (string.IsNullOrWhiteSpace(path)) return;
-
-            var item = new VideoItem(path);
-            ImportedVideos.Add(item);
-
-            // 追加したら自動選択
-            SelectedVideo = item;
-
-            StatusMessage = $"Imported: {item.Name}";
-        }
-
-        // 互換用（既存コードが呼んでても落ちないように）
-        public void SetSelected(VideoItem? item) => SelectedVideo = item;
-
-        // ★ TagsView.xaml.cs が要求しているメソッド名（互換）
-        public void AddTag(string text)
-        {
-            text = (text ?? "").Trim();
-            if (text.Length == 0)
+            if (SelectedVideo == null)
             {
-                StatusMessage = "タグを入れてね（仮）";
+                StatusMessage = "Select a video first.";
                 return;
             }
 
-            // とりあえず同名重複は防ぐ（仮）
-            if (Tags.Any(t => string.Equals(t.Text, text, StringComparison.OrdinalIgnoreCase)))
+            tag = (tag ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(tag))
             {
-                StatusMessage = $"Tag already exists: {text}";
+                StatusMessage = "Tag is empty.";
                 return;
             }
 
-            Tags.Add(new TagItem
+            // 同一タグは重複させない（必要ならここを変更）
+            if (TagsForSelectedVideo.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)))
             {
-                Text = text,
-                Time = PlaybackPositionText
-            });
+                StatusMessage = $"Tag already exists: {tag}";
+                return;
+            }
 
-            StatusMessage = $"Tag added: {text} @ {PlaybackPositionText}";
+            TagsForSelectedVideo.Add(tag);
+            StatusMessage = $"Added tag: {tag}";
         }
 
-        public void ClearTags()
+        public void RemoveTag(string tag)
         {
-            Tags.Clear();
-            StatusMessage = "Tags cleared";
+            if (SelectedVideo == null) return;
+            if (string.IsNullOrWhiteSpace(tag)) return;
+
+            var hit = TagsForSelectedVideo.FirstOrDefault(t =>
+                string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
+
+            if (hit != null)
+            {
+                TagsForSelectedVideo.Remove(hit);
+                StatusMessage = $"Removed tag: {hit}";
+            }
         }
 
-        // ---- INotifyPropertyChanged ----
-        public event PropertyChangedEventHandler? PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
+        private void SwitchTagsCollectionForSelectedVideo()
+        {
+            if (SelectedVideo == null || string.IsNullOrWhiteSpace(SelectedVideo.Path))
+            {
+                TagsForSelectedVideo = new ObservableCollection<string>();
+                return;
+            }
+
+            if (!_tagsByVideoPath.TryGetValue(SelectedVideo.Path, out var list))
+            {
+                list = new ObservableCollection<string>();
+                _tagsByVideoPath[SelectedVideo.Path] = list;
+            }
+
+            TagsForSelectedVideo = list;
+        }
+
+        private void HookTagsCollection(ObservableCollection<string> col)
+        {
+            col.CollectionChanged += Tags_CollectionChanged;
+        }
+
+        private void UnhookTagsCollection(ObservableCollection<string> col)
+        {
+            col.CollectionChanged -= Tags_CollectionChanged;
+        }
+
+        private void Tags_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            RaiseTagSummary();
+        }
+
+        private void RaiseTagSummary()
+        {
+            OnPropertyChanged(nameof(TagCountText));
+            OnPropertyChanged(nameof(LatestTagText));
+        }
+
+        private void OnPropertyChanged(string name)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-
-        private static string FormatTime(TimeSpan t)
-        {
-            if (t.TotalHours >= 1) return t.ToString(@"hh\:mm\:ss");
-            return t.ToString(@"mm\:ss");
-        }
-    }
-
-    public sealed class VideoItem
-    {
-        public string Name { get; }
-        public string Path { get; }
-
-        public VideoItem(string path)
-        {
-            Path = path;
-            Name = System.IO.Path.GetFileName(path);
-        }
-    }
-
-    public sealed class TagItem
-    {
-        public string Text { get; set; } = "";
-        public string Time { get; set; } = "00:00";
     }
 }

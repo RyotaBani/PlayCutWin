@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using PlayCutWin;
 
 namespace PlayCutWin.Views
 {
@@ -11,9 +12,21 @@ namespace PlayCutWin.Views
             DataContext = AppState.Current;
         }
 
-        private void Export_Click(object sender, RoutedEventArgs e)
+        private void ExportDummy_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Export (dummy)\n（将来：選択範囲の切り出し→保存）", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (AppState.Current.SelectedVideo == null)
+            {
+                MessageBox.Show("Select a video first.", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            MessageBox.Show(
+                "(placeholder) ここに書き出しUIを作る\n\n"
+                + $"Selected:\n{AppState.Current.SelectedVideoPath}\n\n"
+                + $"Tags: {AppState.Current.TagsForSelectedVideo.Count}",
+                "Exports",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
     }
 }
