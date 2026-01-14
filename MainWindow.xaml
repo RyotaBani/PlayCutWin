@@ -1,12 +1,130 @@
 <Window x:Class="PlayCutWin.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PlayCut (Windows Build Test)" Width="900" Height="520"
-        WindowStartupLocation="CenterScreen">
+        Title="PlayCut (Windows)"
+        Width="1100" Height="700"
+        WindowStartupLocation="CenterScreen"
+        Background="#111111">
+
     <Grid>
-        <TextBlock Text="✅ Windows exe build succeeded!"
-                   FontSize="26"
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Center"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>   <!-- Top bar -->
+            <RowDefinition Height="*"/>    <!-- Body -->
+            <RowDefinition Height="28"/>   <!-- Status -->
+        </Grid.RowDefinitions>
+
+        <!-- Top Bar -->
+        <Border Grid.Row="0" Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" Margin="12,0">
+                <TextBlock Text="PlayCut"
+                           Foreground="White"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           DockPanel.Dock="Left"/>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <Button Content="Import Video" Margin="0,0,8,0" Padding="12,6" Click="ImportVideo_Click"/>
+                    <Button Content="Export Clip"  Margin="0,0,8,0" Padding="12,6" Click="ExportClip_Click"/>
+                    <Button Content="Settings"     Padding="12,6" Click="Settings_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Body -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240"/> <!-- Left menu -->
+                <ColumnDefinition Width="*"/>   <!-- Main -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Menu -->
+            <Border Grid.Column="0" Background="#151515" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
+                <StackPanel Margin="12">
+                    <TextBlock Text="Library" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
+                    <ListBox x:Name="MenuList" SelectionChanged="MenuList_SelectionChanged">
+                        <ListBoxItem Content="Dashboard"/>
+                        <ListBoxItem Content="Clips"/>
+                        <ListBoxItem Content="Tags"/>
+                        <ListBoxItem Content="Exports"/>
+                    </ListBox>
+
+                    <Separator Margin="0,14,0,14" Background="#2A2A2A"/>
+
+                    <TextBlock Text="Project" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
+                    <TextBlock Text="PlayCutWin" Foreground="White" FontSize="14" FontWeight="SemiBold"/>
+                    <TextBlock Text="Windows build / skeleton UI" Foreground="#9A9A9A" FontSize="12" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Main Area -->
+            <Grid Grid.Column="1" Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="PageTitle"
+                           Text="Dashboard"
+                           Foreground="White"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,12"/>
+
+                <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="✅ Windows build is working"
+                                   Foreground="#EDEDED"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6"/>
+
+                        <TextBlock Text="Next: replace this area with real PlayCut UI (timeline / tags / clip list)."
+                                   Foreground="#B0B0B0"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"/>
+
+                        <WrapPanel>
+                            <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Import" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="動画読み込み（仮ボタン）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Tagging" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="タグ付けUI（ここに実装）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#222222" CornerRadius="8" Padding="12" Margin="0,0,10,10" BorderBrush="#2A2A2A" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Export" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="クリップ書き出し（後で）" Foreground="#AFAFAF" FontSize="12" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#141414" BorderBrush="#2A2A2A" BorderThickness="0,1,0,0">
+            <DockPanel Margin="12,0" LastChildFill="True">
+                <TextBlock x:Name="StatusText"
+                           Text="Ready"
+                           Foreground="#BFBFBF"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="PlayCutWin"
+                           Foreground="#6F6F6F"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           DockPanel.Dock="Right"/>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>
