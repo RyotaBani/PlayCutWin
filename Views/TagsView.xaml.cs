@@ -20,7 +20,13 @@ namespace PlayCutWin.Views
                 return;
             }
 
-            MessageBox.Show($"Add Tag (dummy): {text}\n（将来：選択動画にタグ付けして保存）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (string.IsNullOrWhiteSpace(AppState.Current.SelectedVideoPath))
+            {
+                MessageBox.Show("先に Clips で動画を選択してね", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            AppState.Current.AddTagToSelectedVideo(text);
             TagInput.Clear();
         }
     }

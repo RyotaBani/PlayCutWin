@@ -82,6 +82,9 @@ namespace PlayCutWin.Views
         {
             if (_isDragging) return;
 
+            // ✅ ここで再生位置を全画面共有（Tags/Exportsが見れる）
+            AppState.Current.PlaybackSeconds = Player.Position.TotalSeconds;
+
             if (_duration.TotalSeconds > 0)
             {
                 Seek.Value = Player.Position.TotalSeconds;
