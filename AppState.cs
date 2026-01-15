@@ -13,7 +13,7 @@ namespace PlayCutWin
         public string Path { get; set; } = "";
     }
 
-    // Tag model
+    // Tag model (Pending tags for next clip)
     public class TagItem
     {
         public string Text { get; set; } = "";
@@ -34,7 +34,6 @@ namespace PlayCutWin
         public string StartText => AppState.FmtMMSS(Start);
         public string EndText => AppState.FmtMMSS(End);
 
-        // Tags summary for list (e.g. "03:12 PnR, 03:20 Kickout")
         public string TagsText { get; set; } = "";
 
         public string Team { get; set; } = "Team A";
@@ -81,11 +80,23 @@ namespace PlayCutWin
         // ---- Collections ----
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
 
-        // ✅ Tags = 「次に作るクリップ」に付ける “作業中タグ（Pending）”
+        // Pending tags (next clip)
         public ObservableCollection<TagItem> Tags { get; } = new ObservableCollection<TagItem>();
 
-        // Clips list
         public ObservableCollection<ClipItem> Clips { get; } = new ObservableCollection<ClipItem>();
+
+        // ---- Export ----
+        private string _exportFolder = "";
+        public string ExportFolder
+        {
+            get => _exportFolder;
+            set
+            {
+                if (_exportFolder == value) return;
+                _exportFolder = value ?? "";
+                OnPropertyChanged();
+            }
+        }
 
         // ---- Import / Selection ----
         public void AddImportedVideo(string fullPath)
@@ -138,7 +149,7 @@ namespace PlayCutWin
 
         public string PlaybackPositionText => $"{FmtMMSS(PlaybackPosition)} / {FmtOrDash(PlaybackDuration)}";
 
-        // ---- Clip range (START/END) ----
+        // ---- Clip range ----
         private TimeSpan? _clipStart;
         public TimeSpan? ClipStart
         {
@@ -187,16 +198,16 @@ namespace PlayCutWin
             return ClipEnd.Value > ClipStart.Value;
         }
 
-        // ---- ✅ Tagging (Pending tags for next clip) ----
-        // 旧互換：呼ばれても落ちないように残す（Timeは--:--）
+        // ---- Tagging (pending tags) ----
+        // legacy compat (not used in new UI, but keep)
         public void AddTag(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             Tags.Add(new TagItem { Text = text.Trim(), Time = "--:--" });
             StatusMessage = $"Tag added: {text.Trim()}";
+            OnPropertyChanged(nameof(PendingTagsText));
         }
 
-        // ✅ 本命：現在の再生位置でタグ追加
         public void AddTagAtCurrentPosition(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
@@ -234,7 +245,6 @@ namespace PlayCutWin
                 return;
             }
 
-            // ✅ tagsText が空なら、PendingTags(Tags)から自動生成
             var finalTags = string.IsNullOrWhiteSpace(tagsText) ? BuildTagsTextForClip() : tagsText.Trim();
 
             var clip = new ClipItem
@@ -251,11 +261,11 @@ namespace PlayCutWin
             Clips.Add(clip);
             StatusMessage = $"Clip added: {clip.StartText}-{clip.EndText}";
 
-            // ✅ 連続作業しやすい：次STARTを今ENDに寄せる
+            // Prepare for next clip
             ClipStart = clip.End;
             ClipEnd = null;
 
-            // ✅ クリップ作成したら PendingTags をクリア（Mac版の操作感に近い）
+            // Clear pending tags after creating a clip
             ClearPendingTags();
         }
 
