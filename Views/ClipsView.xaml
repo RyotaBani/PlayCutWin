@@ -206,7 +206,7 @@
                         </Grid.RowDefinitions>
 
                         <DockPanel Margin="0,0,0,8">
-                            <TextBlock Text="Clips"
+                            <TextBlock Text="Clips (click → jump to Start)"
                                        Foreground="White"
                                        FontWeight="SemiBold"
                                        DockPanel.Dock="Left"/>
@@ -216,11 +216,15 @@
                                        DockPanel.Dock="Right"/>
                         </DockPanel>
 
-                        <DataGrid Grid.Row="1"
+                        <DataGrid x:Name="ClipsGrid"
+                                  Grid.Row="1"
                                   ItemsSource="{Binding Clips}"
                                   AutoGenerateColumns="False"
                                   CanUserAddRows="False"
                                   IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  SelectionUnit="FullRow"
+                                  SelectionChanged="ClipsGrid_SelectionChanged"
                                   HeadersVisibility="Column"
                                   GridLinesVisibility="Horizontal"
                                   Background="#0F0F0F"
