@@ -1,6 +1,7 @@
+using System;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows;
 
 namespace PlayCutWin.Views
 {
@@ -31,13 +32,32 @@ namespace PlayCutWin.Views
             var text = TagInput.Text?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(text))
             {
-                MessageBox.Show("タグを入力してね（仮）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("タグを入力してね", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            PlayCutWin.AppState.Instance.AddTag(text);
+            // ✅ 現在の再生位置を Time に入れて追加する
+            var pos = PlayCutWin.AppState.Instance.PlaybackPosition; // Clips側で更新される
+            var time = FormatMMSS(pos);
+
+            PlayCutWin.AppState.Instance.Tags.Add(new PlayCutWin.TagItem
+            {
+                Text = text,
+                Time = time
+            });
+
+            PlayCutWin.AppState.Instance.StatusMessage = $"Tag added: {time} {text}";
+
             TagInput.Text = "";
             TagInput.Focus();
+        }
+
+        private static string FormatMMSS(TimeSpan t)
+        {
+            int total = (int)Math.Max(0, t.TotalSeconds);
+            int mm = total / 60;
+            int ss = total % 60;
+            return $"{mm:00}:{ss:00}";
         }
     }
 }
