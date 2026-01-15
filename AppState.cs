@@ -16,7 +16,7 @@ namespace PlayCutWin
     public class TagItem
     {
         public string Text { get; set; } = "";
-        public string Time { get; set; } = ""; // placeholder (e.g. "00:12")
+        public string Time { get; set; } = ""; // placeholder (e.g. "00:12") -> Cブロックで本物にする
     }
 
     // App-wide shared state
@@ -25,21 +25,28 @@ namespace PlayCutWin
         private static readonly AppState _instance = new AppState();
         public static AppState Instance => _instance;
 
-        // Compatibility aliases (if old code references these)
+        // Compatibility alias
         public static AppState Current => _instance;
 
+        // ---- A block: shared status / selection ----
         private string _statusMessage = "Ready";
         public string StatusMessage
         {
             get => _statusMessage;
-            set { _statusMessage = value; OnPropertyChanged(); }
+            set { if (_statusMessage != value) { _statusMessage = value; OnPropertyChanged(); } }
         }
 
         private string _selectedVideoPath = "";
         public string SelectedVideoPath
         {
             get => _selectedVideoPath;
-            set { _selectedVideoPath = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedVideoName)); }
+            set
+            {
+                if (_selectedVideoPath == value) return;
+                _selectedVideoPath = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedVideoName));
+            }
         }
 
         public string SelectedVideoName
@@ -73,9 +80,46 @@ namespace PlayCutWin
         {
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            // A block: time is placeholder (later connect to playback time)
             Tags.Add(new TagItem { Text = text.Trim(), Time = "--:--" });
             StatusMessage = $"Tag added: {text.Trim()}";
+        }
+
+        // ---- B block: playback shared state (for Tags time later) ----
+        private TimeSpan _playbackPosition = TimeSpan.Zero;
+        public TimeSpan PlaybackPosition
+        {
+            get => _playbackPosition;
+            set
+            {
+                if (_playbackPosition == value) return;
+                _playbackPosition = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackPositionText));
+            }
+        }
+
+        private TimeSpan _playbackDuration = TimeSpan.Zero;
+        public TimeSpan PlaybackDuration
+        {
+            get => _playbackDuration;
+            set
+            {
+                if (_playbackDuration == value) return;
+                _playbackDuration = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackPositionText));
+            }
+        }
+
+        public string PlaybackPositionText => $"{Fmt(PlaybackPosition)} / {Fmt(PlaybackDuration)}";
+
+        public static string Fmt(TimeSpan t)
+        {
+            if (t.TotalSeconds <= 0) return "00:00";
+            int total = (int)t.TotalSeconds;
+            int mm = total / 60;
+            int ss = total % 60;
+            return $"{mm:00}:{ss:00}";
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

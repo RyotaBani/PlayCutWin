@@ -4,25 +4,35 @@
              Background="Transparent">
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.15*"/>
+            <ColumnDefinition Width="0.85*"/>
+        </Grid.ColumnDefinitions>
 
-        <TextBlock Text="Imported Videos" Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
-
-        <Border Grid.Row="1" Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="12">
+        <!-- Left: list -->
+        <Border Grid.Column="0"
+                Background="#151515"
+                CornerRadius="10"
+                BorderBrush="#2A2A2A"
+                BorderThickness="1"
+                Padding="12"
+                Margin="0,0,12,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                    <TextBlock Text="(Import Videoで選択したファイルがここに並ぶ)" Foreground="#AFAFAF" FontSize="12"/>
-                    <TextBlock Text="{Binding ImportedVideos.Count, StringFormat=Count: {0}}"
-                               Foreground="#AFAFAF" FontSize="12"
-                               HorizontalAlignment="Right" DockPanel.Dock="Right"/>
+                <DockPanel Margin="0,0,0,10">
+                    <TextBlock Text="Imported Videos"
+                               Foreground="White"
+                               FontSize="14"
+                               FontWeight="SemiBold"/>
+                    <TextBlock x:Name="CountText"
+                               Foreground="#AFAFAF"
+                               FontSize="12"
+                               HorizontalAlignment="Right"
+                               DockPanel.Dock="Right"/>
                 </DockPanel>
 
                 <DataGrid x:Name="VideosGrid"
@@ -33,12 +43,77 @@
                           IsReadOnly="True"
                           SelectionMode="Single"
                           SelectionUnit="FullRow"
-                          SelectionChanged="VideosGrid_SelectionChanged">
+                          SelectionChanged="VideosGrid_SelectionChanged"
+                          MouseDoubleClick="VideosGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
                         <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="2*"/>
                     </DataGrid.Columns>
                 </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- Right: player -->
+        <Border Grid.Column="1"
+                Background="#151515"
+                CornerRadius="10"
+                BorderBrush="#2A2A2A"
+                BorderThickness="1"
+                Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="SelectedTitle"
+                           Text="Selected: (none)"
+                           Foreground="#EDEDED"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,8"/>
+
+                <Border Grid.Row="1"
+                        Background="#111111"
+                        CornerRadius="8"
+                        BorderBrush="#2A2A2A"
+                        BorderThickness="1"
+                        Padding="8">
+                    <MediaElement x:Name="Player"
+                                  LoadedBehavior="Manual"
+                                  UnloadedBehavior="Manual"
+                                  Stretch="Uniform"
+                                  MediaOpened="Player_MediaOpened"
+                                  MediaEnded="Player_MediaEnded"/>
+                </Border>
+
+                <Slider x:Name="SeekSlider"
+                        Grid.Row="2"
+                        Minimum="0"
+                        Maximum="1"
+                        Value="0"
+                        IsEnabled="False"
+                        Margin="0,10,0,6"
+                        PreviewMouseLeftButtonDown="SeekSlider_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="SeekSlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="SeekSlider_ValueChanged"/>
+
+                <DockPanel Grid.Row="3">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <Button Content="Play"  Width="80" Margin="0,0,8,0" Click="Play_Click"/>
+                        <Button Content="Pause" Width="80" Margin="0,0,8,0" Click="Pause_Click"/>
+                        <Button Content="Stop"  Width="80" Click="Stop_Click"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="TimeText"
+                               Text="00:00 / 00:00"
+                               Foreground="#BFBFBF"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"
+                               DockPanel.Dock="Right"/>
+                </DockPanel>
             </Grid>
         </Border>
     </Grid>
