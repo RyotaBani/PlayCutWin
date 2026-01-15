@@ -6,104 +6,47 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Exports"
-                   Foreground="White"
-                   FontSize="22"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,12"/>
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Exports"
+                       Foreground="White"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       DockPanel.Dock="Left"/>
 
-        <!-- Export Settings -->
+            <Button Content="Export (dummy)"
+                    DockPanel.Dock="Right"
+                    Padding="14,8"
+                    Click="ExportDummy_Click"/>
+        </DockPanel>
+
+        <!-- Body Card -->
         <Border Grid.Row="1"
                 Background="#1A1A1A"
                 CornerRadius="10"
                 BorderBrush="#2A2A2A"
                 BorderThickness="1"
-                Padding="12"
-                Margin="0,0,0,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+                Padding="16">
+            <StackPanel>
+                <TextBlock Text="Selected video:"
+                           Foreground="#BFBFBF"
+                           FontSize="12"/>
 
-                <StackPanel>
-                    <TextBlock Text="Export destination"
-                               Foreground="White"
-                               FontWeight="SemiBold"/>
-                    <TextBlock Text="{Binding ExportFolder, FallbackValue=(not set)}"
-                               Foreground="#BFBFBF"
-                               FontSize="12"
-                               TextWrapping="Wrap"
-                               Margin="0,6,0,0"/>
-                </StackPanel>
+                <TextBlock x:Name="SelectedVideoText"
+                           Text="(none)"
+                           Foreground="White"
+                           FontSize="13"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,14"/>
 
-                <Button Grid.Column="1"
-                        Content="Choose Folder"
-                        Padding="14,6"
-                        Margin="10,0,0,0"
-                        Click="ChooseFolder_Click"/>
-
-                <Button Grid.Column="2"
-                        Content="Export Selected Clip"
-                        Padding="14,6"
-                        Margin="10,0,0,0"
-                        Click="ExportSelected_Click"/>
-            </Grid>
+                <TextBlock Text="(placeholder) ここに書き出しUIを作る / クリップ一覧・レンジ・出力形式など"
+                           Foreground="#9A9A9A"
+                           FontSize="12"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
         </Border>
-
-        <!-- Clips list -->
-        <Border Grid.Row="2"
-                Background="#1A1A1A"
-                CornerRadius="10"
-                BorderBrush="#2A2A2A"
-                BorderThickness="1"
-                Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <DockPanel Margin="0,0,0,8">
-                    <TextBlock Text="Clips"
-                               Foreground="White"
-                               FontWeight="SemiBold"
-                               DockPanel.Dock="Left"/>
-                    <TextBlock Text="{Binding Clips.Count, StringFormat=Count: {0}}"
-                               Foreground="#9A9A9A"
-                               FontSize="12"
-                               DockPanel.Dock="Right"/>
-                </DockPanel>
-
-                <DataGrid x:Name="ClipsGrid"
-                          Grid.Row="1"
-                          ItemsSource="{Binding Clips}"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          IsReadOnly="True"
-                          SelectionMode="Single"
-                          SelectionUnit="FullRow"
-                          SelectionChanged="ClipsGrid_SelectionChanged"
-                          HeadersVisibility="Column"
-                          GridLinesVisibility="Horizontal"
-                          Background="#0F0F0F"
-                          Foreground="White"
-                          BorderThickness="0">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Video" Binding="{Binding VideoName}" Width="*"/>
-                        <DataGridTextColumn Header="Start" Binding="{Binding StartText}" Width="70"/>
-                        <DataGridTextColumn Header="End"   Binding="{Binding EndText}" Width="70"/>
-                        <DataGridTextColumn Header="Tags"  Binding="{Binding TagsText}" Width="2*"/>
-                        <DataGridTextColumn Header="Team"  Binding="{Binding Team}" Width="90"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </Grid>
-        </Border>
-
     </Grid>
 </UserControl>

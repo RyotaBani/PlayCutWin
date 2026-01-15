@@ -18,12 +18,10 @@ namespace PlayCutWin.Views
         private void UpdateSelectedText()
         {
             var path = PlayCutWin.AppState.Instance.SelectedVideoPath ?? "";
-            SelectedVideoText.Text = string.IsNullOrWhiteSpace(path)
-                ? "(none)"
-                : path;
+            SelectedVideoText.Text = string.IsNullOrWhiteSpace(path) ? "(none)" : path;
         }
 
-        // 「Export (dummy)」ボタン用（XAML側の Click="ExportDummy_Click" を想定）
+        // XAMLのボタン Click="ExportDummy_Click" と一致させる
         private void ExportDummy_Click(object sender, RoutedEventArgs e)
         {
             UpdateSelectedText();
@@ -37,8 +35,8 @@ namespace PlayCutWin.Views
                 return;
             }
 
-            // 保存先を選ぶ（WPF標準）
             var defaultName = Path.GetFileNameWithoutExtension(src);
+
             var dlg = new SaveFileDialog
             {
                 Title = "Export (dummy) - Save as",
@@ -52,7 +50,6 @@ namespace PlayCutWin.Views
 
             try
             {
-                // ダミー内容（あとで本物の書き出し処理に置き換える）
                 var start = app.ClipStart.HasValue ? PlayCutWin.AppState.FmtMMSS(app.ClipStart.Value) : "--:--";
                 var end   = app.ClipEnd.HasValue   ? PlayCutWin.AppState.FmtMMSS(app.ClipEnd.Value)   : "--:--";
 
