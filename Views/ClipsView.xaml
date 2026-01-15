@@ -132,8 +132,8 @@
                                 Maximum="1"
                                 Value="0"
                                 VerticalAlignment="Center"
-                                PreviewMouseLeftButtonDown="SeekSlider_PreviewMouseLeftButtonDown"
-                                PreviewMouseLeftButtonUp="SeekSlider_PreviewMouseLeftButtonUp"/>
+                                PreviewMouseDown="SeekSlider_PreviewMouseDown"
+                                PreviewMouseUp="SeekSlider_PreviewMouseUp"/>
                     </DockPanel>
 
                     <!-- Controls -->

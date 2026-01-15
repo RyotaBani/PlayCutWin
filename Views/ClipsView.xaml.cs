@@ -76,7 +76,16 @@ namespace PlayCutWin.Views
             }
         }
 
-        // -------------------------
+        // XAML compatibility handlers
+private void SeekSlider_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+{
+    SeekSlider_PreviewMouseDown(sender, e);
+}
+
+private void SeekSlider_PreviewMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+{
+    SeekSlider_PreviewMouseUp(sender, e);
+}// -------------------------
         // Player events
         // -------------------------
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
