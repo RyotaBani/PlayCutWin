@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace PlayCutWin.Views
@@ -9,154 +8,71 @@ namespace PlayCutWin.Views
     public partial class ClipsView : UserControl
     {
         private readonly DispatcherTimer _timer;
-
-        private bool _isDragging = false;
-        private bool _ignoreSeek = false;
-        private bool _mediaReady = false;
-
-        // Range play
-        private bool _rangePlayActive = false;
-        private TimeSpan _rangeEnd = TimeSpan.Zero;
-
-        // NEW: selected clip (for range follow)
-        private PlayCutWin.ClipItem? _selectedClip;
-
-        // NEW: nudge step
-        private static readonly TimeSpan NudgeStep = TimeSpan.FromMilliseconds(500); // ±0.5s
+        private bool _isDraggingSeek = false;
+        private bool _isMediaOpened = false;
 
         public ClipsView()
         {
             InitializeComponent();
-            DataContext = PlayCutWin.AppState.Instance;
 
-            RefreshCount();
-            RefreshSelectedTitle();
-
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-            _timer.Tick += (_, __) => Tick();
-            _timer.Start();
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            _timer.Tick += (_, __) => TickUpdate();
+            Loaded += (_, __) => _timer.Start();
+            Unloaded += (_, __) => _timer.Stop();
         }
 
         // -------------------------
-        // UI helpers
+        // DataGrid selection -> load video
         // -------------------------
-        private void RefreshCount()
+        private void ClipsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            try { CountText.Text = $"Count: {PlayCutWin.AppState.Instance.ImportedVideos.Count}"; }
-            catch { CountText.Text = "Count: 0"; }
+            var item = ClipsGrid.SelectedItem;
+            if (item == null) return;
+
+            // item has { Name, Path } (your VideoItem)
+            var nameProp = item.GetType().GetProperty("Name");
+            var pathProp = item.GetType().GetProperty("Path");
+
+            var name = nameProp?.GetValue(item)?.ToString() ?? "(unknown)";
+            var path = pathProp?.GetValue(item)?.ToString() ?? "";
+
+            SelectedTitle.Text = $"Selected: {name}";
+            LoadVideo(path);
+
+            // optional: keep AppState in sync if it exists
+            TrySetAppStateSelected(path, name);
         }
 
-        private void RefreshSelectedTitle()
+        private void LoadVideo(string path)
         {
-            var path = PlayCutWin.AppState.Instance.SelectedVideoPath ?? "";
-            SelectedTitle.Text = string.IsNullOrWhiteSpace(path)
-                ? "Selected: (none)"
-                : $"Selected: {System.IO.Path.GetFileName(path)}";
-        }
+            _isMediaOpened = false;
 
-        private static string Fmt(TimeSpan t)
-        {
-            int total = (int)Math.Max(0, t.TotalSeconds);
-            int mm = total / 60;
-            int ss = total % 60;
-            return $"{mm:00}:{ss:00}";
-        }
-
-        private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-
-        private TimeSpan DurationSafe()
-        {
-            try
+            if (string.IsNullOrWhiteSpace(path))
             {
-                if (Player.NaturalDuration.HasTimeSpan) return Player.NaturalDuration.TimeSpan;
-            }
-            catch { }
-            return PlayCutWin.AppState.Instance.PlaybackDuration;
-        }
-
-        private void EnsureClipRangeOrder()
-        {
-            var s = PlayCutWin.AppState.Instance.ClipStart;
-            var e = PlayCutWin.AppState.Instance.ClipEnd;
-            if (s.HasValue && e.HasValue && e.Value <= s.Value)
-            {
-                // Keep at least 0.1s
-                var dur = DurationSafe();
-                var newEnd = Clamp(s.Value + TimeSpan.FromMilliseconds(100), TimeSpan.Zero, dur);
-                PlayCutWin.AppState.Instance.ClipEnd = newEnd;
-            }
-        }
-
-        // -------------------------
-        // Selection (video list)
-        // -------------------------
-        private void VideosGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            RefreshCount();
-
-            if (VideosGrid.SelectedItem is PlayCutWin.VideoItem item)
-            {
-                PlayCutWin.AppState.Instance.SetSelected(item.Path);
-                RefreshSelectedTitle();
-                LoadVideo(item.Path, autoPlay: false);
-            }
-        }
-
-        private void VideosGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (VideosGrid.SelectedItem is PlayCutWin.VideoItem item)
-            {
-                LoadVideo(item.Path, autoPlay: true);
-            }
-        }
-
-        private void LoadVideo(string path, bool autoPlay)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return;
-
-            try
-            {
-                _mediaReady = false;
-                _rangePlayActive = false;
-
-                _timer.Stop();
-                Player.Stop();
-
-                Player.Source = new Uri(path, UriKind.Absolute);
-                Player.Position = TimeSpan.Zero;
-
-                _ignoreSeek = true;
+                Player.Source = null;
+                NoVideoText.Visibility = Visibility.Visible;
+                TimeText.Text = "00:00 / 00:00";
                 SeekSlider.Value = 0;
                 SeekSlider.Maximum = 1;
-                SeekSlider.IsEnabled = false;
-                _ignoreSeek = false;
-
-                TimeText.Text = "00:00 / 00:00";
-
-                PlayCutWin.AppState.Instance.PlaybackPosition = TimeSpan.Zero;
-                PlayCutWin.AppState.Instance.PlaybackDuration = TimeSpan.Zero;
-
-                if (autoPlay)
-                {
-                    Player.Play();
-                    PlayCutWin.AppState.Instance.StatusMessage = $"Playing: {System.IO.Path.GetFileName(path)}";
-                }
-                else
-                {
-                    PlayCutWin.AppState.Instance.StatusMessage = $"Loaded: {System.IO.Path.GetFileName(path)}";
-                }
-
-                _timer.Start();
+                return;
             }
-            catch (Exception ex)
+
+            try
             {
-                PlayCutWin.AppState.Instance.StatusMessage = $"Load failed: {ex.Message}";
-                MessageBox.Show(ex.Message, "Load failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                Player.Stop();
+                Player.Source = new Uri(path, UriKind.Absolute);
+                NoVideoText.Visibility = Visibility.Collapsed;
+
+                // autoplay is optional; for now keep it manual (user presses Play)
+                // Player.Play();
+            }
+            catch
+            {
+                Player.Source = null;
+                NoVideoText.Visibility = Visibility.Visible;
             }
         }
 
@@ -165,56 +81,26 @@ namespace PlayCutWin.Views
         // -------------------------
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
         {
-            try
+            _isMediaOpened = true;
+
+            if (Player.NaturalDuration.HasTimeSpan)
             {
-                if (Player.NaturalDuration.HasTimeSpan)
-                {
-                    _mediaReady = true;
-
-                    var dur = Player.NaturalDuration.TimeSpan;
-                    PlayCutWin.AppState.Instance.PlaybackDuration = dur;
-                    PlayCutWin.AppState.Instance.PlaybackPosition = Player.Position;
-
-                    _ignoreSeek = true;
-                    SeekSlider.Maximum = Math.Max(1, dur.TotalSeconds);
-                    SeekSlider.Value = 0;
-                    SeekSlider.IsEnabled = true;
-                    _ignoreSeek = false;
-
-                    UpdateTimeText();
-                }
-                else
-                {
-                    _mediaReady = false;
-                    SeekSlider.IsEnabled = false;
-                }
+                var dur = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                SeekSlider.Maximum = Math.Max(1, dur);
             }
-            catch
+            else
             {
-                _mediaReady = false;
-                SeekSlider.IsEnabled = false;
+                SeekSlider.Maximum = 1;
             }
+
+            UpdateTimeText();
         }
 
         private void Player_MediaEnded(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                _rangePlayActive = false;
-
-                Player.Stop();
-                Player.Position = TimeSpan.Zero;
-
-                _ignoreSeek = true;
-                SeekSlider.Value = 0;
-                _ignoreSeek = false;
-
-                PlayCutWin.AppState.Instance.PlaybackPosition = TimeSpan.Zero;
-                PlayCutWin.AppState.Instance.StatusMessage = "Ended";
-
-                UpdateTimeText();
-            }
-            catch { }
+            Player.Stop();
+            SeekSlider.Value = 0;
+            UpdateTimeText();
         }
 
         // -------------------------
@@ -222,344 +108,232 @@ namespace PlayCutWin.Views
         // -------------------------
         private void Play_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                if (Player.Source == null)
-                {
-                    PlayCutWin.AppState.Instance.StatusMessage = "No video loaded.";
-                    return;
-                }
-
-                _rangePlayActive = false;
-                Player.Play();
-                PlayCutWin.AppState.Instance.StatusMessage = "Play";
-            }
-            catch { }
+            if (Player.Source == null) return;
+            Player.Play();
+            TrySetStatus("Playing");
         }
 
         private void Pause_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                _rangePlayActive = false;
-                Player.Pause();
-                PlayCutWin.AppState.Instance.StatusMessage = "Pause";
-            }
-            catch { }
+            if (Player.Source == null) return;
+            Player.Pause();
+            TrySetStatus("Paused");
         }
 
         private void Stop_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                _rangePlayActive = false;
-
-                Player.Stop();
-                Player.Position = TimeSpan.Zero;
-
-                _ignoreSeek = true;
-                SeekSlider.Value = 0;
-                _ignoreSeek = false;
-
-                PlayCutWin.AppState.Instance.PlaybackPosition = TimeSpan.Zero;
-                PlayCutWin.AppState.Instance.StatusMessage = "Stop";
-
-                UpdateTimeText();
-            }
-            catch { }
+            if (Player.Source == null) return;
+            Player.Stop();
+            SeekSlider.Value = 0;
+            UpdateTimeText();
+            TrySetStatus("Stopped");
+        }
+        // -------------------------
+        // Seek slider (drag to seek)
+        // -------------------------
+        private void SeekSlider_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _isDraggingSeek = true;
         }
 
-        // -------------------------
-        // Seek
-        // -------------------------
-        private void SeekSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void SeekSlider_PreviewMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            _isDragging = true;
-        }
-
-        private void SeekSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            _isDragging = false;
-            _rangePlayActive = false;
-            SeekTo(SeekSlider.Value);
+            _isDraggingSeek = false;
+            SeekToSlider();
         }
 
         private void SeekSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_ignoreSeek) return;
-
-            if (_isDragging)
+            if (_isDraggingSeek)
             {
-                _rangePlayActive = false;
-                var preview = TimeSpan.FromSeconds(SeekSlider.Value);
-                PlayCutWin.AppState.Instance.PlaybackPosition = preview;
-                UpdateTimeText(preview, PlayCutWin.AppState.Instance.PlaybackDuration);
+                // while dragging, update time text preview
+                UpdateTimeText(previewSeconds: SeekSlider.Value);
             }
         }
 
-        private void SeekTo(double seconds)
+        private void SeekToSlider()
         {
-            if (!_mediaReady) return;
+            if (Player.Source == null) return;
+            if (!_isMediaOpened) return;
 
+            var sec = SeekSlider.Value;
             try
             {
-                seconds = Math.Max(0, seconds);
-                Player.Position = TimeSpan.FromSeconds(seconds);
-                PlayCutWin.AppState.Instance.PlaybackPosition = Player.Position;
+                Player.Position = TimeSpan.FromSeconds(sec);
                 UpdateTimeText();
             }
-            catch { }
+            catch
+            {
+                // ignore
+            }
         }
 
-        private void SeekTo(TimeSpan pos)
+        // -------------------------
+        // +/- 0.5s buttons
+        // -------------------------
+        private void Back05_Click(object sender, RoutedEventArgs e)
         {
-            if (!_mediaReady) return;
+            Nudge(-0.5);
+        }
+
+        private void Fwd05_Click(object sender, RoutedEventArgs e)
+        {
+            Nudge(+0.5);
+        }
+
+        private void Nudge(double deltaSeconds)
+        {
+            if (Player.Source == null) return;
+            if (!_isMediaOpened) return;
 
             try
             {
-                if (pos < TimeSpan.Zero) pos = TimeSpan.Zero;
+                var now = Player.Position.TotalSeconds;
+                var target = Math.Max(0, now + deltaSeconds);
 
-                Player.Position = pos;
-                PlayCutWin.AppState.Instance.PlaybackPosition = pos;
+                // clamp to duration if available
+                if (Player.NaturalDuration.HasTimeSpan)
+                {
+                    var max = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                    target = Math.Min(max, target);
+                }
 
-                _ignoreSeek = true;
-                SeekSlider.Value = Math.Min(SeekSlider.Maximum, Math.Max(0, pos.TotalSeconds));
-                _ignoreSeek = false;
+                Player.Position = TimeSpan.FromSeconds(target);
+                SeekSlider.Value = target;
+                UpdateTimeText();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        // -------------------------
+        // Tick update (sync slider/time)
+        // -------------------------
+        private void TickUpdate()
+        {
+            if (Player.Source == null) return;
+            if (!_isMediaOpened) return;
+
+            if (_isDraggingSeek) return;
+
+            try
+            {
+                var pos = Player.Position.TotalSeconds;
+                if (pos < 0) pos = 0;
+
+                // update slider safely
+                if (SeekSlider.Maximum <= 0) SeekSlider.Maximum = 1;
+                if (pos <= SeekSlider.Maximum)
+                    SeekSlider.Value = pos;
 
                 UpdateTimeText();
             }
-            catch { }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private void UpdateTimeText(double? previewSeconds = null)
+        {
+            double cur = previewSeconds ?? (Player.Source != null ? Player.Position.TotalSeconds : 0);
+            double total = 0;
+
+            if (Player.Source != null && Player.NaturalDuration.HasTimeSpan)
+                total = Player.NaturalDuration.TimeSpan.TotalSeconds;
+
+            TimeText.Text = $"{FormatTime(cur)} / {FormatTime(total)}";
+        }
+
+        private static string FormatTime(double seconds)
+        {
+            if (seconds < 0) seconds = 0;
+            var ts = TimeSpan.FromSeconds(seconds);
+
+            // 1h以上も一応対応
+            if (ts.TotalHours >= 1)
+                return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
+
+            return $"{ts.Minutes:00}:{ts.Seconds:00}";
         }
 
         // -------------------------
-        // Timer tick
+        // AppState helpers (optional)
         // -------------------------
-        private void Tick()
+        private void TrySetAppStateSelected(string path, string name)
         {
-            RefreshCount();
-            RefreshSelectedTitle();
-
-            if (!_mediaReady) return;
-            if (_isDragging) return;
-
             try
             {
-                var pos = Player.Position;
-                var dur = Player.NaturalDuration.HasTimeSpan ? Player.NaturalDuration.TimeSpan : TimeSpan.Zero;
+                // If your AppState has SetSelected(...) compatibility
+                var t = Type.GetType("PlayCutWin.AppState");
+                if (t == null) return;
 
-                // range play stop
-                if (_rangePlayActive && pos >= _rangeEnd)
+                // try AppState.Current or AppState.Instance
+                object? appStateObj = null;
+
+                var curProp = t.GetProperty("Current");
+                if (curProp != null) appStateObj = curProp.GetValue(null);
+
+                if (appStateObj == null)
                 {
-                    _rangePlayActive = false;
-                    Player.Pause();
-                    PlayCutWin.AppState.Instance.StatusMessage = "Range end reached";
+                    var instProp = t.GetProperty("Instance");
+                    if (instProp != null) appStateObj = instProp.GetValue(null);
                 }
 
-                PlayCutWin.AppState.Instance.PlaybackPosition = pos;
-                PlayCutWin.AppState.Instance.PlaybackDuration = dur;
+                if (appStateObj == null) return;
 
-                _ignoreSeek = true;
-                if (dur.TotalSeconds > 0)
+                // SetSelected(string path, string name) or SetSelected(string path)
+                var m2 = t.GetMethod("SetSelected", new[] { typeof(string), typeof(string) });
+                if (m2 != null)
                 {
-                    SeekSlider.Maximum = dur.TotalSeconds;
-                    SeekSlider.Value = Math.Min(dur.TotalSeconds, pos.TotalSeconds);
-                }
-                _ignoreSeek = false;
-
-                UpdateTimeText(pos, dur);
-            }
-            catch { }
-        }
-
-        private void UpdateTimeText()
-        {
-            var pos = PlayCutWin.AppState.Instance.PlaybackPosition;
-            var dur = PlayCutWin.AppState.Instance.PlaybackDuration;
-            UpdateTimeText(pos, dur);
-        }
-
-        private void UpdateTimeText(TimeSpan pos, TimeSpan dur)
-        {
-            var left = Fmt(pos);
-            var right = dur.TotalSeconds > 0 ? Fmt(dur) : "--:--";
-            TimeText.Text = $"{left} / {right}";
-        }
-
-        // -------------------------
-        // Range controls (START/END/Add Clip)
-        // -------------------------
-        private void MarkStart_Click(object sender, RoutedEventArgs e)
-        {
-            PlayCutWin.AppState.Instance.MarkClipStart();
-            EnsureClipRangeOrder();
-        }
-
-        private void MarkEnd_Click(object sender, RoutedEventArgs e)
-        {
-            PlayCutWin.AppState.Instance.MarkClipEnd();
-            EnsureClipRangeOrder();
-        }
-
-        private void AddClip_Click(object sender, RoutedEventArgs e)
-        {
-            if (!PlayCutWin.AppState.Instance.CanCreateClip())
-            {
-                MessageBox.Show("STARTとENDを設定してね（END > START）", "Clip", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            // team は AppState.SelectedTeam が採用される（team空で渡す）
-            PlayCutWin.AppState.Instance.CreateClipFromRange(tagsText: "", team: "", note: "");
-        }
-
-        // -------------------------
-        // Clip list -> Jump / Range play + NEW: range follow
-        // -------------------------
-        private void ClipsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ClipsGrid.SelectedItem is PlayCutWin.ClipItem clip)
-            {
-                _selectedClip = clip;
-
-                // 別動画のクリップなら今回は触らない（簡易）
-                if (!string.IsNullOrWhiteSpace(clip.VideoPath) &&
-                    !string.Equals(clip.VideoPath, PlayCutWin.AppState.Instance.SelectedVideoPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    PlayCutWin.AppState.Instance.StatusMessage = "Selected clip belongs to another video.";
+                    m2.Invoke(appStateObj, new object[] { path, name });
                     return;
                 }
 
-                // ① Startへジャンプ
-                _rangePlayActive = false;
-                SeekTo(clip.Start);
-
-                // ② NEW: Range（START/END）を選択クリップに追従
-                PlayCutWin.AppState.Instance.ClipStart = clip.Start;
-                PlayCutWin.AppState.Instance.ClipEnd = clip.End;
-                EnsureClipRangeOrder();
-
-                PlayCutWin.AppState.Instance.StatusMessage = $"Selected clip: {clip.StartText}-{clip.EndText} (Range synced)";
-            }
-            else
-            {
-                _selectedClip = null;
-            }
-        }
-
-        private void ClipsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (ClipsGrid.SelectedItem is PlayCutWin.ClipItem clip)
-            {
-                if (!string.IsNullOrWhiteSpace(clip.VideoPath) &&
-                    !string.Equals(clip.VideoPath, PlayCutWin.AppState.Instance.SelectedVideoPath, StringComparison.OrdinalIgnoreCase))
+                var m1 = t.GetMethod("SetSelected", new[] { typeof(string) });
+                if (m1 != null)
                 {
-                    PlayCutWin.AppState.Instance.StatusMessage = "Selected clip belongs to another video.";
+                    m1.Invoke(appStateObj, new object[] { path });
                     return;
                 }
-
-                _rangePlayActive = true;
-                _rangeEnd = clip.End;
-
-                SeekTo(clip.Start);
-                Player.Play();
-
-                PlayCutWin.AppState.Instance.StatusMessage = $"Range play: {clip.StartText}-{clip.EndText}";
             }
-        }
-
-        // Optional: button to force sync range to selected clip (if you added it in XAML)
-        private void SetRangeToSelectedClip_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedClip == null) return;
-
-            PlayCutWin.AppState.Instance.ClipStart = _selectedClip.Start;
-            PlayCutWin.AppState.Instance.ClipEnd = _selectedClip.End;
-            EnsureClipRangeOrder();
-
-            PlayCutWin.AppState.Instance.StatusMessage = "Range set to selected clip.";
-        }
-
-        // -------------------------
-        // Integrated Tags panel events
-        // -------------------------
-        private void AddTag_Click(object sender, RoutedEventArgs e) => AddTagFromInput();
-
-        private void TagInput_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
+            catch
             {
-                AddTagFromInput();
-                e.Handled = true;
+                // ignore (AppState shape differs)
             }
         }
 
-        private void Preset_Click(object sender, RoutedEventArgs e)
+        private void TrySetStatus(string message)
         {
-            if (sender is Button b)
+            try
             {
-                var text = (b.Content?.ToString() ?? "").Trim();
-                if (string.IsNullOrWhiteSpace(text)) return;
+                // If AppState.StatusMessage exists
+                var t = Type.GetType("PlayCutWin.AppState");
+                if (t == null) return;
 
-                PlayCutWin.AppState.Instance.AddTagAtCurrentPosition(text);
+                object? appStateObj = null;
+
+                var curProp = t.GetProperty("Current");
+                if (curProp != null) appStateObj = curProp.GetValue(null);
+
+                if (appStateObj == null)
+                {
+                    var instProp = t.GetProperty("Instance");
+                    if (instProp != null) appStateObj = instProp.GetValue(null);
+                }
+
+                if (appStateObj == null) return;
+
+                var statusProp = t.GetProperty("StatusMessage");
+                if (statusProp != null && statusProp.CanWrite)
+                    statusProp.SetValue(appStateObj, message);
             }
-        }
-
-        private void ClearPending_Click(object sender, RoutedEventArgs e)
-        {
-            PlayCutWin.AppState.Instance.ClearPendingTags();
-            PlayCutWin.AppState.Instance.StatusMessage = "Pending tags cleared.";
-            try { TagInput.Focus(); } catch { }
-        }
-
-        private void AddTagFromInput()
-        {
-            var text = (TagInput.Text ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(text))
+            catch
             {
-                MessageBox.Show("タグを入力してね", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                // ignore
             }
-
-            PlayCutWin.AppState.Instance.AddTagAtCurrentPosition(text);
-
-            TagInput.Text = "";
-            try { TagInput.Focus(); } catch { }
-        }
-
-        // -------------------------
-        // NEW: Nudge (±0.5s) buttons
-        // -------------------------
-        private void NudgeStartMinus_Click(object sender, RoutedEventArgs e) => NudgeStart(-NudgeStep);
-        private void NudgeStartPlus_Click(object sender, RoutedEventArgs e) => NudgeStart(+NudgeStep);
-        private void NudgeEndMinus_Click(object sender, RoutedEventArgs e) => NudgeEnd(-NudgeStep);
-        private void NudgeEndPlus_Click(object sender, RoutedEventArgs e) => NudgeEnd(+NudgeStep);
-
-        private void NudgeStart(TimeSpan delta)
-        {
-            var s = PlayCutWin.AppState.Instance.ClipStart;
-            if (!s.HasValue) return;
-
-            var dur = DurationSafe();
-            var newStart = Clamp(s.Value + delta, TimeSpan.Zero, dur);
-
-            PlayCutWin.AppState.Instance.ClipStart = newStart;
-            EnsureClipRangeOrder();
-
-            PlayCutWin.AppState.Instance.StatusMessage = $"START nudged: {PlayCutWin.AppState.FmtMMSS(newStart)}";
-        }
-
-        private void NudgeEnd(TimeSpan delta)
-        {
-            var e = PlayCutWin.AppState.Instance.ClipEnd;
-            if (!e.HasValue) return;
-
-            var dur = DurationSafe();
-            var newEnd = Clamp(e.Value + delta, TimeSpan.Zero, dur);
-
-            PlayCutWin.AppState.Instance.ClipEnd = newEnd;
-            EnsureClipRangeOrder();
-
-            PlayCutWin.AppState.Instance.StatusMessage = $"END nudged: {PlayCutWin.AppState.FmtMMSS(newEnd)}";
         }
     }
 }
