@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using PlayCutWin.Views;
@@ -12,30 +13,23 @@ namespace PlayCutWin
         {
             InitializeComponent();
 
-            // 初期画面
+            // Default page
             MenuList.SelectedIndex = 0;
+            Navigate("Dashboard");
 
-            // Status連動
-            AppState.Current.PropertyChanged += (_, e) =>
+            // Reflect status changes
+            AppState.Instance.PropertyChanged += (_, __) =>
             {
-                if (e.PropertyName == nameof(AppState.StatusMessage))
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        StatusText.Text = AppState.Current.StatusMessage;
-                    });
-                }
+                StatusText.Text = AppState.Instance.StatusMessage;
             };
+            StatusText.Text = AppState.Instance.StatusMessage;
         }
 
-        private void MenuList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void Navigate(string page)
         {
-            if (MenuList.SelectedItem is not ListBoxItem item) return;
+            PageTitle.Text = page;
 
-            var key = item.Content?.ToString() ?? "Dashboard";
-            PageTitle.Text = key;
-
-            switch (key)
+            switch (page)
             {
                 case "Dashboard":
                     MainContent.Content = new DashboardView();
@@ -54,33 +48,46 @@ namespace PlayCutWin
                     break;
             }
 
-            StatusText.Text = $"Ready - {key}";
+            AppState.Instance.StatusMessage = $"Ready - {page}";
+        }
+
+        private void MenuList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (MenuList.SelectedItem is ListBoxItem item && item.Content is string label)
+            {
+                Navigate(label);
+            }
         }
 
         private void ImportVideo_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
-                Title = "Select a video file",
+                Title = "Import Video",
                 Filter = "Video files|*.mp4;*.mov;*.mkv;*.avi;*.wmv|All files|*.*"
             };
 
             if (dlg.ShowDialog() == true)
             {
-                AppState.Current.AddImportedVideo(dlg.FileName);
+                AppState.Instance.AddImportedVideo(dlg.FileName);
+
+                // auto-select last imported
+                AppState.Instance.SetSelected(dlg.FileName);
+
+                MessageBox.Show($"Selected:\n{dlg.FileName}", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
         private void ExportClip_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Export (placeholder)\nここは後で実装する。", "PlayCut", MessageBoxButton.OK, MessageBoxImage.Information);
-            AppState.Current.StatusMessage = "Export clicked";
+            MessageBox.Show("Export (placeholder)\nここに書き出し処理を入れる。", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppState.Instance.StatusMessage = "Export clicked";
         }
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Settings (placeholder)\nここは後で設定画面を追加する。", "PlayCut", MessageBoxButton.OK, MessageBoxImage.Information);
-            AppState.Current.StatusMessage = "Settings clicked";
+            MessageBox.Show("Settings (placeholder)\nここに設定画面を追加する。", "Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppState.Instance.StatusMessage = "Settings clicked";
         }
     }
 }

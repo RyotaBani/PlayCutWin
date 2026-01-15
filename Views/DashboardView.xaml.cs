@@ -1,5 +1,4 @@
 using System.Windows.Controls;
-using PlayCutWin;
 
 namespace PlayCutWin.Views
 {
@@ -8,7 +7,7 @@ namespace PlayCutWin.Views
         public DashboardView()
         {
             InitializeComponent();
-            DataContext = AppState.Current;
+            DataContext = PlayCutWin.AppState.Instance;
         }
     }
 }

@@ -1,7 +1,6 @@
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using PlayCutWin;
+using System.Windows;
 
 namespace PlayCutWin.Views
 {
@@ -10,42 +9,35 @@ namespace PlayCutWin.Views
         public TagsView()
         {
             InitializeComponent();
-            DataContext = AppState.Current;
+            DataContext = PlayCutWin.AppState.Instance;
         }
 
         private void AddTag_Click(object sender, RoutedEventArgs e)
         {
-            var tag = TagInput.Text ?? "";
-            AppState.Current.AddTag(tag);
-            TagInput.Text = "";
-            TagInput.Focus();
+            AddTagFromInput();
         }
 
         private void TagInput_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
-                AddTag_Click(sender, new RoutedEventArgs());
+                AddTagFromInput();
                 e.Handled = true;
             }
         }
 
-        // ダブルクリックで削除（小さく便利）
-        private void TagsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        private void AddTagFromInput()
         {
-            if (TagsList.SelectedItem is string tag)
+            var text = TagInput.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(text))
             {
-                var result = MessageBox.Show(
-                    $"Remove tag?\n\n{tag}",
-                    "Tags",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    AppState.Current.RemoveTag(tag);
-                }
+                MessageBox.Show("タグを入力してね（仮）", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
+
+            PlayCutWin.AppState.Instance.AddTag(text);
+            TagInput.Text = "";
+            TagInput.Focus();
         }
     }
 }

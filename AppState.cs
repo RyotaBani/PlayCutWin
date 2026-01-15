@@ -1,229 +1,85 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    // 取り回ししやすい最小モデル（ClipsView側でも使える）
+    // Imported video row model
     public class VideoItem
     {
         public string Name { get; set; } = "";
         public string Path { get; set; } = "";
     }
 
-    public sealed class AppState : INotifyPropertyChanged
+    // Simple tag model (A block)
+    public class TagItem
     {
-        // ✅ 互換: AppState.Instance / AppState.Current 両方を使えるようにする
-        public static AppState Instance { get; } = new AppState();
-        public static AppState Current => Instance;
+        public string Text { get; set; } = "";
+        public string Time { get; set; } = ""; // placeholder (e.g. "00:12")
+    }
 
-        private AppState()
+    // App-wide shared state
+    public class AppState : INotifyPropertyChanged
+    {
+        private static readonly AppState _instance = new AppState();
+        public static AppState Instance => _instance;
+
+        // Compatibility aliases (if old code references these)
+        public static AppState Current => _instance;
+
+        private string _statusMessage = "Ready";
+        public string StatusMessage
         {
-            ImportedVideos = new ObservableCollection<VideoItem>();
-            ImportedVideos.CollectionChanged += (_, __) => RaiseImportedSummary();
-
-            // 初期状態（選択なし）
-            _tagsForSelectedVideo = new ObservableCollection<string>();
-            HookTagsCollection(_tagsForSelectedVideo);
+            get => _statusMessage;
+            set { _statusMessage = value; OnPropertyChanged(); }
         }
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        // ----------------------------
-        // Imported videos
-        // ----------------------------
-        public ObservableCollection<VideoItem> ImportedVideos { get; }
-
-        private VideoItem? _selectedVideo;
-        public VideoItem? SelectedVideo
+        private string _selectedVideoPath = "";
+        public string SelectedVideoPath
         {
-            get => _selectedVideo;
-            set
-            {
-                if (_selectedVideo == value) return;
-                _selectedVideo = value;
-                OnPropertyChanged(nameof(SelectedVideo));
-                OnPropertyChanged(nameof(SelectedVideoPath));
-                OnPropertyChanged(nameof(SelectedVideoName));
-
-                // 選択が変わったら、その動画のタグ一覧へ切り替える
-                SwitchTagsCollectionForSelectedVideo();
-
-                StatusMessage = _selectedVideo == null
-                    ? "Ready"
-                    : $"Selected: {SelectedVideoName}";
-            }
+            get => _selectedVideoPath;
+            set { _selectedVideoPath = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedVideoName)); }
         }
 
-        public string SelectedVideoPath => SelectedVideo?.Path ?? "";
-        public string SelectedVideoName => SelectedVideo?.Name ?? "";
+        public string SelectedVideoName
+            => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "(none)" : System.IO.Path.GetFileName(SelectedVideoPath);
+
+        public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
+        public ObservableCollection<TagItem> Tags { get; } = new ObservableCollection<TagItem>();
 
         public void AddImportedVideo(string fullPath)
         {
             if (string.IsNullOrWhiteSpace(fullPath)) return;
 
-            // 同一パスは重複登録しない（必要ならここを変更）
-            if (ImportedVideos.Any(v => string.Equals(v.Path, fullPath, StringComparison.OrdinalIgnoreCase)))
+            ImportedVideos.Add(new VideoItem
             {
-                StatusMessage = $"Already imported: {System.IO.Path.GetFileName(fullPath)}";
-                return;
-            }
+                Name = System.IO.Path.GetFileName(fullPath),
+                Path = fullPath
+            });
 
-            var item = new VideoItem
-            {
-                Path = fullPath,
-                Name = System.IO.Path.GetFileName(fullPath)
-            };
-
-            ImportedVideos.Add(item);
-
-            // 追加した動画を選択
-            SelectedVideo = item;
-
-            StatusMessage = $"Imported: {item.Name}";
+            StatusMessage = $"Imported: {System.IO.Path.GetFileName(fullPath)}";
         }
 
-        // ----------------------------
-        // Status
-        // ----------------------------
-        private string _statusMessage = "Ready";
-        public string StatusMessage
+        public void SetSelected(string fullPath)
         {
-            get => _statusMessage;
-            set
-            {
-                if (_statusMessage == value) return;
-                _statusMessage = value;
-                OnPropertyChanged(nameof(StatusMessage));
-            }
+            SelectedVideoPath = fullPath ?? "";
+            StatusMessage = string.IsNullOrWhiteSpace(SelectedVideoPath)
+                ? "Selected: (none)"
+                : $"Selected: {System.IO.Path.GetFileName(SelectedVideoPath)}";
         }
 
-        private void RaiseImportedSummary()
+        public void AddTag(string text)
         {
-            OnPropertyChanged(nameof(ImportedCountText));
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            // A block: time is placeholder (later connect to playback time)
+            Tags.Add(new TagItem { Text = text.Trim(), Time = "--:--" });
+            StatusMessage = $"Tag added: {text.Trim()}";
         }
 
-        public string ImportedCountText => $"Count: {ImportedVideos.Count}";
-
-        // ----------------------------
-        // Tags (per-video)
-        // ----------------------------
-        // Pathごとにタグ一覧を持つ
-        private readonly Dictionary<string, ObservableCollection<string>> _tagsByVideoPath
-            = new Dictionary<string, ObservableCollection<string>>(StringComparer.OrdinalIgnoreCase);
-
-        private ObservableCollection<string> _tagsForSelectedVideo;
-
-        /// <summary>
-        /// TagsView / Dashboard / Exports が参照する「選択中動画のタグ一覧」
-        /// </summary>
-        public ObservableCollection<string> TagsForSelectedVideo
-        {
-            get => _tagsForSelectedVideo;
-            private set
-            {
-                if (ReferenceEquals(_tagsForSelectedVideo, value)) return;
-
-                UnhookTagsCollection(_tagsForSelectedVideo);
-                _tagsForSelectedVideo = value;
-                HookTagsCollection(_tagsForSelectedVideo);
-
-                OnPropertyChanged(nameof(TagsForSelectedVideo));
-                RaiseTagSummary();
-            }
-        }
-
-        public string TagCountText => SelectedVideo == null
-            ? "Tags: 0"
-            : $"Tags: {TagsForSelectedVideo.Count}";
-
-        public string LatestTagText => (TagsForSelectedVideo.Count == 0)
-            ? "Latest: -"
-            : $"Latest: {TagsForSelectedVideo.Last()}";
-
-        public void AddTag(string tag)
-        {
-            if (SelectedVideo == null)
-            {
-                StatusMessage = "Select a video first.";
-                return;
-            }
-
-            tag = (tag ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(tag))
-            {
-                StatusMessage = "Tag is empty.";
-                return;
-            }
-
-            // 同一タグは重複させない（必要ならここを変更）
-            if (TagsForSelectedVideo.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)))
-            {
-                StatusMessage = $"Tag already exists: {tag}";
-                return;
-            }
-
-            TagsForSelectedVideo.Add(tag);
-            StatusMessage = $"Added tag: {tag}";
-        }
-
-        public void RemoveTag(string tag)
-        {
-            if (SelectedVideo == null) return;
-            if (string.IsNullOrWhiteSpace(tag)) return;
-
-            var hit = TagsForSelectedVideo.FirstOrDefault(t =>
-                string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
-
-            if (hit != null)
-            {
-                TagsForSelectedVideo.Remove(hit);
-                StatusMessage = $"Removed tag: {hit}";
-            }
-        }
-
-        private void SwitchTagsCollectionForSelectedVideo()
-        {
-            if (SelectedVideo == null || string.IsNullOrWhiteSpace(SelectedVideo.Path))
-            {
-                TagsForSelectedVideo = new ObservableCollection<string>();
-                return;
-            }
-
-            if (!_tagsByVideoPath.TryGetValue(SelectedVideo.Path, out var list))
-            {
-                list = new ObservableCollection<string>();
-                _tagsByVideoPath[SelectedVideo.Path] = list;
-            }
-
-            TagsForSelectedVideo = list;
-        }
-
-        private void HookTagsCollection(ObservableCollection<string> col)
-        {
-            col.CollectionChanged += Tags_CollectionChanged;
-        }
-
-        private void UnhookTagsCollection(ObservableCollection<string> col)
-        {
-            col.CollectionChanged -= Tags_CollectionChanged;
-        }
-
-        private void Tags_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            RaiseTagSummary();
-        }
-
-        private void RaiseTagSummary()
-        {
-            OnPropertyChanged(nameof(TagCountText));
-            OnPropertyChanged(nameof(LatestTagText));
-        }
-
-        private void OnPropertyChanged(string name)
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }

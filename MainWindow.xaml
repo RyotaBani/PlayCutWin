@@ -17,14 +17,11 @@
         <!-- Top Bar -->
         <Border Grid.Row="0" Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="True" Margin="12,0">
-                <TextBlock Text="PlayCut"
-                           Foreground="White"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           DockPanel.Dock="Left"/>
+                <TextBlock Text="PlayCut" Foreground="White" FontSize="18" FontWeight="SemiBold"
+                           VerticalAlignment="Center" DockPanel.Dock="Left"/>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            DockPanel.Dock="Right" VerticalAlignment="Center">
                     <Button Content="Import Video" Margin="0,0,8,0" Padding="12,6" Click="ImportVideo_Click"/>
                     <Button Content="Export Clip"  Margin="0,0,8,0" Padding="12,6" Click="ExportClip_Click"/>
                     <Button Content="Settings"     Padding="12,6" Click="Settings_Click"/>
@@ -43,6 +40,7 @@
             <Border Grid.Column="0" Background="#151515" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
                 <StackPanel Margin="12">
                     <TextBlock Text="Library" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
+
                     <ListBox x:Name="MenuList" SelectionChanged="MenuList_SelectionChanged">
                         <ListBoxItem Content="Dashboard"/>
                         <ListBoxItem Content="Clips"/>
@@ -58,7 +56,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Main -->
+            <!-- Main Content -->
             <Grid Grid.Column="1" Margin="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -72,7 +70,8 @@
                            FontWeight="SemiBold"
                            Margin="0,0,0,12"/>
 
-                <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="0">
+                <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="10"
+                        BorderBrush="#2A2A2A" BorderThickness="1" Padding="16">
                     <ContentControl x:Name="MainContent"/>
                 </Border>
             </Grid>

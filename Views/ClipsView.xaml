@@ -1,123 +1,44 @@
 <UserControl x:Class="PlayCutWin.Views.ClipsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="#111111">
+             Background="Transparent">
 
-    <Grid Margin="0">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="420"/>
-        </Grid.ColumnDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- Left: list -->
-        <Border Grid.Column="0"
-                Background="#1A1A1A"
-                CornerRadius="10"
-                BorderBrush="#2A2A2A"
-                BorderThickness="1"
-                Padding="16"
-                Margin="0,0,16,0">
+        <TextBlock Text="Imported Videos" Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
 
+        <Border Grid.Row="1" Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="12">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="Clips"
-                           Foreground="White"
-                           FontSize="22"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,12"/>
-
-                <DockPanel Grid.Row="1" Margin="0,0,0,10">
-                    <TextBlock Text="Imported Videos"
-                               Foreground="#EDEDED"
-                               FontSize="14"
-                               FontWeight="SemiBold"/>
-                    <TextBlock x:Name="CountText"
-                               DockPanel.Dock="Right"
-                               Text="Count: 0"
-                               Foreground="#BFBFBF"
-                               FontSize="12"
-                               VerticalAlignment="Center"/>
+                <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="(Import Videoで選択したファイルがここに並ぶ)" Foreground="#AFAFAF" FontSize="12"/>
+                    <TextBlock Text="{Binding ImportedVideos.Count, StringFormat=Count: {0}}"
+                               Foreground="#AFAFAF" FontSize="12"
+                               HorizontalAlignment="Right" DockPanel.Dock="Right"/>
                 </DockPanel>
 
-                <DataGrid x:Name="VideoGrid"
-                          Grid.Row="2"
+                <DataGrid x:Name="VideosGrid"
+                          Grid.Row="1"
+                          ItemsSource="{Binding ImportedVideos}"
                           AutoGenerateColumns="False"
+                          CanUserAddRows="False"
                           IsReadOnly="True"
                           SelectionMode="Single"
-                          SelectionChanged="VideoGrid_SelectionChanged"
-                          Background="#111111"
-                          BorderBrush="#2A2A2A"
-                          BorderThickness="1"
-                          Foreground="#EDEDED">
+                          SelectionUnit="FullRow"
+                          SelectionChanged="VideosGrid_SelectionChanged">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
-                        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="3*" />
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="2*"/>
                     </DataGrid.Columns>
                 </DataGrid>
-            </Grid>
-        </Border>
-
-        <!-- Right: player -->
-        <Border Grid.Column="1"
-                Background="#1A1A1A"
-                CornerRadius="10"
-                BorderBrush="#2A2A2A"
-                BorderThickness="1"
-                Padding="16">
-
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <TextBlock x:Name="SelectedTitle"
-                           Text="Selected: (none)"
-                           Foreground="#EDEDED"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,8"/>
-
-                <Border Grid.Row="1"
-                        Background="#111111"
-                        BorderBrush="#2A2A2A"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="8">
-
-                    <MediaElement x:Name="Player"
-                                  LoadedBehavior="Manual"
-                                  UnloadedBehavior="Manual"
-                                  Stretch="Uniform"/>
-                </Border>
-
-                <Slider x:Name="SeekBar"
-                        Grid.Row="2"
-                        Minimum="0"
-                        Maximum="1"
-                        ValueChanged="SeekBar_ValueChanged"
-                        Margin="0,12,0,6"/>
-
-                <DockPanel Grid.Row="3">
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                        <Button Content="Play" Width="90" Margin="0,0,8,0" Click="Play_Click"/>
-                        <Button Content="Pause" Width="90" Margin="0,0,8,0" Click="Pause_Click"/>
-                        <Button Content="Stop" Width="90" Click="Stop_Click"/>
-                    </StackPanel>
-
-                    <TextBlock x:Name="TimeText"
-                               DockPanel.Dock="Right"
-                               Text="00:00 / 00:00"
-                               Foreground="#BFBFBF"
-                               VerticalAlignment="Center"/>
-                </DockPanel>
             </Grid>
         </Border>
     </Grid>
