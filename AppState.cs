@@ -28,14 +28,20 @@ namespace PlayCutWin
         // Compatibility alias
         public static AppState Current => _instance;
 
-        // ---- A block: shared status / selection ----
+        // ---- Status ----
         private string _statusMessage = "Ready";
         public string StatusMessage
         {
             get => _statusMessage;
-            set { if (_statusMessage != value) { _statusMessage = value; OnPropertyChanged(); } }
+            set
+            {
+                if (_statusMessage == value) return;
+                _statusMessage = value;
+                OnPropertyChanged();
+            }
         }
 
+        // ---- Selected video ----
         private string _selectedVideoPath = "";
         public string SelectedVideoPath
         {
@@ -52,6 +58,7 @@ namespace PlayCutWin
         public string SelectedVideoName
             => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "(none)" : System.IO.Path.GetFileName(SelectedVideoPath);
 
+        // ---- Collections ----
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
         public ObservableCollection<TagItem> Tags { get; } = new ObservableCollection<TagItem>();
 
@@ -84,7 +91,7 @@ namespace PlayCutWin
             StatusMessage = $"Tag added: {text.Trim()}";
         }
 
-        // ---- B block: playback shared state (for Tags time later) ----
+        // ---- Playback shared state (B block) ----
         private TimeSpan _playbackPosition = TimeSpan.Zero;
         public TimeSpan PlaybackPosition
         {
@@ -111,17 +118,23 @@ namespace PlayCutWin
             }
         }
 
-        public string PlaybackPositionText => $"{Fmt(PlaybackPosition)} / {Fmt(PlaybackDuration)}";
+        public string PlaybackPositionText => $"{Fmt(PlaybackPosition)} / {FmtOrDash(PlaybackDuration)}";
 
-        public static string Fmt(TimeSpan t)
+        private static string Fmt(TimeSpan t)
         {
-            if (t.TotalSeconds <= 0) return "00:00";
-            int total = (int)t.TotalSeconds;
+            int total = (int)Math.Max(0, t.TotalSeconds);
             int mm = total / 60;
             int ss = total % 60;
             return $"{mm:00}:{ss:00}";
         }
 
+        private static string FmtOrDash(TimeSpan t)
+        {
+            if (t.TotalSeconds <= 0) return "--:--";
+            return Fmt(t);
+        }
+
+        // ---- INotifyPropertyChanged ----
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
