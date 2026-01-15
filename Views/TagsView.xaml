@@ -6,56 +6,116 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Tags" Foreground="White" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+        <TextBlock Text="Tags"
+                   Foreground="White"
+                   FontSize="22"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,12"/>
 
-        <Border Grid.Row="1" Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="16">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <TextBlock Text="Selected video:" Foreground="#BFBFBF" FontSize="12"/>
-                <TextBlock Grid.Row="1" Text="{Binding SelectedVideoPath}" Foreground="#EDEDED" FontSize="12"
-                           TextWrapping="Wrap" Margin="0,4,0,12"/>
-
-                <TextBlock Grid.Row="2" Text="(placeholder) ここにタグUIを作る" Foreground="#AFAFAF" FontSize="12" Margin="0,0,0,8"/>
-
-                <Grid Grid.Row="3">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0" Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBox x:Name="TagInput" Height="28" VerticalContentAlignment="Center"
-                                 KeyDown="TagInput_KeyDown"/>
-                        <Button Grid.Column="1" Content="Add Tag (dummy)" Padding="18,6" Margin="10,0,0,0"
-                                Click="AddTag_Click"/>
-                    </Grid>
-
-                    <DataGrid Grid.Row="1"
-                              ItemsSource="{Binding Tags}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="100"/>
-                            <DataGridTextColumn Header="Tag"  Binding="{Binding Text}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </Grid>
+        <!-- Pending summary -->
+        <Border Grid.Row="1"
+                Background="#1A1A1A"
+                CornerRadius="10"
+                BorderBrush="#2A2A2A"
+                BorderThickness="1"
+                Padding="12"
+                Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Pending Tags (next clip)"
+                           Foreground="White"
+                           FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding PendingTagsText}"
+                           Foreground="#BFBFBF"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+            </StackPanel>
         </Border>
+
+        <!-- Input + presets -->
+        <Border Grid.Row="2"
+                Background="#1A1A1A"
+                CornerRadius="10"
+                BorderBrush="#2A2A2A"
+                BorderThickness="1"
+                Padding="12"
+                Margin="0,0,0,12">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,10">
+                    <TextBox x:Name="TagInput"
+                             Height="30"
+                             MinWidth="220"
+                             VerticalContentAlignment="Center"
+                             KeyDown="TagInput_KeyDown"
+                             Margin="0,0,10,0"/>
+                    <Button Content="Add Tag"
+                            Padding="14,6"
+                            Click="AddTag_Click"/>
+                    <Button Content="Clear"
+                            Padding="14,6"
+                            Margin="10,0,0,0"
+                            Click="ClearPending_Click"/>
+                </DockPanel>
+
+                <TextBlock Text="Presets"
+                           Foreground="#BFBFBF"
+                           FontSize="12"
+                           Margin="0,0,0,6"/>
+
+                <WrapPanel>
+                    <Button Content="Transition" Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="PnR"        Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="Handoff"    Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="Post"       Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="Kickout"    Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="BLOB"       Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="SLOB"       Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="Zone"       Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                    <Button Content="Press"      Margin="0,0,8,8" Padding="12,6" Click="Preset_Click"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Raw tag list (pending list) -->
+        <Border Grid.Row="3"
+                Background="#1A1A1A"
+                CornerRadius="10"
+                BorderBrush="#2A2A2A"
+                BorderThickness="1"
+                Padding="12">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                    <TextBlock Text="Pending Tag List"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               DockPanel.Dock="Left"/>
+                    <TextBlock Text="{Binding Tags.Count, StringFormat=Count: {0}}"
+                               Foreground="#9A9A9A"
+                               FontSize="12"
+                               DockPanel.Dock="Right"/>
+                </DockPanel>
+
+                <DataGrid ItemsSource="{Binding Tags}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          Background="#0F0F0F"
+                          Foreground="White"
+                          BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="70"/>
+                        <DataGridTextColumn Header="Tag"  Binding="{Binding Text}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+        </Border>
+
     </Grid>
 </UserControl>
