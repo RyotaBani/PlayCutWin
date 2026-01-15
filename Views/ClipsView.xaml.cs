@@ -9,13 +9,20 @@ namespace PlayCutWin.Views
     public partial class ClipsView : UserControl
     {
         private readonly DispatcherTimer _timer;
+
         private bool _isDragging = false;
         private bool _ignoreSeek = false;
         private bool _mediaReady = false;
 
-        // NEW: range play
+        // Range play
         private bool _rangePlayActive = false;
         private TimeSpan _rangeEnd = TimeSpan.Zero;
+
+        // NEW: selected clip (for range follow)
+        private PlayCutWin.ClipItem? _selectedClip;
+
+        // NEW: nudge step
+        private static readonly TimeSpan NudgeStep = TimeSpan.FromMilliseconds(500); // ±0.5s
 
         public ClipsView()
         {
@@ -53,6 +60,36 @@ namespace PlayCutWin.Views
             int mm = total / 60;
             int ss = total % 60;
             return $"{mm:00}:{ss:00}";
+        }
+
+        private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private TimeSpan DurationSafe()
+        {
+            try
+            {
+                if (Player.NaturalDuration.HasTimeSpan) return Player.NaturalDuration.TimeSpan;
+            }
+            catch { }
+            return PlayCutWin.AppState.Instance.PlaybackDuration;
+        }
+
+        private void EnsureClipRangeOrder()
+        {
+            var s = PlayCutWin.AppState.Instance.ClipStart;
+            var e = PlayCutWin.AppState.Instance.ClipEnd;
+            if (s.HasValue && e.HasValue && e.Value <= s.Value)
+            {
+                // Keep at least 0.1s
+                var dur = DurationSafe();
+                var newEnd = Clamp(s.Value + TimeSpan.FromMilliseconds(100), TimeSpan.Zero, dur);
+                PlayCutWin.AppState.Instance.ClipEnd = newEnd;
+            }
         }
 
         // -------------------------
@@ -135,7 +172,6 @@ namespace PlayCutWin.Views
                     _mediaReady = true;
 
                     var dur = Player.NaturalDuration.TimeSpan;
-
                     PlayCutWin.AppState.Instance.PlaybackDuration = dur;
                     PlayCutWin.AppState.Instance.PlaybackPosition = Player.Position;
 
@@ -311,7 +347,7 @@ namespace PlayCutWin.Views
                 var pos = Player.Position;
                 var dur = Player.NaturalDuration.HasTimeSpan ? Player.NaturalDuration.TimeSpan : TimeSpan.Zero;
 
-                // Range play stop condition
+                // range play stop
                 if (_rangePlayActive && pos >= _rangeEnd)
                 {
                     _rangePlayActive = false;
@@ -355,11 +391,13 @@ namespace PlayCutWin.Views
         private void MarkStart_Click(object sender, RoutedEventArgs e)
         {
             PlayCutWin.AppState.Instance.MarkClipStart();
+            EnsureClipRangeOrder();
         }
 
         private void MarkEnd_Click(object sender, RoutedEventArgs e)
         {
             PlayCutWin.AppState.Instance.MarkClipEnd();
+            EnsureClipRangeOrder();
         }
 
         private void AddClip_Click(object sender, RoutedEventArgs e)
@@ -370,18 +408,20 @@ namespace PlayCutWin.Views
                 return;
             }
 
-            // tagsText は AppState が PendingTags から自動生成する（⑧の仕様）
-            PlayCutWin.AppState.Instance.CreateClipFromRange(tagsText: "", team: "Team A", note: "");
+            // team は AppState.SelectedTeam が採用される（team空で渡す）
+            PlayCutWin.AppState.Instance.CreateClipFromRange(tagsText: "", team: "", note: "");
         }
 
         // -------------------------
-        // NEW: Clip list -> Jump to Start (and range play on double click)
+        // Clip list -> Jump / Range play + NEW: range follow
         // -------------------------
         private void ClipsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ClipsGrid.SelectedItem is PlayCutWin.ClipItem clip)
             {
-                // 別動画のクリップを選んだ場合は警告（今回は簡易）
+                _selectedClip = clip;
+
+                // 別動画のクリップなら今回は触らない（簡易）
                 if (!string.IsNullOrWhiteSpace(clip.VideoPath) &&
                     !string.Equals(clip.VideoPath, PlayCutWin.AppState.Instance.SelectedVideoPath, StringComparison.OrdinalIgnoreCase))
                 {
@@ -389,10 +429,20 @@ namespace PlayCutWin.Views
                     return;
                 }
 
-                // Startへジャンプ
+                // ① Startへジャンプ
                 _rangePlayActive = false;
                 SeekTo(clip.Start);
-                PlayCutWin.AppState.Instance.StatusMessage = $"Jump to {clip.StartText}";
+
+                // ② NEW: Range（START/END）を選択クリップに追従
+                PlayCutWin.AppState.Instance.ClipStart = clip.Start;
+                PlayCutWin.AppState.Instance.ClipEnd = clip.End;
+                EnsureClipRangeOrder();
+
+                PlayCutWin.AppState.Instance.StatusMessage = $"Selected clip: {clip.StartText}-{clip.EndText} (Range synced)";
+            }
+            else
+            {
+                _selectedClip = null;
             }
         }
 
@@ -407,7 +457,6 @@ namespace PlayCutWin.Views
                     return;
                 }
 
-                // Start→End を簡易再生
                 _rangePlayActive = true;
                 _rangeEnd = clip.End;
 
@@ -416,6 +465,101 @@ namespace PlayCutWin.Views
 
                 PlayCutWin.AppState.Instance.StatusMessage = $"Range play: {clip.StartText}-{clip.EndText}";
             }
+        }
+
+        // Optional: button to force sync range to selected clip (if you added it in XAML)
+        private void SetRangeToSelectedClip_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedClip == null) return;
+
+            PlayCutWin.AppState.Instance.ClipStart = _selectedClip.Start;
+            PlayCutWin.AppState.Instance.ClipEnd = _selectedClip.End;
+            EnsureClipRangeOrder();
+
+            PlayCutWin.AppState.Instance.StatusMessage = "Range set to selected clip.";
+        }
+
+        // -------------------------
+        // Integrated Tags panel events
+        // -------------------------
+        private void AddTag_Click(object sender, RoutedEventArgs e) => AddTagFromInput();
+
+        private void TagInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                AddTagFromInput();
+                e.Handled = true;
+            }
+        }
+
+        private void Preset_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b)
+            {
+                var text = (b.Content?.ToString() ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(text)) return;
+
+                PlayCutWin.AppState.Instance.AddTagAtCurrentPosition(text);
+            }
+        }
+
+        private void ClearPending_Click(object sender, RoutedEventArgs e)
+        {
+            PlayCutWin.AppState.Instance.ClearPendingTags();
+            PlayCutWin.AppState.Instance.StatusMessage = "Pending tags cleared.";
+            try { TagInput.Focus(); } catch { }
+        }
+
+        private void AddTagFromInput()
+        {
+            var text = (TagInput.Text ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                MessageBox.Show("タグを入力してね", "Tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            PlayCutWin.AppState.Instance.AddTagAtCurrentPosition(text);
+
+            TagInput.Text = "";
+            try { TagInput.Focus(); } catch { }
+        }
+
+        // -------------------------
+        // NEW: Nudge (±0.5s) buttons
+        // -------------------------
+        private void NudgeStartMinus_Click(object sender, RoutedEventArgs e) => NudgeStart(-NudgeStep);
+        private void NudgeStartPlus_Click(object sender, RoutedEventArgs e) => NudgeStart(+NudgeStep);
+        private void NudgeEndMinus_Click(object sender, RoutedEventArgs e) => NudgeEnd(-NudgeStep);
+        private void NudgeEndPlus_Click(object sender, RoutedEventArgs e) => NudgeEnd(+NudgeStep);
+
+        private void NudgeStart(TimeSpan delta)
+        {
+            var s = PlayCutWin.AppState.Instance.ClipStart;
+            if (!s.HasValue) return;
+
+            var dur = DurationSafe();
+            var newStart = Clamp(s.Value + delta, TimeSpan.Zero, dur);
+
+            PlayCutWin.AppState.Instance.ClipStart = newStart;
+            EnsureClipRangeOrder();
+
+            PlayCutWin.AppState.Instance.StatusMessage = $"START nudged: {PlayCutWin.AppState.FmtMMSS(newStart)}";
+        }
+
+        private void NudgeEnd(TimeSpan delta)
+        {
+            var e = PlayCutWin.AppState.Instance.ClipEnd;
+            if (!e.HasValue) return;
+
+            var dur = DurationSafe();
+            var newEnd = Clamp(e.Value + delta, TimeSpan.Zero, dur);
+
+            PlayCutWin.AppState.Instance.ClipEnd = newEnd;
+            EnsureClipRangeOrder();
+
+            PlayCutWin.AppState.Instance.StatusMessage = $"END nudged: {PlayCutWin.AppState.FmtMMSS(newEnd)}";
         }
     }
 }

@@ -6,21 +6,18 @@ using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    // Imported video row model
     public class VideoItem
     {
         public string Name { get; set; } = "";
         public string Path { get; set; } = "";
     }
 
-    // Tag model (Pending tags for next clip)
     public class TagItem
     {
         public string Text { get; set; } = "";
-        public string Time { get; set; } = ""; // e.g. "03:12"
+        public string Time { get; set; } = "";
     }
 
-    // Clip model
     public class ClipItem
     {
         public Guid Id { get; set; } = Guid.NewGuid();
@@ -40,24 +37,18 @@ namespace PlayCutWin
         public string Note { get; set; } = "";
     }
 
-    // App-wide shared state
     public class AppState : INotifyPropertyChanged
     {
         private static readonly AppState _instance = new AppState();
         public static AppState Instance => _instance;
-        public static AppState Current => _instance; // compat
+        public static AppState Current => _instance;
 
         // ---- Status ----
         private string _statusMessage = "Ready";
         public string StatusMessage
         {
             get => _statusMessage;
-            set
-            {
-                if (_statusMessage == value) return;
-                _statusMessage = value;
-                OnPropertyChanged();
-            }
+            set { if (_statusMessage == value) return; _statusMessage = value; OnPropertyChanged(); }
         }
 
         // ---- Selected video ----
@@ -79,10 +70,7 @@ namespace PlayCutWin
 
         // ---- Collections ----
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
-
-        // Pending tags (next clip)
         public ObservableCollection<TagItem> Tags { get; } = new ObservableCollection<TagItem>();
-
         public ObservableCollection<ClipItem> Clips { get; } = new ObservableCollection<ClipItem>();
 
         // ---- Export ----
@@ -90,10 +78,19 @@ namespace PlayCutWin
         public string ExportFolder
         {
             get => _exportFolder;
+            set { if (_exportFolder == value) return; _exportFolder = value ?? ""; OnPropertyChanged(); }
+        }
+
+        // ---- NEW: Team ----
+        private string _selectedTeam = "Team A";
+        public string SelectedTeam
+        {
+            get => _selectedTeam;
             set
             {
-                if (_exportFolder == value) return;
-                _exportFolder = value ?? "";
+                var v = string.IsNullOrWhiteSpace(value) ? "Team A" : value.Trim();
+                if (_selectedTeam == v) return;
+                _selectedTeam = v;
                 OnPropertyChanged();
             }
         }
@@ -120,31 +117,19 @@ namespace PlayCutWin
                 : $"Selected: {System.IO.Path.GetFileName(SelectedVideoPath)}";
         }
 
-        // ---- Playback shared state ----
+        // ---- Playback ----
         private TimeSpan _playbackPosition = TimeSpan.Zero;
         public TimeSpan PlaybackPosition
         {
             get => _playbackPosition;
-            set
-            {
-                if (_playbackPosition == value) return;
-                _playbackPosition = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PlaybackPositionText));
-            }
+            set { if (_playbackPosition == value) return; _playbackPosition = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlaybackPositionText)); }
         }
 
         private TimeSpan _playbackDuration = TimeSpan.Zero;
         public TimeSpan PlaybackDuration
         {
             get => _playbackDuration;
-            set
-            {
-                if (_playbackDuration == value) return;
-                _playbackDuration = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PlaybackPositionText));
-            }
+            set { if (_playbackDuration == value) return; _playbackDuration = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlaybackPositionText)); }
         }
 
         public string PlaybackPositionText => $"{FmtMMSS(PlaybackPosition)} / {FmtOrDash(PlaybackDuration)}";
@@ -154,26 +139,14 @@ namespace PlayCutWin
         public TimeSpan? ClipStart
         {
             get => _clipStart;
-            set
-            {
-                if (_clipStart == value) return;
-                _clipStart = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(ClipStartText));
-            }
+            set { if (_clipStart == value) return; _clipStart = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipStartText)); }
         }
 
         private TimeSpan? _clipEnd;
         public TimeSpan? ClipEnd
         {
             get => _clipEnd;
-            set
-            {
-                if (_clipEnd == value) return;
-                _clipEnd = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(ClipEndText));
-            }
+            set { if (_clipEnd == value) return; _clipEnd = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipEndText)); }
         }
 
         public string ClipStartText => ClipStart.HasValue ? FmtMMSS(ClipStart.Value) : "--:--";
@@ -198,8 +171,7 @@ namespace PlayCutWin
             return ClipEnd.Value > ClipStart.Value;
         }
 
-        // ---- Tagging (pending tags) ----
-        // legacy compat (not used in new UI, but keep)
+        // ---- Tags (pending) ----
         public void AddTag(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
@@ -237,7 +209,7 @@ namespace PlayCutWin
         }
 
         // ---- Create clip ----
-        public void CreateClipFromRange(string tagsText = "", string team = "Team A", string note = "")
+        public void CreateClipFromRange(string tagsText = "", string team = "", string note = "")
         {
             if (!CanCreateClip())
             {
@@ -247,6 +219,9 @@ namespace PlayCutWin
 
             var finalTags = string.IsNullOrWhiteSpace(tagsText) ? BuildTagsTextForClip() : tagsText.Trim();
 
+            // ✅ teamが空ならSelectedTeamを採用
+            var finalTeam = string.IsNullOrWhiteSpace(team) ? SelectedTeam : team.Trim();
+
             var clip = new ClipItem
             {
                 VideoPath = SelectedVideoPath,
@@ -254,18 +229,16 @@ namespace PlayCutWin
                 Start = ClipStart!.Value,
                 End = ClipEnd!.Value,
                 TagsText = finalTags,
-                Team = string.IsNullOrWhiteSpace(team) ? "Team A" : team,
+                Team = finalTeam,
                 Note = note ?? ""
             };
 
             Clips.Add(clip);
-            StatusMessage = $"Clip added: {clip.StartText}-{clip.EndText}";
+            StatusMessage = $"Clip added: {clip.StartText}-{clip.EndText} ({finalTeam})";
 
-            // Prepare for next clip
             ClipStart = clip.End;
             ClipEnd = null;
 
-            // Clear pending tags after creating a clip
             ClearPendingTags();
         }
 
@@ -279,7 +252,7 @@ namespace PlayCutWin
             }
         }
 
-        // ---- Formatting helpers ----
+        // ---- Formatting ----
         public static string FmtMMSS(TimeSpan t)
         {
             int total = (int)Math.Max(0, t.TotalSeconds);
