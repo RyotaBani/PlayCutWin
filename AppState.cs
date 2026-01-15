@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
@@ -12,11 +13,32 @@ namespace PlayCutWin
         public string Path { get; set; } = "";
     }
 
-    // Simple tag model (A block)
+    // Tag model
     public class TagItem
     {
         public string Text { get; set; } = "";
-        public string Time { get; set; } = ""; // placeholder (e.g. "00:12") -> Cブロックで本物にする
+        public string Time { get; set; } = ""; // e.g. "03:12"
+    }
+
+    // Clip model
+    public class ClipItem
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public string VideoPath { get; set; } = "";
+        public string VideoName { get; set; } = "";
+
+        public TimeSpan Start { get; set; } = TimeSpan.Zero;
+        public TimeSpan End { get; set; } = TimeSpan.Zero;
+
+        public string StartText => AppState.FmtMMSS(Start);
+        public string EndText => AppState.FmtMMSS(End);
+
+        // Tags summary for list (e.g. "03:12 PnR, 03:20 Kickout")
+        public string TagsText { get; set; } = "";
+
+        public string Team { get; set; } = "Team A";
+        public string Note { get; set; } = "";
     }
 
     // App-wide shared state
@@ -24,9 +46,7 @@ namespace PlayCutWin
     {
         private static readonly AppState _instance = new AppState();
         public static AppState Instance => _instance;
-
-        // Compatibility alias
-        public static AppState Current => _instance;
+        public static AppState Current => _instance; // compat
 
         // ---- Status ----
         private string _statusMessage = "Ready";
@@ -60,8 +80,14 @@ namespace PlayCutWin
 
         // ---- Collections ----
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new ObservableCollection<VideoItem>();
+
+        // ✅ Tags = 「次に作るクリップ」に付ける “作業中タグ（Pending）”
         public ObservableCollection<TagItem> Tags { get; } = new ObservableCollection<TagItem>();
 
+        // Clips list
+        public ObservableCollection<ClipItem> Clips { get; } = new ObservableCollection<ClipItem>();
+
+        // ---- Import / Selection ----
         public void AddImportedVideo(string fullPath)
         {
             if (string.IsNullOrWhiteSpace(fullPath)) return;
@@ -83,15 +109,7 @@ namespace PlayCutWin
                 : $"Selected: {System.IO.Path.GetFileName(SelectedVideoPath)}";
         }
 
-        public void AddTag(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return;
-
-            Tags.Add(new TagItem { Text = text.Trim(), Time = "--:--" });
-            StatusMessage = $"Tag added: {text.Trim()}";
-        }
-
-        // ---- Playback shared state (B block) ----
+        // ---- Playback shared state ----
         private TimeSpan _playbackPosition = TimeSpan.Zero;
         public TimeSpan PlaybackPosition
         {
@@ -118,9 +136,141 @@ namespace PlayCutWin
             }
         }
 
-        public string PlaybackPositionText => $"{Fmt(PlaybackPosition)} / {FmtOrDash(PlaybackDuration)}";
+        public string PlaybackPositionText => $"{FmtMMSS(PlaybackPosition)} / {FmtOrDash(PlaybackDuration)}";
 
-        private static string Fmt(TimeSpan t)
+        // ---- Clip range (START/END) ----
+        private TimeSpan? _clipStart;
+        public TimeSpan? ClipStart
+        {
+            get => _clipStart;
+            set
+            {
+                if (_clipStart == value) return;
+                _clipStart = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ClipStartText));
+            }
+        }
+
+        private TimeSpan? _clipEnd;
+        public TimeSpan? ClipEnd
+        {
+            get => _clipEnd;
+            set
+            {
+                if (_clipEnd == value) return;
+                _clipEnd = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ClipEndText));
+            }
+        }
+
+        public string ClipStartText => ClipStart.HasValue ? FmtMMSS(ClipStart.Value) : "--:--";
+        public string ClipEndText => ClipEnd.HasValue ? FmtMMSS(ClipEnd.Value) : "--:--";
+
+        public void MarkClipStart()
+        {
+            ClipStart = PlaybackPosition;
+            StatusMessage = $"Clip START = {ClipStartText}";
+        }
+
+        public void MarkClipEnd()
+        {
+            ClipEnd = PlaybackPosition;
+            StatusMessage = $"Clip END = {ClipEndText}";
+        }
+
+        public bool CanCreateClip()
+        {
+            if (string.IsNullOrWhiteSpace(SelectedVideoPath)) return false;
+            if (!ClipStart.HasValue || !ClipEnd.HasValue) return false;
+            return ClipEnd.Value > ClipStart.Value;
+        }
+
+        // ---- ✅ Tagging (Pending tags for next clip) ----
+        // 旧互換：呼ばれても落ちないように残す（Timeは--:--）
+        public void AddTag(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            Tags.Add(new TagItem { Text = text.Trim(), Time = "--:--" });
+            StatusMessage = $"Tag added: {text.Trim()}";
+        }
+
+        // ✅ 本命：現在の再生位置でタグ追加
+        public void AddTagAtCurrentPosition(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            var time = FmtMMSS(PlaybackPosition);
+            Tags.Add(new TagItem { Text = text.Trim(), Time = time });
+
+            StatusMessage = $"Tag added: {time} {text.Trim()}";
+            OnPropertyChanged(nameof(PendingTagsText));
+        }
+
+        public string PendingTagsText
+            => Tags.Count == 0
+                ? "(no tags)"
+                : string.Join(", ", Tags.Select(t => $"{t.Time} {t.Text}"));
+
+        public void ClearPendingTags()
+        {
+            Tags.Clear();
+            OnPropertyChanged(nameof(PendingTagsText));
+        }
+
+        private string BuildTagsTextForClip()
+        {
+            if (Tags.Count == 0) return "";
+            return string.Join(", ", Tags.Select(t => $"{t.Time} {t.Text}"));
+        }
+
+        // ---- Create clip ----
+        public void CreateClipFromRange(string tagsText = "", string team = "Team A", string note = "")
+        {
+            if (!CanCreateClip())
+            {
+                StatusMessage = "Clip range is invalid. Set START and END (END > START).";
+                return;
+            }
+
+            // ✅ tagsText が空なら、PendingTags(Tags)から自動生成
+            var finalTags = string.IsNullOrWhiteSpace(tagsText) ? BuildTagsTextForClip() : tagsText.Trim();
+
+            var clip = new ClipItem
+            {
+                VideoPath = SelectedVideoPath,
+                VideoName = SelectedVideoName,
+                Start = ClipStart!.Value,
+                End = ClipEnd!.Value,
+                TagsText = finalTags,
+                Team = string.IsNullOrWhiteSpace(team) ? "Team A" : team,
+                Note = note ?? ""
+            };
+
+            Clips.Add(clip);
+            StatusMessage = $"Clip added: {clip.StartText}-{clip.EndText}";
+
+            // ✅ 連続作業しやすい：次STARTを今ENDに寄せる
+            ClipStart = clip.End;
+            ClipEnd = null;
+
+            // ✅ クリップ作成したら PendingTags をクリア（Mac版の操作感に近い）
+            ClearPendingTags();
+        }
+
+        public void RemoveClip(Guid id)
+        {
+            var hit = Clips.FirstOrDefault(c => c.Id == id);
+            if (hit != null)
+            {
+                Clips.Remove(hit);
+                StatusMessage = "Clip removed.";
+            }
+        }
+
+        // ---- Formatting helpers ----
+        public static string FmtMMSS(TimeSpan t)
         {
             int total = (int)Math.Max(0, t.TotalSeconds);
             int mm = total / 60;
@@ -131,7 +281,7 @@ namespace PlayCutWin
         private static string FmtOrDash(TimeSpan t)
         {
             if (t.TotalSeconds <= 0) return "--:--";
-            return Fmt(t);
+            return FmtMMSS(t);
         }
 
         // ---- INotifyPropertyChanged ----

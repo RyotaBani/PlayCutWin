@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -19,11 +18,9 @@ namespace PlayCutWin.Views
             InitializeComponent();
             DataContext = PlayCutWin.AppState.Instance;
 
-            // 初期表示
             RefreshCount();
             RefreshSelectedTitle();
 
-            // 再生位置更新（200ms）
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _timer.Tick += (_, __) => Tick();
             _timer.Start();
@@ -66,7 +63,7 @@ namespace PlayCutWin.Views
         }
 
         // -------------------------
-        // Selection (list -> appstate -> player)
+        // Selection
         // -------------------------
         private void VideosGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -74,11 +71,9 @@ namespace PlayCutWin.Views
 
             if (VideosGrid.SelectedItem is PlayCutWin.VideoItem item)
             {
-                // 共有状態へ
                 PlayCutWin.AppState.Instance.SetSelected(item.Path);
                 RefreshSelectedTitle();
 
-                // 選択したら読み込みだけ（自動再生はダブルクリック）
                 LoadVideo(item.Path, autoPlay: false);
             }
         }
@@ -105,17 +100,14 @@ namespace PlayCutWin.Views
                 Player.Source = new Uri(path, UriKind.Absolute);
                 Player.Position = TimeSpan.Zero;
 
-                // Seek初期化
                 _ignoreSeek = true;
                 SeekSlider.Value = 0;
                 SeekSlider.Maximum = 1;
                 SeekSlider.IsEnabled = false;
                 _ignoreSeek = false;
 
-                // 表示初期化
                 TimeText.Text = "00:00 / 00:00";
 
-                // AppStateへ（Cブロックでタグ時刻に使う）
                 PlayCutWin.AppState.Instance.PlaybackPosition = TimeSpan.Zero;
                 PlayCutWin.AppState.Instance.PlaybackDuration = TimeSpan.Zero;
 
@@ -260,7 +252,6 @@ namespace PlayCutWin.Views
         {
             if (_ignoreSeek) return;
 
-            // ドラッグ中はプレビューだけ更新（本SeekはMouseUp）
             if (_isDragging)
             {
                 var preview = TimeSpan.FromSeconds(SeekSlider.Value);
@@ -327,8 +318,33 @@ namespace PlayCutWin.Views
         private void UpdateTimeText(TimeSpan pos, TimeSpan dur)
         {
             var left = Fmt(pos);
-            var right = dur.TotalSeconds > 0 ? Fmt(dur) : "00:00";
+            var right = dur.TotalSeconds > 0 ? Fmt(dur) : "--:--";
             TimeText.Text = $"{left} / {right}";
+        }
+
+        // -------------------------
+        // NEW: Range controls (START/END/Add Clip)
+        // -------------------------
+        private void MarkStart_Click(object sender, RoutedEventArgs e)
+        {
+            PlayCutWin.AppState.Instance.MarkClipStart();
+        }
+
+        private void MarkEnd_Click(object sender, RoutedEventArgs e)
+        {
+            PlayCutWin.AppState.Instance.MarkClipEnd();
+        }
+
+        private void AddClip_Click(object sender, RoutedEventArgs e)
+        {
+            if (!PlayCutWin.AppState.Instance.CanCreateClip())
+            {
+                MessageBox.Show("STARTとENDを設定してね（END > START）", "Clip", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // とりあえず tagsText は空（次で Tags と連動させる）
+            PlayCutWin.AppState.Instance.CreateClipFromRange(tagsText: "", team: "Team A", note: "");
         }
     }
 }

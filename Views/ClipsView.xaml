@@ -60,7 +60,7 @@
             </Grid>
         </Border>
 
-        <!-- Right: Player -->
+        <!-- Right: Player + Range + Clips -->
         <Border Grid.Column="1"
                 Background="#151515"
                 CornerRadius="10"
@@ -69,19 +69,23 @@
                 Padding="12">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/> <!-- selected -->
+                    <RowDefinition Height="260"/>  <!-- player -->
+                    <RowDefinition Height="Auto"/> <!-- seek/controls -->
+                    <RowDefinition Height="Auto"/> <!-- range controls -->
+                    <RowDefinition Height="*"/>    <!-- clips list -->
                 </Grid.RowDefinitions>
 
+                <!-- Selected -->
                 <TextBlock x:Name="SelectedTitle"
+                           Grid.Row="0"
                            Text="Selected: (none)"
                            Foreground="#EDEDED"
                            FontSize="12"
                            TextWrapping="Wrap"
                            Margin="0,0,0,8"/>
 
+                <!-- Player -->
                 <Border Grid.Row="1"
                         Background="#111111"
                         CornerRadius="8"
@@ -96,31 +100,142 @@
                                   MediaEnded="Player_MediaEnded"/>
                 </Border>
 
-                <Slider x:Name="SeekSlider"
-                        Grid.Row="2"
-                        Minimum="0"
-                        Maximum="1"
-                        Value="0"
-                        IsEnabled="False"
-                        Margin="0,10,0,6"
-                        PreviewMouseLeftButtonDown="SeekSlider_PreviewMouseLeftButtonDown"
-                        PreviewMouseLeftButtonUp="SeekSlider_PreviewMouseLeftButtonUp"
-                        ValueChanged="SeekSlider_ValueChanged"/>
+                <!-- Seek + basic controls -->
+                <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                    <Slider x:Name="SeekSlider"
+                            Minimum="0"
+                            Maximum="1"
+                            Value="0"
+                            IsEnabled="False"
+                            PreviewMouseLeftButtonDown="SeekSlider_PreviewMouseLeftButtonDown"
+                            PreviewMouseLeftButtonUp="SeekSlider_PreviewMouseLeftButtonUp"
+                            ValueChanged="SeekSlider_ValueChanged"/>
 
-                <DockPanel Grid.Row="3">
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                        <Button Content="Play"  Width="80" Margin="0,0,8,0" Click="Play_Click"/>
-                        <Button Content="Pause" Width="80" Margin="0,0,8,0" Click="Pause_Click"/>
-                        <Button Content="Stop"  Width="80" Click="Stop_Click"/>
-                    </StackPanel>
+                    <DockPanel Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                            <Button Content="Play"  Width="76" Margin="0,0,8,0" Click="Play_Click"/>
+                            <Button Content="Pause" Width="76" Margin="0,0,8,0" Click="Pause_Click"/>
+                            <Button Content="Stop"  Width="76" Click="Stop_Click"/>
+                        </StackPanel>
 
-                    <TextBlock x:Name="TimeText"
-                               Text="00:00 / 00:00"
-                               Foreground="#BFBFBF"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Right"
-                               DockPanel.Dock="Right"/>
-                </DockPanel>
+                        <TextBlock x:Name="TimeText"
+                                   Text="00:00 / 00:00"
+                                   Foreground="#BFBFBF"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right"
+                                   DockPanel.Dock="Right"/>
+                    </DockPanel>
+                </StackPanel>
+
+                <!-- Range controls -->
+                <Border Grid.Row="3"
+                        Background="#141414"
+                        CornerRadius="8"
+                        BorderBrush="#2A2A2A"
+                        BorderThickness="1"
+                        Padding="10"
+                        Margin="0,12,0,12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                            <TextBlock Text="Clip Range"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"
+                                       DockPanel.Dock="Left"/>
+                            <TextBlock Text="(START/END → Add Clip)"
+                                       Foreground="#9A9A9A"
+                                       FontSize="12"
+                                       DockPanel.Dock="Right"/>
+                        </DockPanel>
+
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Content="START"
+                                    Width="84"
+                                    Margin="0,0,8,0"
+                                    Click="MarkStart_Click"/>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ClipStartText}"
+                                       Foreground="#EDEDED"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+
+                            <Button Grid.Column="2"
+                                    Content="END"
+                                    Width="84"
+                                    Margin="0,0,8,0"
+                                    Click="MarkEnd_Click"/>
+
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding ClipEndText}"
+                                       Foreground="#EDEDED"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+
+                            <Button Grid.Column="4"
+                                    Content="Add Clip"
+                                    Padding="14,6"
+                                    Click="AddClip_Click"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Clips list -->
+                <Border Grid.Row="4"
+                        Background="#141414"
+                        CornerRadius="8"
+                        BorderBrush="#2A2A2A"
+                        BorderThickness="1"
+                        Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Margin="0,0,0,8">
+                            <TextBlock Text="Clips"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"
+                                       DockPanel.Dock="Left"/>
+                            <TextBlock Text="{Binding Clips.Count, StringFormat=Count: {0}}"
+                                       Foreground="#9A9A9A"
+                                       FontSize="12"
+                                       DockPanel.Dock="Right"/>
+                        </DockPanel>
+
+                        <DataGrid Grid.Row="1"
+                                  ItemsSource="{Binding Clips}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  Background="#0F0F0F"
+                                  Foreground="White"
+                                  BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Start" Binding="{Binding StartText}" Width="70"/>
+                                <DataGridTextColumn Header="End"   Binding="{Binding EndText}" Width="70"/>
+                                <DataGridTextColumn Header="Tags"  Binding="{Binding TagsText}" Width="*"/>
+                                <DataGridTextColumn Header="Team"  Binding="{Binding Team}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Border>
+
             </Grid>
         </Border>
 
