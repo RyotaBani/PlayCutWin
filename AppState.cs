@@ -10,10 +10,10 @@ namespace PlayCutWin
 {
     public sealed class AppState : INotifyPropertyChanged
     {
-        // 既存コード互換：AppState.Instance を生かす
+        // 既存参照互換：AppState.Instance
         public static AppState Instance { get; } = new AppState();
 
-        // 新コード互換：AppState.Current も生かす（どっちでも動く）
+        // 新参照互換：AppState.Current
         public static AppState Current => Instance;
 
         private AppState()
@@ -33,7 +33,7 @@ namespace PlayCutWin
         }
 
         // -----------------------------
-        // 共通：ステータス/選択動画
+        // Status
         // -----------------------------
         private string _statusMessage = "";
         public string StatusMessage
@@ -42,20 +42,32 @@ namespace PlayCutWin
             set => SetField(ref _statusMessage, value);
         }
 
-        private string? _selectedVideoPath;
-        public string? SelectedVideoPath
+        // -----------------------------
+        // Imported videos
+        // -----------------------------
+        public ObservableCollection<VideoItem> ImportedVideos { get; }
+
+        // -----------------------------
+        // Selected video (互換: SelectedVideo / SelectedVideoPath / SelectedVideoText)
+        // -----------------------------
+        private VideoItem? _selectedVideo;
+        public VideoItem? SelectedVideo
         {
-            get => _selectedVideoPath;
+            get => _selectedVideo;
             set
             {
-                if (_selectedVideoPath == value) return;
-                _selectedVideoPath = value;
+                if (ReferenceEquals(_selectedVideo, value)) return;
+                _selectedVideo = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedVideoPath));
                 OnPropertyChanged(nameof(SelectedVideoName));
                 OnPropertyChanged(nameof(SelectedVideoText));
                 OnPropertyChanged(nameof(TagsForSelected));
+                OnPropertyChanged(nameof(Tags));
             }
         }
+
+        public string? SelectedVideoPath => SelectedVideo?.Path;
 
         public string SelectedVideoName
             => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "(none)" : Path.GetFileName(SelectedVideoPath);
@@ -63,28 +75,47 @@ namespace PlayCutWin
         public string SelectedVideoText
             => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "(no video selected)" : SelectedVideoPath!;
 
+        // 互換: SetSelected(string) / SetSelected(VideoItem)
         public void SetSelected(string? path)
         {
-            SelectedVideoPath = path;
-            if (!string.IsNullOrWhiteSpace(path))
-                StatusMessage = $"Selected: {Path.GetFileName(path)}";
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                SelectedVideo = null;
+                StatusMessage = "Selected: (none)";
+                return;
+            }
+
+            var hit = ImportedVideos.FirstOrDefault(v =>
+                string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
+
+            if (hit == null)
+            {
+                // pathだけ来た場合でも選択できるようにする（落とさない）
+                hit = new VideoItem { Name = Path.GetFileName(path), Path = path };
+            }
+
+            SelectedVideo = hit;
+            StatusMessage = $"Selected: {SelectedVideoName}";
         }
 
-        // -----------------------------
-        // Clips：読み込んだ動画一覧
-        // -----------------------------
-        public ObservableCollection<VideoItem> ImportedVideos { get; }
+        public void SetSelected(VideoItem? item)
+        {
+            SelectedVideo = item;
+            StatusMessage = item == null ? "Selected: (none)" : $"Selected: {SelectedVideoName}";
+        }
 
         public void AddImportedVideo(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
 
-            var existing = ImportedVideos.FirstOrDefault(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
+            var existing = ImportedVideos.FirstOrDefault(v =>
+                string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
+
             if (existing != null)
             {
                 ImportedVideos.Remove(existing);
                 ImportedVideos.Insert(0, existing);
-                SetSelected(existing.Path);
+                SetSelected(existing);
                 return;
             }
 
@@ -95,30 +126,75 @@ namespace PlayCutWin
             };
 
             ImportedVideos.Insert(0, item);
-            SetSelected(path);
+            SetSelected(item);
         }
 
         // -----------------------------
-        // Tags：動画ごとのタグ一覧
+        // Playback (互換: PlaybackSeconds / PlaybackDuration / PlaybackPositionText)
         // -----------------------------
-        private readonly Dictionary<string, ObservableCollection<TagEntry>> _tagsByVideo = new();
+        private double _playbackSeconds;
+        public double PlaybackSeconds
+        {
+            get => _playbackSeconds;
+            set
+            {
+                if (Math.Abs(_playbackSeconds - value) < 0.0001) return;
+                _playbackSeconds = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackPositionText));
+            }
+        }
 
-        public ObservableCollection<TagEntry> TagsForSelected
+        private double _playbackDuration;
+        public double PlaybackDuration
+        {
+            get => _playbackDuration;
+            set
+            {
+                if (Math.Abs(_playbackDuration - value) < 0.0001) return;
+                _playbackDuration = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackPositionText));
+            }
+        }
+
+        public string PlaybackPositionText
+            => $"{FormatTime(PlaybackSeconds)} / {FormatTime(PlaybackDuration)}";
+
+        public static string FormatTime(double seconds)
+        {
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0) seconds = 0;
+            var ts = TimeSpan.FromSeconds(seconds);
+            // 01:23:45 か 12:34 を出し分け
+            if (ts.TotalHours >= 1)
+                return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
+            return $"{ts.Minutes:00}:{ts.Seconds:00}";
+        }
+
+        // -----------------------------
+        // Tags (互換: Tags / TagsForSelected / AddTagForSelected / ClearTagsForSelected / GetTags)
+        // -----------------------------
+        private readonly Dictionary<string, ObservableCollection<string>> _tagsByVideo = new();
+
+        public ObservableCollection<string> TagsForSelected
         {
             get
             {
                 var key = SelectedVideoPath ?? "";
                 if (string.IsNullOrWhiteSpace(key))
-                    return new ObservableCollection<TagEntry>();
+                    return new ObservableCollection<string>(); // 選択なしでも落とさない
 
                 if (!_tagsByVideo.TryGetValue(key, out var list))
                 {
-                    list = new ObservableCollection<TagEntry>();
+                    list = new ObservableCollection<string>();
                     _tagsByVideo[key] = list;
                 }
                 return list;
             }
         }
+
+        // 互換用：selected の tags を List<string> で返すプロパティ
+        public List<string> Tags => TagsForSelected.ToList();
 
         public void AddTagForSelected(string tagText)
         {
@@ -131,11 +207,11 @@ namespace PlayCutWin
             tagText = (tagText ?? "").Trim();
             if (tagText.Length == 0) return;
 
-            var list = TagsForSelected;
-            list.Add(new TagEntry { Text = tagText, CreatedAt = DateTime.Now });
+            TagsForSelected.Add(tagText);
 
             StatusMessage = $"Tag added: {tagText}";
             OnPropertyChanged(nameof(TagsForSelected));
+            OnPropertyChanged(nameof(Tags));
         }
 
         public void ClearTagsForSelected()
@@ -146,32 +222,25 @@ namespace PlayCutWin
                 return;
             }
 
-            var list = TagsForSelected;
-            list.Clear();
+            TagsForSelected.Clear();
 
             StatusMessage = "Tags cleared.";
             OnPropertyChanged(nameof(TagsForSelected));
+            OnPropertyChanged(nameof(Tags));
         }
 
-        public IReadOnlyList<TagEntry> GetTags(string? videoPath)
+        public IReadOnlyList<string> GetTags(string? videoPath)
         {
-            if (string.IsNullOrWhiteSpace(videoPath)) return Array.Empty<TagEntry>();
+            if (string.IsNullOrWhiteSpace(videoPath)) return Array.Empty<string>();
             if (_tagsByVideo.TryGetValue(videoPath, out var list)) return list.ToList();
-            return Array.Empty<TagEntry>();
+            return Array.Empty<string>();
         }
     }
 
+    // 既存で参照される型
     public class VideoItem
     {
         public string Name { get; set; } = "";
         public string Path { get; set; } = "";
-    }
-
-    public class TagEntry
-    {
-        public string Text { get; set; } = "";
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
-
-        public string TimeText => CreatedAt.ToString("HH:mm:ss");
     }
 }
