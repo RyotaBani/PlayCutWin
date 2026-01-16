@@ -14,13 +14,14 @@ namespace PlayCutWin
         // ✅ singleton
         public static AppState Instance { get; } = new AppState();
 
-        // ✅ compatibility alias (過去の参照を生かす)
+        // ✅ compatibility alias
         public static AppState Current => Instance;
 
         private AppState()
         {
             ImportedVideos = new ObservableCollection<VideoItem>();
             Tags = new ObservableCollection<string>();
+            TagEntries = new ObservableCollection<TagEntry>();
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -91,7 +92,6 @@ namespace PlayCutWin
                 StatusMessage = $"Imported: {item.Name}";
             }
 
-            // 何も選択されていなければ自動選択
             if (SelectedVideo == null)
                 SelectedVideo = ImportedVideos.LastOrDefault();
         }
@@ -177,7 +177,6 @@ namespace PlayCutWin
             tag = (tag ?? "").Trim();
             if (tag.Length == 0) return;
 
-            // 重複防止（大文字小文字無視）
             if (!Tags.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)))
             {
                 Tags.Add(tag);
@@ -191,17 +190,17 @@ namespace PlayCutWin
             StatusMessage = "Tags cleared";
         }
 
-        // 互換：この名前で呼ばれてもOKにする
-        public void SetSelectedTag(string? _)
-        {
-            // いまは未使用（将来拡張用）
-        }
+        // ------------------------------------------------------------
+        // Tag entries (ExportsView / TagsView 互換)
+        // ------------------------------------------------------------
+        public ObservableCollection<TagEntry> TagEntries { get; }
 
-        // 互換：SetSelected まわりを呼ぶコード対策
-        public void SetSelectedCompat(object? itemOrPath)
+        // 互換：この名前で呼ばれてもOKにする（将来拡張用）
+        public void AddTagEntry(TagEntry entry)
         {
-            if (itemOrPath is VideoItem vi) SetSelected(vi);
-            else SetSelected(itemOrPath?.ToString());
+            if (entry == null) return;
+            TagEntries.Add(entry);
+            StatusMessage = $"TagEntry added: {entry.Tag}";
         }
     }
 
@@ -225,7 +224,33 @@ namespace PlayCutWin
         public string Ext { get; set; } = "";
         public DateTime CreatedAt { get; set; }
 
-        // 表示用（任意）
-        public string DisplayName => string.IsNullOrWhiteSpace(Ext) ? Name : $"{Name}";
+        public string DisplayName => Name;
+    }
+
+    // ------------------------------------------------------------
+    // Tag model (ExportsView.xaml.cs が参照する想定の型)
+    // ------------------------------------------------------------
+    public sealed class TagEntry
+    {
+        public string VideoPath { get; set; } = "";
+        public string Tag { get; set; } = "";
+
+        // クリップ範囲（秒）
+        public double StartSeconds { get; set; }
+        public double EndSeconds { get; set; }
+
+        public string Note { get; set; } = "";
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // 表示/CSV用
+        public string RangeText
+        {
+            get
+            {
+                var s = AppState.FormatTime(TimeSpan.FromSeconds(Math.Max(0, StartSeconds)));
+                var e = AppState.FormatTime(TimeSpan.FromSeconds(Math.Max(0, EndSeconds)));
+                return $"{s} - {e}";
+            }
+        }
     }
 }
