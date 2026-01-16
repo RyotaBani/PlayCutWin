@@ -116,7 +116,8 @@ namespace PlayCutWin
         // Tags
         // ---------------------------
         // videoPath -> tags
-        private readonly Dictionary<string, List<TagEntry>> _tagsByVideo = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<TagEntry>> _tagsByVideo =
+            new Dictionary<string, List<TagEntry>>(StringComparer.OrdinalIgnoreCase);
 
         // UI がそのまま ItemsSource にできる “選択中動画のタグ一覧”
         public ObservableCollection<TagEntry> Tags { get; }
@@ -185,6 +186,24 @@ namespace PlayCutWin
             OnPropertyChanged(nameof(Tags));
         }
 
+        // ✅ Export All 用：全動画分のタグをフラットにして返す
+        public List<TagEntry> GetAllTagsSnapshot()
+        {
+            var all = new List<TagEntry>();
+
+            foreach (var kv in _tagsByVideo)
+                all.AddRange(kv.Value);
+
+            all.Sort((a, b) =>
+            {
+                var c = string.Compare(a.VideoPath, b.VideoPath, StringComparison.OrdinalIgnoreCase);
+                if (c != 0) return c;
+                return a.Seconds.CompareTo(b.Seconds);
+            });
+
+            return all;
+        }
+
         // ---------------------------
         // Helpers
         // ---------------------------
@@ -192,7 +211,6 @@ namespace PlayCutWin
         {
             if (seconds < 0) seconds = 0;
             var ts = TimeSpan.FromSeconds(seconds);
-            // 1時間超も想定して hh:mm:ss にしたいならここを変更
             return $"{(int)ts.TotalMinutes:00}:{ts.Seconds:00}";
         }
     }

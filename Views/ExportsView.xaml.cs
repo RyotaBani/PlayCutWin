@@ -1,6 +1,9 @@
+using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
+using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -11,76 +14,121 @@ namespace PlayCutWin.Views
         public ExportsView()
         {
             InitializeComponent();
-            DataContext = AppState.Instance;
-            Loaded += (_, __) => RefreshSelectedLabel();
-        }
 
-        private void RefreshSelectedLabel()
-        {
-            // x:Name があれば表示更新（無ければ何もしない）
-            var tb = this.FindName("SelectedVideoText") as TextBlock;
-            if (tb == null) return;
+            // Preview は「選択中動画のタグ(AppState.Tags)」をそのまま表示
+            TagsGrid.ItemsSource = AppState.Current.Tags;
 
-            var path = GetString(AppState.Instance, "SelectedVideoPath")
-                       ?? GetString(AppState.Instance, "SelectedPath")
-                       ?? "(no selected)";
-            tb.Text = path;
-        }
+            RefreshHeader();
 
-        // XAML: Button Click="ChooseFolder_Click"（あれば）
-        private void ChooseFolder_Click(object sender, RoutedEventArgs e)
-        {
-            // ここは “仮”：フォルダ選択UIはあとで本実装でもOK
-            // とりあえず AppState.ExportFolder に入れる互換だけ用意
-            var folder = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            TrySetString(AppState.Instance, "ExportFolder", folder);
-            TrySetString(AppState.Instance, "StatusMessage", $"Export folder: {folder}");
-        }
-
-        // ✅ XAML: Button Click="ExportDummy_Click" ←これが無くて落ちてた
-        private void ExportDummy_Click(object sender, RoutedEventArgs e)
-        {
-            var folder = GetString(AppState.Instance, "ExportFolder")
-                         ?? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-
-            var selected = GetString(AppState.Instance, "SelectedVideoPath")
-                           ?? GetString(AppState.Instance, "SelectedPath")
-                           ?? "";
-
-            // ダミー出力：export.txt を作る（実クリップ書き出しは次フェーズ）
-            var outPath = Path.Combine(folder, "export.txt");
-            File.WriteAllText(outPath,
-                $"Export(dummy)\nSelected:\n{selected}\nTime:{DateTime.Now}\n");
-
-            MessageBox.Show($"Exported (dummy):\n{outPath}", "Exports",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-
-            TrySetString(AppState.Instance, "StatusMessage", $"Exported(dummy): {outPath}");
-        }
-
-        // XAMLで参照されてる可能性があるので “保険” で置いとく（無害）
-        private void ExportSelected_Click(object sender, RoutedEventArgs e) => ExportDummy_Click(sender, e);
-
-        // ---- reflection helpers ----
-        private static object? GetProperty(object obj, string name)
-            => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(obj);
-
-        private static string? GetString(object obj, string name)
-            => GetProperty(obj, name) as string;
-
-        private static bool TrySetString(object obj, string name, string value)
-        {
-            try
+            AppState.Current.PropertyChanged += (_, e) =>
             {
-                var p = obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
-                if (p != null && p.CanWrite && p.PropertyType == typeof(string))
+                if (e.PropertyName == nameof(AppState.SelectedVideoPath) ||
+                    e.PropertyName == nameof(AppState.Tags))
                 {
-                    p.SetValue(obj, value);
-                    return true;
+                    Dispatcher.Invoke(RefreshHeader);
                 }
+            };
+        }
+
+        private void RefreshHeader()
+        {
+            SelectedVideoText.Text = AppState.Current.SelectedVideoPath ?? "(none)";
+            CountText.Text = $"Tags: {AppState.Current.Tags.Count}";
+        }
+
+        private void ExportSelectedCsv_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(AppState.Current.SelectedVideoPath))
+            {
+                MessageBox.Show("No video selected.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
-            catch { }
-            return false;
+
+            var tags = AppState.Current.Tags.ToList();
+            if (tags.Count == 0)
+            {
+                MessageBox.Show("No tags to export for selected video.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var defaultName = SafeFileName(Path.GetFileNameWithoutExtension(AppState.Current.SelectedVideoPath)) + "_tags.csv";
+            var path = AskSaveCsvPath(defaultName);
+            if (path == null) return;
+
+            WriteTagsCsv(path, tags);
+
+            AppState.Current.StatusMessage = $"Exported CSV: {Path.GetFileName(path)}";
+            MessageBox.Show($"Exported:\n{path}", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ExportAllCsv_Click(object sender, RoutedEventArgs e)
+        {
+            // AppState に「全タグ取得」が無い場合でも、最低限「今選択中だけ」は出せる。
+            // でも “All” は意味が薄いので、ここでは AppState の内部ストアがある前提で呼ぶ。
+            // もしメソッドが無ければ、下の追記（③）を AppState に入れてね。
+            var all = AppState.Current.GetAllTagsSnapshot();
+            if (all.Count == 0)
+            {
+                MessageBox.Show("No tags to export.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var path = AskSaveCsvPath("all_tags.csv");
+            if (path == null) return;
+
+            WriteTagsCsv(path, all);
+
+            AppState.Current.StatusMessage = $"Exported CSV: {Path.GetFileName(path)}";
+            MessageBox.Show($"Exported:\n{path}", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private static string? AskSaveCsvPath(string defaultFileName)
+        {
+            var dlg = new SaveFileDialog
+            {
+                Title = "Save CSV",
+                Filter = "CSV (*.csv)|*.csv",
+                FileName = defaultFileName,
+                AddExtension = true,
+                DefaultExt = ".csv"
+            };
+
+            return dlg.ShowDialog() == true ? dlg.FileName : null;
+        }
+
+        private static void WriteTagsCsv(string path, List<TagEntry> tags)
+        {
+            var sb = new StringBuilder();
+
+            // header
+            sb.AppendLine("VideoPath,TimeText,Seconds,Tag,CreatedAt");
+
+            foreach (var t in tags)
+            {
+                sb.Append(EscapeCsv(t.VideoPath)).Append(",");
+                sb.Append(EscapeCsv(t.TimeText)).Append(",");
+                sb.Append(EscapeCsv(t.Seconds.ToString("0.###"))).Append(",");
+                sb.Append(EscapeCsv(t.Tag)).Append(",");
+                sb.Append(EscapeCsv(t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")));
+                sb.AppendLine();
+            }
+
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        }
+
+        private static string EscapeCsv(string s)
+        {
+            s ??= "";
+            var needQuote = s.Contains(",") || s.Contains("\"") || s.Contains("\n") || s.Contains("\r");
+            if (!needQuote) return s;
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
+        }
+
+        private static string SafeFileName(string name)
+        {
+            foreach (var c in Path.GetInvalidFileNameChars())
+                name = name.Replace(c, '_');
+            return name;
         }
     }
 }

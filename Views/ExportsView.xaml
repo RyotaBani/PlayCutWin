@@ -1,52 +1,102 @@
 <UserControl x:Class="PlayCutWin.Views.ExportsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="Transparent">
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="900">
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Exports"
-                       Foreground="White"
-                       FontSize="22"
-                       FontWeight="SemiBold"
-                       DockPanel.Dock="Left"/>
+        <TextBlock Grid.Row="0"
+                   Text="Exports"
+                   FontSize="22"
+                   FontWeight="SemiBold"
+                   Foreground="White"
+                   Margin="0,0,0,10" />
 
-            <Button Content="Export (dummy)"
-                    DockPanel.Dock="Right"
-                    Padding="14,8"
-                    Click="ExportDummy_Click"/>
-        </DockPanel>
-
-        <!-- Body Card -->
+        <!-- Controls -->
         <Border Grid.Row="1"
                 Background="#1A1A1A"
-                CornerRadius="10"
                 BorderBrush="#2A2A2A"
                 BorderThickness="1"
-                Padding="16">
-            <StackPanel>
-                <TextBlock Text="Selected video:"
-                           Foreground="#BFBFBF"
-                           FontSize="12"/>
+                CornerRadius="10"
+                Padding="14"
+                Margin="0,0,0,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <TextBlock x:Name="SelectedVideoText"
-                           Text="(none)"
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="Selected video:" Foreground="#B0B0B0" FontSize="12"/>
+                    <TextBlock x:Name="SelectedVideoText"
+                               Text="(none)"
+                               Foreground="White"
+                               FontSize="13"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"/>
+                    <TextBlock x:Name="CountText"
+                               Text="Tags: 0"
+                               Foreground="#B0B0B0"
+                               Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                    <Button Content="Export Selected (CSV)"
+                            Height="32"
+                            Padding="14,0"
+                            Margin="0,0,10,0"
+                            Click="ExportSelectedCsv_Click"/>
+
+                    <Button Content="Export All (CSV)"
+                            Height="32"
+                            Padding="14,0"
+                            Click="ExportAllCsv_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Preview -->
+        <Border Grid.Row="2"
+                Background="#1A1A1A"
+                BorderBrush="#2A2A2A"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="Preview (Selected video's tags)"
                            Foreground="White"
-                           FontSize="13"
-                           TextWrapping="Wrap"
-                           Margin="0,6,0,14"/>
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,10"/>
 
-                <TextBlock Text="(placeholder) ここに書き出しUIを作る / クリップ一覧・レンジ・出力形式など"
-                           Foreground="#9A9A9A"
-                           FontSize="12"
-                           TextWrapping="Wrap"/>
-            </StackPanel>
+                <DataGrid Grid.Row="1"
+                          x:Name="TagsGrid"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Time" Width="80" Binding="{Binding TimeText}" />
+                        <DataGridTextColumn Header="Tag" Width="*" Binding="{Binding Tag}" />
+                        <DataGridTextColumn Header="Seconds" Width="90" Binding="{Binding Seconds}" />
+                        <DataGridTextColumn Header="Created" Width="160" Binding="{Binding CreatedAt}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>
