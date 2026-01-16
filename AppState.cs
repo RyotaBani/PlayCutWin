@@ -6,26 +6,24 @@ using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    // ------------------------------------------------------------
-    // App-wide shared state (simple MVVM-ish singleton)
-    // ------------------------------------------------------------
+    // App-wide shared state (Singleton)
     public sealed class AppState : INotifyPropertyChanged
     {
-        // ✅ singleton
-        public static AppState Instance { get; } = new AppState();
+        // ---- Singleton ------------------------------------------------------
+        private static readonly AppState _current = new AppState();
+        public static AppState Current => _current;
 
-        // ✅ compatibility alias
-        public static AppState Current => Instance;
+        // 以前のコードが Instance を参照してても動くように互換エイリアス
+        public static AppState Instance => _current;
 
         private AppState()
         {
             ImportedVideos = new ObservableCollection<VideoItem>();
-            Tags = new ObservableCollection<string>();
-            TagEntries = new ObservableCollection<TagEntry>();
+            Tags = new ObservableCollection<TagEntry>();
         }
 
+        // ---- INotifyPropertyChanged ----------------------------------------
         public event PropertyChangedEventHandler? PropertyChanged;
-
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
@@ -37,33 +35,12 @@ namespace PlayCutWin
             return true;
         }
 
-        // ------------------------------------------------------------
-        // Status
-        // ------------------------------------------------------------
-        private string _statusMessage = "Ready";
+        // ---- Status / Selected Video ---------------------------------------
+        private string _statusMessage = "";
         public string StatusMessage
         {
             get => _statusMessage;
             set => Set(ref _statusMessage, value);
-        }
-
-        // ------------------------------------------------------------
-        // Imported videos
-        // ------------------------------------------------------------
-        public ObservableCollection<VideoItem> ImportedVideos { get; }
-
-        private VideoItem? _selectedVideo;
-        public VideoItem? SelectedVideo
-        {
-            get => _selectedVideo;
-            set
-            {
-                if (Set(ref _selectedVideo, value))
-                {
-                    SelectedVideoPath = _selectedVideo?.Path ?? "";
-                    SelectedVideoName = _selectedVideo?.Name ?? "";
-                }
-            }
         }
 
         private string _selectedVideoPath = "";
@@ -73,184 +50,153 @@ namespace PlayCutWin
             set => Set(ref _selectedVideoPath, value);
         }
 
-        private string _selectedVideoName = "";
-        public string SelectedVideoName
-        {
-            get => _selectedVideoName;
-            set => Set(ref _selectedVideoName, value);
-        }
-
-        // 互換：古いコードが呼んでも落ちないように
-        public void AddImportedVideo(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return;
-
-            var item = new VideoItem(path);
-            if (!ImportedVideos.Any(v => string.Equals(v.Path, item.Path, StringComparison.OrdinalIgnoreCase)))
-            {
-                ImportedVideos.Add(item);
-                StatusMessage = $"Imported: {item.Name}";
-            }
-
-            if (SelectedVideo == null)
-                SelectedVideo = ImportedVideos.LastOrDefault();
-        }
-
-        // 互換：Views 側から呼ばれがち
-        public void SetSelected(VideoItem? item)
-        {
-            SelectedVideo = item;
-            if (item != null)
-                StatusMessage = $"Selected: {item.Name}";
-        }
-
+        // ClipsView 等が SetSelected を呼んでも動くように
         public void SetSelected(string? path)
         {
-            if (string.IsNullOrWhiteSpace(path))
+            SelectedVideoPath = path ?? "";
+            StatusMessage = string.IsNullOrWhiteSpace(SelectedVideoPath)
+                ? "Selected: (none)"
+                : $"Selected: {SelectedVideoPath}";
+        }
+
+        // ---- Imported Videos (Clips list uses this) ------------------------
+        public ObservableCollection<VideoItem> ImportedVideos { get; }
+
+        public void AddImportedVideo(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            // 重複防止（同じ Path があれば追加しない）
+            if (ImportedVideos.Any(v => string.Equals(v.Path, filePath, StringComparison.OrdinalIgnoreCase)))
             {
-                SelectedVideo = null;
+                SetSelected(filePath);
+                StatusMessage = $"Already imported: {filePath}";
                 return;
             }
 
-            var item = ImportedVideos.FirstOrDefault(v =>
-                string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
+            var item = new VideoItem(filePath);
+            ImportedVideos.Add(item);
 
-            if (item == null)
-            {
-                item = new VideoItem(path);
-                ImportedVideos.Add(item);
-            }
-
-            SelectedVideo = item;
-            StatusMessage = $"Selected: {item.Name}";
+            // 追加したら選択状態も更新
+            SetSelected(filePath);
+            StatusMessage = $"Imported: {item.Name}";
+            OnPropertyChanged(nameof(ImportedVideos));
         }
 
-        // ------------------------------------------------------------
-        // Playback info (ClipsView の player 表示用)
-        // ------------------------------------------------------------
-        private TimeSpan _playbackPosition = TimeSpan.Zero;
-        public TimeSpan PlaybackPosition
+        // ---- Playback info (Player UI binds these) -------------------------
+        private double _playbackPosition; // seconds
+        public double PlaybackPosition
         {
             get => _playbackPosition;
             set
             {
                 if (Set(ref _playbackPosition, value))
+                {
                     OnPropertyChanged(nameof(PlaybackPositionText));
+                }
             }
         }
 
-        private TimeSpan _playbackDuration = TimeSpan.Zero;
-        public TimeSpan PlaybackDuration
+        private double _playbackDuration; // seconds
+        public double PlaybackDuration
         {
             get => _playbackDuration;
             set
             {
                 if (Set(ref _playbackDuration, value))
-                    OnPropertyChanged(nameof(PlaybackPositionText));
+                {
+                    OnPropertyChanged(nameof(PlaybackDurationText));
+                }
             }
         }
 
-        // 互換：秒で扱うコード用
+        // 既存コード互換：PlaybackSeconds を参照してても Position と同義で動く
         public double PlaybackSeconds
         {
-            get => PlaybackPosition.TotalSeconds;
-            set => PlaybackPosition = TimeSpan.FromSeconds(Math.Max(0, value));
+            get => PlaybackPosition;
+            set => PlaybackPosition = value;
         }
 
-        public string PlaybackPositionText
-            => $"{FormatTime(PlaybackPosition)} / {FormatTime(PlaybackDuration)}";
+        public string PlaybackPositionText => FormatTime(PlaybackPosition);
+        public string PlaybackDurationText => FormatTime(PlaybackDuration);
 
-        public static string FormatTime(TimeSpan t)
+        // ---- Tags -----------------------------------------------------------
+        public ObservableCollection<TagEntry> Tags { get; }
+
+        // 現状の TagsView は Enter / ボタンで AddTag を呼ぶ想定
+        public void AddTag(string tagText)
         {
-            if (t.TotalHours >= 1)
-                return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";
-            return $"{t.Minutes:00}:{t.Seconds:00}";
-        }
-
-        // ------------------------------------------------------------
-        // Tags (TagsView 用)
-        // ------------------------------------------------------------
-        public ObservableCollection<string> Tags { get; }
-
-        public void AddTag(string? tag)
-        {
-            tag = (tag ?? "").Trim();
-            if (tag.Length == 0) return;
-
-            if (!Tags.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)))
+            if (string.IsNullOrWhiteSpace(tagText))
             {
-                Tags.Add(tag);
-                StatusMessage = $"Tag added: {tag}";
+                StatusMessage = "Tag is empty.";
+                return;
             }
+
+            // どの動画に対するタグか最低限持たせる（今は SelectedVideoPath だけ）
+            var t = new TagEntry
+            {
+                Seconds = PlaybackPosition,
+                Time = FormatTime(PlaybackPosition),
+                Text = tagText.Trim(),
+                VideoPath = SelectedVideoPath
+            };
+
+            Tags.Add(t);
+            StatusMessage = $"Added tag: {t.Time} {t.Text}";
+            OnPropertyChanged(nameof(Tags));
         }
 
-        public void ClearTags()
+        public void ClearTagsForSelected()
         {
-            Tags.Clear();
-            StatusMessage = "Tags cleared";
+            if (Tags.Count == 0) return;
+
+            var sel = SelectedVideoPath ?? "";
+            if (string.IsNullOrWhiteSpace(sel))
+            {
+                Tags.Clear();
+                StatusMessage = "Cleared all tags.";
+                return;
+            }
+
+            // 選択中の動画に紐づくタグだけ消す
+            var toRemove = Tags.Where(x => string.Equals(x.VideoPath, sel, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var x in toRemove) Tags.Remove(x);
+
+            StatusMessage = $"Cleared tags for selected video. ({toRemove.Count})";
+            OnPropertyChanged(nameof(Tags));
         }
 
-        // ------------------------------------------------------------
-        // Tag entries (ExportsView / TagsView 互換)
-        // ------------------------------------------------------------
-        public ObservableCollection<TagEntry> TagEntries { get; }
-
-        // 互換：この名前で呼ばれてもOKにする（将来拡張用）
-        public void AddTagEntry(TagEntry entry)
+        // ---- Helper ---------------------------------------------------------
+        public static string FormatTime(double seconds)
         {
-            if (entry == null) return;
-            TagEntries.Add(entry);
-            StatusMessage = $"TagEntry added: {entry.Tag}";
+            if (seconds < 0) seconds = 0;
+            var ts = TimeSpan.FromSeconds(seconds);
+            // mm:ss 形式（必要なら小数も足せる）
+            return $"{(int)ts.TotalMinutes:00}:{ts.Seconds:00}";
         }
     }
 
-    // ------------------------------------------------------------
-    // Simple model used by Clips/Exports list
-    // ------------------------------------------------------------
+    // ---- Models -------------------------------------------------------------
     public sealed class VideoItem
     {
-        public VideoItem() { }
-
         public VideoItem(string path)
         {
             Path = path ?? "";
             Name = System.IO.Path.GetFileName(Path);
-            Ext = System.IO.Path.GetExtension(Path).TrimStart('.').ToLowerInvariant();
-            CreatedAt = DateTime.Now;
         }
 
         public string Name { get; set; } = "";
         public string Path { get; set; } = "";
-        public string Ext { get; set; } = "";
-        public DateTime CreatedAt { get; set; }
-
-        public string DisplayName => Name;
     }
 
-    // ------------------------------------------------------------
-    // Tag model (ExportsView.xaml.cs が参照する想定の型)
-    // ------------------------------------------------------------
     public sealed class TagEntry
     {
+        // DataGrid が Binding している列に合わせる
+        public string Time { get; set; } = "";  // "mm:ss"
+        public string Text { get; set; } = "";
+
+        // 内部用（秒 / 紐づく動画）
+        public double Seconds { get; set; }
         public string VideoPath { get; set; } = "";
-        public string Tag { get; set; } = "";
-
-        // クリップ範囲（秒）
-        public double StartSeconds { get; set; }
-        public double EndSeconds { get; set; }
-
-        public string Note { get; set; } = "";
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
-
-        // 表示/CSV用
-        public string RangeText
-        {
-            get
-            {
-                var s = AppState.FormatTime(TimeSpan.FromSeconds(Math.Max(0, StartSeconds)));
-                var e = AppState.FormatTime(TimeSpan.FromSeconds(Math.Max(0, EndSeconds)));
-                return $"{s} - {e}";
-            }
-        }
     }
 }

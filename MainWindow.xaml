@@ -1,88 +1,101 @@
 <Window x:Class="PlayCutWin.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:PlayCutWin.Views"
+        mc:Ignorable="d"
         Title="PlayCut (Windows)"
-        Width="1200" Height="800"
-        MinWidth="1100" MinHeight="700"
+        Width="1280" Height="820"
+        MinWidth="1200" MinHeight="760"
         WindowStartupLocation="CenterScreen"
-        Background="#111111">
+        Background="#111">
 
-    <!-- Window直下は「1つ」だけ（Grid） -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="56"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="28"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Top Bar -->
-        <Border Grid.Row="0" Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
-            <DockPanel LastChildFill="True" Margin="12,0">
-                <TextBlock Text="PlayCut"
-                           Foreground="White"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           DockPanel.Dock="Left"/>
+        <!-- Top bar -->
+        <DockPanel Grid.Row="0" LastChildFill="True" Margin="12,10,12,8">
+            <TextBlock Text="PlayCut"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       VerticalAlignment="Center"
+                       DockPanel.Dock="Left"/>
 
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            DockPanel.Dock="Right"
-                            VerticalAlignment="Center">
-                    <Button Content="Import Video" Margin="0,0,8,0" Padding="12,6" Click="ImportVideo_Click"/>
-                    <Button Content="Export Clip"  Margin="0,0,8,0" Padding="12,6" Click="ExportClip_Click"/>
-                    <Button Content="Settings"     Padding="12,6" Click="Settings_Click"/>
-                </StackPanel>
-            </DockPanel>
-        </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                <Button Content="Import Video" Width="110" Margin="0,0,8,0" Click="ImportVideo_Click"/>
+                <Button Content="Export Clip" Width="100" Margin="0,0,8,0" Click="GoExports_Click"/>
+                <Button Content="Settings" Width="90" Click="Settings_Click"/>
+            </StackPanel>
+        </DockPanel>
 
         <!-- Body -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" Margin="12,0,12,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Menu -->
-            <Border Grid.Column="0" Background="#151515" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
-                <StackPanel Margin="12">
-                    <TextBlock Text="Library" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
+            <!-- Left nav -->
+            <Border Grid.Column="0" Background="#1a1a1a" CornerRadius="10" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                    <ListBox x:Name="MenuList" SelectionChanged="MenuList_SelectionChanged">
-                        <ListBoxItem Content="Dashboard"/>
-                        <ListBoxItem Content="Clips"/>
-                        <ListBoxItem Content="Tags"/>
-                        <ListBoxItem Content="Exports"/>
-                    </ListBox>
+                    <TextBlock Text="Library" Foreground="#bdbdbd" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <StackPanel Grid.Row="2">
+                        <Button x:Name="NavDashboard" Content="Dashboard" Height="34" Margin="0,0,0,8" Click="NavDashboard_Click"/>
+                        <Button x:Name="NavClips" Content="Clips" Height="34" Margin="0,0,0,8" Click="NavClips_Click"/>
+                        <Button x:Name="NavTags" Content="Tags" Height="34" Margin="0,0,0,8" Click="NavTags_Click"/>
+                        <Button x:Name="NavExports" Content="Exports" Height="34" Click="NavExports_Click"/>
+                    </StackPanel>
 
-                    <Separator Margin="0,14,0,14" Background="#2A2A2A"/>
+                    <Separator Grid.Row="4" Margin="0,10,0,10"/>
 
-                    <TextBlock Text="Project" Foreground="#BFBFBF" FontSize="12" Margin="0,0,0,8"/>
-                    <TextBlock Text="PlayCutWin" Foreground="White" FontSize="14" FontWeight="SemiBold"/>
-                    <TextBlock Text="Windows build / skeleton UI" Foreground="#9A9A9A" FontSize="12" Margin="0,4,0,0"/>
-                </StackPanel>
+                    <StackPanel Grid.Row="4" VerticalAlignment="Bottom">
+                        <TextBlock Text="Project" Foreground="#bdbdbd" FontWeight="SemiBold" Margin="0,10,0,2"/>
+                        <TextBlock Text="PlayCutWin" Foreground="White" FontWeight="Bold"/>
+                        <TextBlock Text="Windows build / skeleton UI" Foreground="#9e9e9e" FontSize="12"/>
+                    </StackPanel>
+                </Grid>
             </Border>
 
-            <!-- Main Content -->
-            <Border Grid.Column="1" Background="Transparent" Padding="16">
-                <!-- ここは MainWindow.xaml.cs で ContentHost に UserControl を差し替える想定 -->
-                <ContentControl x:Name="ContentHost"/>
+            <!-- Main -->
+            <Border Grid.Column="2" Background="#151515" CornerRadius="10" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="PageTitle"
+                               Text="Dashboard"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+
+                    <ContentControl x:Name="MainContent" Grid.Row="2"/>
+                </Grid>
             </Border>
         </Grid>
 
-        <!-- Status Bar -->
-        <Border Grid.Row="2" Background="#141414" BorderBrush="#2A2A2A" BorderThickness="0,1,0,0">
-            <DockPanel Margin="12,0" LastChildFill="True">
-                <TextBlock x:Name="StatusText"
-                           Text="Ready"
-                           Foreground="#BFBFBF"
-                           VerticalAlignment="Center"/>
-                <TextBlock Text="PlayCutWin"
-                           Foreground="#6F6F6F"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Right"
-                           DockPanel.Dock="Right"/>
-            </DockPanel>
+        <!-- Status bar -->
+        <Border Grid.Row="2" Background="#0f0f0f" Padding="10,6" Margin="0,10,0,0">
+            <TextBlock x:Name="StatusText"
+                       Foreground="#d0d0d0"
+                       Text="Ready"/>
         </Border>
     </Grid>
 </Window>

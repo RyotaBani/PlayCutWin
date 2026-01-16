@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -6,73 +7,64 @@ namespace PlayCutWin.Views
 {
     public partial class TagsView : UserControl
     {
+        private readonly AppState _state = AppState.Current;
+
         public TagsView()
         {
             InitializeComponent();
+            DataContext = _state;
 
-            // 初期表示
-            TagsList.ItemsSource = AppState.Current.Tags;
-            RefreshHeader();
+            TagsList.ItemsSource = _state.Tags;
+            RefreshSelectedText();
 
-            // 選択動画が変わったら表示更新
-            AppState.Current.PropertyChanged += (_, e) =>
+            _state.PropertyChanged += State_PropertyChanged;
+        }
+
+        private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AppState.SelectedVideoPath))
             {
-                if (e.PropertyName == nameof(AppState.SelectedVideoPath) ||
-                    e.PropertyName == nameof(AppState.StatusMessage))
-                {
-                    Dispatcher.Invoke(RefreshHeader);
-                }
-
-                if (e.PropertyName == nameof(AppState.SelectedVideoPath) ||
-                    e.PropertyName == nameof(AppState.Tags))
-                {
-                    Dispatcher.Invoke(RefreshCount);
-                }
-            };
-
-            RefreshCount();
+                Dispatcher.Invoke(RefreshSelectedText);
+            }
         }
 
-        private void RefreshHeader()
+        private void RefreshSelectedText()
         {
-            SelectedVideoText.Text = AppState.Current.SelectedVideoPath ?? "(none)";
-            RefreshCount();
-        }
-
-        private void RefreshCount()
-        {
-            CountText.Text = $"Count: {AppState.Current.Tags.Count}";
+            SelectedVideoText.Text = string.IsNullOrWhiteSpace(_state.SelectedVideoPath)
+                ? "(none)"
+                : _state.SelectedVideoPath;
         }
 
         private void AddTag_Click(object sender, RoutedEventArgs e)
         {
-            AddTagFromInput();
-        }
-
-        private void ClearTags_Click(object sender, RoutedEventArgs e)
-        {
-            AppState.Current.ClearTagsForSelected();
+            var text = TagInput.Text;
+            _state.AddTag(text);
+            TagInput.Text = "";
             TagInput.Focus();
-            RefreshCount();
         }
 
         private void TagInput_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
-                AddTagFromInput();
+                AddTag_Click(sender, e);
                 e.Handled = true;
             }
         }
 
-        private void AddTagFromInput()
+        private void Preset_Click(object sender, RoutedEventArgs e)
         {
-            var text = TagInput.Text;
-            AppState.Current.AddTag(text);
+            if (sender is Button b && b.Tag is string tag)
+            {
+                _state.AddTag(tag);
+                TagInput.Text = "";
+                TagInput.Focus();
+            }
+        }
 
-            TagInput.Text = "";
-            TagInput.Focus();
-            RefreshCount();
+        private void ClearTagsForSelected_Click(object sender, RoutedEventArgs e)
+        {
+            _state.ClearTagsForSelected();
         }
     }
 }

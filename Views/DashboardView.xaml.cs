@@ -7,7 +7,7 @@ namespace PlayCutWin.Views
         public DashboardView()
         {
             InitializeComponent();
-            DataContext = PlayCutWin.AppState.Instance;
+            DataContext = AppState.Current;
         }
     }
 }
