@@ -1,87 +1,83 @@
 using System;
-using System.ComponentModel;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using Microsoft.Win32;
+using Forms = System.Windows.Forms;
 
 namespace PlayCutWin.Views
 {
     public partial class ExportsView : UserControl
     {
-        private readonly AppState _state = AppState.Current;
-        private string _exportFolder = "";
+        private string _folder = "";
 
         public ExportsView()
         {
             InitializeComponent();
-            DataContext = _state;
-
-            RefreshSelectedText();
-            _state.PropertyChanged += State_PropertyChanged;
-        }
-
-        private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(AppState.SelectedVideoPath))
-            {
-                Dispatcher.Invoke(RefreshSelectedText);
-            }
-        }
-
-        private void RefreshSelectedText()
-        {
-            SelectedVideoText.Text = string.IsNullOrWhiteSpace(_state.SelectedVideoPath)
-                ? "(none)"
-                : _state.SelectedVideoPath;
+            DataContext = AppState.Instance;
+            UpdateFolderText();
         }
 
         private void ChooseFolder_Click(object sender, RoutedEventArgs e)
         {
-            // FolderBrowserDialog を避けるため、SaveFileDialog で保存先を選ばせてフォルダだけ抜く
-            var sfd = new SaveFileDialog
+            try
             {
-                Title = "Choose export folder (select a file name, folder will be used)",
-                FileName = "export.txt",
-                Filter = "Text|*.txt|All files|*.*"
-            };
+                using var dlg = new Forms.FolderBrowserDialog();
+                dlg.Description = "Choose export folder";
+                dlg.UseDescriptionForTitle = true;
 
-            if (sfd.ShowDialog() == true)
+                var result = dlg.ShowDialog();
+                if (result == Forms.DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.SelectedPath))
+                {
+                    _folder = dlg.SelectedPath;
+                    UpdateFolderText();
+                    AppState.Instance.StatusMessage = $"Export folder: {_folder}";
+                }
+            }
+            catch (Exception ex)
             {
-                _exportFolder = Path.GetDirectoryName(sfd.FileName) ?? "";
-                SelectedFolderText.Text = string.IsNullOrWhiteSpace(_exportFolder) ? "(not set)" : _exportFolder;
-                _state.StatusMessage = $"Export folder: {_exportFolder}";
+                MessageBox.Show(ex.Message, "Exports", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void ExportDummy_Click(object sender, RoutedEventArgs e)
+        private void ExportSelected_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_exportFolder) || !Directory.Exists(_exportFolder))
+            try
             {
-                MessageBox.Show("Please choose an export folder first.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                var app = AppState.Instance;
+                if (string.IsNullOrWhiteSpace(app.SelectedVideoPath))
+                {
+                    MessageBox.Show("Clips で動画を選択してね（仮）", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(_folder))
+                {
+                    // 未選択ならデスクトップ
+                    _folder = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                    UpdateFolderText();
+                }
+
+                var filename = $"export_dummy_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                var outPath = Path.Combine(_folder, filename);
+
+                var content =
+                    $"SelectedVideoPath={app.SelectedVideoPath}\n" +
+                    $"PlaybackSeconds={app.PlaybackSeconds}\n" +
+                    $"TagsCount={app.Tags.Count}\n";
+
+                app.ExportDummy(outPath, content);
+
+                MessageBox.Show($"Exported:\n{outPath}", "Exports", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-
-            var safeName = "export_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt";
-            var outPath = Path.Combine(_exportFolder, safeName);
-
-            var sb = new StringBuilder();
-            sb.AppendLine("PlayCutWin export (dummy)");
-            sb.AppendLine("SelectedVideoPath: " + (_state.SelectedVideoPath ?? ""));
-            sb.AppendLine("PlaybackPosition: " + _state.PlaybackPositionText);
-            sb.AppendLine("");
-            sb.AppendLine("Tags:");
-            foreach (var t in _state.Tags.Where(t => string.IsNullOrWhiteSpace(_state.SelectedVideoPath) ||
-                                                    string.Equals(t.VideoPath, _state.SelectedVideoPath, StringComparison.OrdinalIgnoreCase)))
+            catch (Exception ex)
             {
-                sb.AppendLine($"{t.Time}\t{t.Text}");
+                MessageBox.Show(ex.Message, "Exports", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
 
-            File.WriteAllText(outPath, sb.ToString(), Encoding.UTF8);
-            _state.StatusMessage = $"Exported: {outPath}";
-            MessageBox.Show($"Exported:\n{outPath}", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        private void UpdateFolderText()
+        {
+            FolderText.Text = string.IsNullOrWhiteSpace(_folder) ? "(folder not set)" : _folder;
         }
     }
 }

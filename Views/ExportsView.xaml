@@ -1,39 +1,30 @@
 <UserControl x:Class="PlayCutWin.Views.ExportsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d"
              Background="Transparent">
-
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+        <Border Background="#0F0F0F" CornerRadius="12" Padding="14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-        <Border Background="#1c1c1c" CornerRadius="12" Padding="14">
-            <StackPanel>
-                <TextBlock Text="Selected video:" Foreground="#bdbdbd"/>
-                <TextBlock x:Name="SelectedVideoText" Foreground="White" TextWrapping="Wrap" Margin="0,2,0,8"/>
+                <TextBlock Text="Exports" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
 
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="Choose Folder (via SaveDialog)" Width="220" Margin="0,0,10,0" Click="ChooseFolder_Click"/>
-                    <TextBlock x:Name="SelectedFolderText" Foreground="#d0d0d0" VerticalAlignment="Center" Text="(not set)"/>
+                <TextBlock Grid.Row="1" Margin="0,10,0,6"
+                           Foreground="#BDBDBD"
+                           Text="{Binding SelectedVideoPath, StringFormat=Selected video: {0}}"/>
+
+                <StackPanel Grid.Row="2" VerticalAlignment="Top" Margin="0,18,0,0">
+                    <Button Content="Choose Folder (dummy)" Width="220" Height="34" Margin="0,0,0,10"
+                            Click="ChooseFolder_Click"/>
+                    <TextBlock x:Name="FolderText" Foreground="#CFCFCF" Margin="0,0,0,16"/>
+                    <Button Content="Export Selected Clip (dummy)" Width="260" Height="38"
+                            Click="ExportSelected_Click"/>
                 </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Row="2" Background="#1c1c1c" CornerRadius="12" Padding="14">
-            <StackPanel>
-                <TextBlock Text="(placeholder) export selected clip / tags list"
-                           Foreground="#bdbdbd" Margin="0,0,0,10"/>
-
-                <Button Content="Export (dummy)"
-                        Width="160" Height="34"
-                        Click="ExportDummy_Click"/>
-            </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

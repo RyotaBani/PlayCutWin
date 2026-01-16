@@ -1,89 +1,80 @@
-using System;
-using System.ComponentModel;
-using System.Windows;
 using Microsoft.Win32;
+using System.Linq;
+using System.Windows;
 using PlayCutWin.Views;
 
 namespace PlayCutWin
 {
     public partial class MainWindow : Window
     {
-        private readonly AppState _state = AppState.Current;
+        private readonly DashboardView _dashboard = new DashboardView();
+        private readonly ClipsView _clips = new ClipsView();
+        private readonly TagsView _tags = new TagsView();
+        private readonly ExportsView _exports = new ExportsView();
 
         public MainWindow()
         {
             InitializeComponent();
-
-            _state.PropertyChanged += State_PropertyChanged;
-            StatusText.Text = _state.StatusMessage;
+            DataContext = AppState.Instance;
 
             ShowDashboard();
         }
 
-        private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(AppState.StatusMessage))
-            {
-                Dispatcher.Invoke(() => StatusText.Text = _state.StatusMessage);
-            }
-        }
-
-        // ---- Top buttons ----------------------------------------------------
-        private void ImportVideo_Click(object sender, RoutedEventArgs e)
-        {
-            var ofd = new OpenFileDialog
-            {
-                Title = "Import video",
-                Filter = "Video files|*.mp4;*.mov;*.mkv;*.avi;*.wmv|All files|*.*"
-            };
-
-            if (ofd.ShowDialog() == true)
-            {
-                _state.AddImportedVideo(ofd.FileName);
-                // 取り込み後は Clips に移動
-                ShowClips();
-            }
-        }
-
-        private void GoExports_Click(object sender, RoutedEventArgs e) => ShowExports();
-
-        private void Settings_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Settings is not implemented yet.", "Settings", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        // ---- Nav ------------------------------------------------------------
-        private void NavDashboard_Click(object sender, RoutedEventArgs e) => ShowDashboard();
-        private void NavClips_Click(object sender, RoutedEventArgs e) => ShowClips();
-        private void NavTags_Click(object sender, RoutedEventArgs e) => ShowTags();
-        private void NavExports_Click(object sender, RoutedEventArgs e) => ShowExports();
-
         private void ShowDashboard()
         {
             PageTitle.Text = "Dashboard";
-            MainContent.Content = new DashboardView();
-            _state.StatusMessage = "Ready - Dashboard";
+            MainContent.Content = _dashboard;
         }
 
         private void ShowClips()
         {
             PageTitle.Text = "Clips";
-            MainContent.Content = new ClipsView();
-            _state.StatusMessage = "Ready - Clips";
+            MainContent.Content = _clips;
         }
 
         private void ShowTags()
         {
             PageTitle.Text = "Tags";
-            MainContent.Content = new TagsView();
-            _state.StatusMessage = "Ready - Tags";
+            MainContent.Content = _tags;
         }
 
         private void ShowExports()
         {
             PageTitle.Text = "Exports";
-            MainContent.Content = new ExportsView();
-            _state.StatusMessage = "Ready - Exports";
+            MainContent.Content = _exports;
+        }
+
+        private void GoDashboard_Click(object sender, RoutedEventArgs e) => ShowDashboard();
+        private void GoClips_Click(object sender, RoutedEventArgs e) => ShowClips();
+        private void GoTags_Click(object sender, RoutedEventArgs e) => ShowTags();
+        private void GoExports_Click(object sender, RoutedEventArgs e) => ShowExports();
+
+        private void Settings_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Settings (dummy)", "Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ImportVideo_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Import Video",
+                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.wmv|All Files|*.*",
+                Multiselect = true
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                foreach (var p in dlg.FileNames)
+                    AppState.Instance.AddImportedVideo(p);
+
+                // 自動で Clips に移動
+                ShowClips();
+
+                // 先頭を選択
+                if (AppState.Instance.SelectedVideo == null && AppState.Instance.ImportedVideos.Any())
+                    AppState.Instance.SetSelected(AppState.Instance.ImportedVideos.First());
+            }
         }
     }
 }
