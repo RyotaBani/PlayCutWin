@@ -6,16 +6,16 @@ using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    /// <summary>
-    /// アプリ全体の単一状態管理クラス
-    /// 全Viewは AppState.Instance のみを参照する
-    /// </summary>
     public class AppState : INotifyPropertyChanged
     {
         // =========================
         // Singleton
         // =========================
         public static AppState Instance { get; } = new AppState();
+
+        // ★ これが足りなかった1行（超重要）
+        public static AppState Current => Instance;
+
         private AppState() { }
 
         // =========================
@@ -77,11 +77,8 @@ namespace PlayCutWin
             }
         }
 
-        public string PlaybackPositionText
-            => FormatTime(PlaybackSeconds);
-
-        public string PlaybackDurationText
-            => FormatTime(PlaybackDuration);
+        public string PlaybackPositionText => FormatTime(PlaybackSeconds);
+        public string PlaybackDurationText => FormatTime(PlaybackDuration);
 
         private static string FormatTime(double sec)
         {
@@ -98,37 +95,22 @@ namespace PlayCutWin
         public double ClipStart
         {
             get => _clipStart;
-            set
-            {
-                _clipStart = Math.Max(0, value);
-                Notify();
-            }
+            set { _clipStart = Math.Max(0, value); Notify(); }
         }
 
         private double _clipEnd;
         public double ClipEnd
         {
             get => _clipEnd;
-            set
-            {
-                _clipEnd = Math.Max(0, value);
-                Notify();
-            }
+            set { _clipEnd = Math.Max(0, value); Notify(); }
         }
 
         // =========================
-        // Tags（★ Exports 対応の核心 ★）
+        // Tags
         // =========================
-
-        /// <summary>
-        /// クリップごとのタグ保持
-        /// </summary>
         public Dictionary<VideoItem, List<string>> TagsByVideo { get; }
             = new Dictionary<VideoItem, List<string>>();
 
-        /// <summary>
-        /// 選択中クリップのタグ一覧（View用）
-        /// </summary>
         public List<string> CurrentTags
         {
             get
@@ -157,15 +139,11 @@ namespace PlayCutWin
         public void ClearTags()
         {
             if (SelectedVideo == null) return;
-
             TagsByVideo.Remove(SelectedVideo);
             Notify(nameof(CurrentTags));
         }
     }
 
-    // =========================
-    // Model
-    // =========================
     public class VideoItem
     {
         public string Path { get; set; } = "";
