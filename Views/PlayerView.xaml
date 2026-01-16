@@ -1,0 +1,32 @@
+<UserControl x:Class="PlayCutWin.Views.PlayerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Black">
+
+    <Grid>
+        <!-- 映像エリア（今はダミー、次で MediaElement にする） -->
+        <Border Background="Black"
+                BorderBrush="#333"
+                BorderThickness="1"
+                CornerRadius="6"
+                Margin="8">
+
+            <Grid>
+                <TextBlock Text="PLAYER"
+                           Foreground="#888"
+                           FontSize="32"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+
+                <!-- 再生位置表示（AppState 連動） -->
+                <TextBlock Text="{Binding PlaybackPositionText}"
+                           Foreground="#AAA"
+                           FontSize="14"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Bottom"
+                           Margin="12"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

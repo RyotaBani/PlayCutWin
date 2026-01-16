@@ -1,92 +1,28 @@
 <UserControl x:Class="PlayCutWin.Views.ClipsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:PlayCutWin.Views"
-             Background="Transparent">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="480"/>
-        </Grid.ColumnDefinitions>
+             Background="#1A1A1A">
 
-        <!-- Left: video list -->
-        <Border Background="#0F0F0F" CornerRadius="12" Padding="12" Margin="0,0,12,0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                    <TextBlock Text="Imported Videos" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="CountText" Foreground="#BDBDBD" Margin="10,4,0,0"/>
-                </DockPanel>
+        <TextBlock Text="Clips"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Foreground="#EEE"
+                   Margin="0,0,0,8"/>
 
-                <DataGrid x:Name="VideosGrid"
-                          Grid.Row="1"
-                          AutoGenerateColumns="False"
-                          ItemsSource="{Binding ImportedVideos}"
-                          SelectionMode="Single"
-                          SelectionChanged="VideosGrid_SelectionChanged">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="3*"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </Grid>
-        </Border>
-
-        <!-- Right: player + controls -->
-        <Border Grid.Column="1" Background="#0F0F0F" CornerRadius="12" Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="260"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <TextBlock x:Name="SelectedTitle"
-                           Text="Selected:"
-                           Foreground="White"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,10"/>
-
-                <Border Grid.Row="1" Background="#000" CornerRadius="10" Padding="0">
-                    <MediaElement x:Name="Player"
-                                  LoadedBehavior="Manual"
-                                  UnloadedBehavior="Manual"
-                                  Stretch="Uniform"/>
-                </Border>
-
-                <Slider x:Name="SeekSlider"
-                        Grid.Row="2"
-                        Margin="0,12,0,6"
-                        Minimum="0"
-                        Maximum="1"
-                        ValueChanged="SeekSlider_ValueChanged"
-                        PreviewMouseLeftButtonDown="SeekSlider_PreviewMouseLeftButtonDown"
-                        PreviewMouseLeftButtonUp="SeekSlider_PreviewMouseLeftButtonUp"/>
-
-                <DockPanel Grid.Row="3" Margin="0,6,0,6">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Play" Width="90" Margin="0,0,8,0" Click="Play_Click"/>
-                        <Button Content="Pause" Width="90" Margin="0,0,8,0" Click="Pause_Click"/>
-                        <Button Content="Stop" Width="90" Click="Stop_Click"/>
-                    </StackPanel>
-                    <TextBlock x:Name="TimeText" Foreground="#CFCFCF" DockPanel.Dock="Right" VerticalAlignment="Center"/>
-                </DockPanel>
-
-                <DockPanel Grid.Row="4" Margin="0,6,0,0">
-                    <TextBlock Text="Seek ±0.5s:" Foreground="#BDBDBD" VerticalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" Margin="10,0,0,0">
-                        <Button Content="-0.5s" Width="80" Margin="0,0,8,0" Click="Minus05_Click"/>
-                        <Button Content="+0.5s" Width="80" Click="Plus05_Click"/>
-                    </StackPanel>
-                </DockPanel>
-            </Grid>
-        </Border>
+        <ListBox Grid.Row="1"
+                 ItemsSource="{Binding Videos}"
+                 SelectedItem="{Binding SelectedVideo, Mode=TwoWay}"
+                 DisplayMemberPath="Name"
+                 Background="#111"
+                 Foreground="#EEE"
+                 BorderBrush="#333"
+                 BorderThickness="1"
+                 SelectionChanged="Clip_SelectionChanged"/>
     </Grid>
 </UserControl>

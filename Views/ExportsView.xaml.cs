@@ -1,42 +1,74 @@
 using Microsoft.Win32;
 using System.IO;
 using System.Text;
+using System.Windows;
 using System.Windows.Controls;
 
 namespace PlayCutWin.Views
 {
     public partial class ExportsView : UserControl
     {
-        AppState state = AppState.Instance;
+        private AppState State => AppState.Instance;
 
         public ExportsView()
         {
             InitializeComponent();
+            DataContext = State;
         }
 
         private void ExportSelected_Click(object sender, RoutedEventArgs e)
         {
-            if (state.SelectedClip == null) return;
-            Export(new[] { state.SelectedClip });
+            if (State.SelectedVideo == null)
+            {
+                MessageBox.Show("No clip selected.", "Export",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            ExportCsv(State.SelectedVideo.Name + ".csv", onlySelected: true);
         }
 
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            Export(state.Tags.Keys);
+            ExportCsv("all_clips.csv", onlySelected: false);
         }
 
-        void Export(IEnumerable<VideoItem> clips)
+        private void ExportCsv(string defaultName, bool onlySelected)
         {
-            var dialog = new SaveFileDialog { Filter = "CSV|*.csv" };
-            if (dialog.ShowDialog() != true) return;
+            var dlg = new SaveFileDialog
+            {
+                FileName = defaultName,
+                Filter = "CSV Files (*.csv)|*.csv",
+                Title = "Export CSV"
+            };
 
-            using var sw = new StreamWriter(dialog.FileName, false, Encoding.UTF8);
+            if (dlg.ShowDialog() != true) return;
+
+            using var sw = new StreamWriter(dlg.FileName, false, Encoding.UTF8);
+
+            // ヘッダー
             sw.WriteLine("Video,Tag");
 
-            foreach (var c in clips)
-                if (state.Tags.ContainsKey(c))
-                    foreach (var t in state.Tags[c])
-                        sw.WriteLine($"{c.FileName},{t}");
+            if (onlySelected)
+            {
+                WriteClip(sw, State.SelectedVideo!);
+            }
+            else
+            {
+                foreach (var video in State.Videos)
+                    WriteClip(sw, video);
+            }
+
+            MessageBox.Show("Export completed.", "Export",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void WriteClip(StreamWriter sw, VideoItem video)
+        {
+            if (!State.TagsByVideo.TryGetValue(video, out var tags)) return;
+
+            foreach (var tag in tags)
+                sw.WriteLine($"{video.Name},{tag}");
         }
     }
 }

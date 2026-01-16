@@ -1,30 +1,31 @@
+using System.Windows;
 using System.Windows.Controls;
 
 namespace PlayCutWin.Views
 {
     public partial class ClipsView : UserControl
     {
-        AppState state = AppState.Instance;
+        private AppState State => AppState.Instance;
 
         public ClipsView()
         {
             InitializeComponent();
-            DataContext = state;
+            DataContext = State;
         }
 
-        private void Clips_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void Clip_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            state.SelectedClip = (VideoItem)((ListBox)sender).SelectedItem;
-            state.PlaybackSeconds = 0;
+            if (sender is ListBox lb && lb.SelectedItem is VideoItem v)
+            {
+                State.SelectedVideo = v;
+
+                // 選択時は再生位置を先頭へ
+                State.PlaybackSeconds = 0;
+
+                // Range も初期化（事故防止）
+                State.ClipStart = 0;
+                State.ClipEnd = 0;
+            }
         }
-
-        private void Plus05_Click(object sender, RoutedEventArgs e)
-            => state.PlaybackSeconds += 0.5;
-
-        private void Minus05_Click(object sender, RoutedEventArgs e)
-            => state.PlaybackSeconds = Math.Max(0, state.PlaybackSeconds - 0.5);
-
-        private void SeekSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-            => state.PlaybackSeconds = e.NewValue;
     }
 }

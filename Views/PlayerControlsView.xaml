@@ -1,0 +1,57 @@
+<UserControl x:Class="PlayCutWin.Views.PlayerControlsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1A1A1A">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 再生位置 -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Content="-0.5s"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    Click="Minus05_Click"/>
+
+            <Button Content="+0.5s"
+                    Width="80"
+                    Margin="0,0,16,0"
+                    Click="Plus05_Click"/>
+
+            <TextBlock Text="{Binding PlaybackPositionText}"
+                       Foreground="#DDD"
+                       FontSize="16"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Range -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Margin="0,12,0,0">
+            <Button Content="START"
+                    Width="90"
+                    Margin="0,0,8,0"
+                    Click="SetStart_Click"/>
+
+            <Button Content="END"
+                    Width="90"
+                    Margin="0,0,16,0"
+                    Click="SetEnd_Click"/>
+
+            <TextBlock Text="Range:"
+                       Foreground="#AAA"
+                       VerticalAlignment="Center"
+                       Margin="0,0,6,0"/>
+
+            <TextBlock Text="{Binding ClipStart, StringFormat=Start {0:F1}s}"
+                       Foreground="#DDD"
+                       Margin="0,0,8,0"/>
+
+            <TextBlock Text="{Binding ClipEnd, StringFormat=End {0:F1}s}"
+                       Foreground="#DDD"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

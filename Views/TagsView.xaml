@@ -1,125 +1,57 @@
 <UserControl x:Class="PlayCutWin.Views.TagsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="Transparent">
-    <Grid Margin="0">
+             Background="#1A1A1A">
+
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Selected video -->
-        <Border Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="12" Margin="0,0,0,10">
-            <StackPanel>
-                <TextBlock Text="Selected video" Foreground="#BFBFBF" FontSize="12"/>
-                <TextBlock Text="{Binding SelectedVideoText}" Foreground="#EDEDED" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                <TextBlock Text="{Binding PlaybackPositionText}" Foreground="#AFAFAF" FontSize="12" Margin="0,6,0,0"/>
-            </StackPanel>
-        </Border>
+        <!-- タイトル -->
+        <TextBlock Text="Tags"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Foreground="#EEE"
+                   Margin="0,0,0,8"/>
 
-        <!-- Add tag -->
-        <Border Grid.Row="1" Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="12" Margin="0,0,0,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+        <!-- 選択中クリップ -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding SelectedVideoPath, FallbackValue=No clip selected}"
+                   Foreground="#AAA"
+                   FontSize="12"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,8"/>
 
-                <TextBox x:Name="TagInput"
-                         Height="30"
-                         VerticalContentAlignment="Center"
-                         Margin="0,0,10,0"
-                         KeyDown="TagInput_KeyDown"
-                         Text=""/>
+        <!-- タグ一覧 -->
+        <ListBox Grid.Row="2"
+                 ItemsSource="{Binding CurrentTags}"
+                 Background="#111"
+                 Foreground="#EEE"
+                 BorderBrush="#333"
+                 BorderThickness="1"/>
 
-                <Button Grid.Column="1"
-                        Content="Add"
-                        Width="90"
-                        Height="30"
-                        Margin="0,0,10,0"
-                        Click="Add_Click"/>
+        <!-- 入力 + 操作 -->
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    Margin="0,8,0,0">
 
-                <Button Grid.Column="2"
-                        Content="Clear"
-                        Width="90"
-                        Height="30"
-                        Click="Clear_Click"/>
-            </Grid>
-        </Border>
+            <TextBox x:Name="TagInput"
+                     Width="200"
+                     Margin="0,0,8,0"
+                     KeyDown="TagInput_KeyDown"/>
 
-        <!-- Presets + current tags -->
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.2*"/>
-                <ColumnDefinition Width="0.8*"/>
-            </Grid.ColumnDefinitions>
+            <Button Content="Add"
+                    Width="70"
+                    Margin="0,0,8,0"
+                    Click="Add_Click"/>
 
-            <!-- Presets -->
-            <Border Grid.Column="0" Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="12" Margin="0,0,10,0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="Preset (Offense)" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8"/>
-
-                        <ItemsControl ItemsSource="{Binding PresetOffenseTags}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="3"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding}"
-                                            Margin="4"
-                                            Height="34"
-                                            Click="Preset_Click"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <TextBlock Text="Preset (Defense)" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8"/>
-
-                        <ItemsControl ItemsSource="{Binding PresetDefenseTags}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="3"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding}"
-                                            Margin="4"
-                                            Height="34"
-                                            Click="Preset_Click"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <TextBlock Text="{Binding StatusMessage}" Foreground="#AFAFAF" FontSize="12" Margin="0,14,0,0" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
-
-            <!-- Current tags -->
-            <Border Grid.Column="1" Background="#151515" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Padding="12">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Text="Current tags" Foreground="White" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8"/>
-
-                    <ListBox x:Name="CurrentTagsList"
-                             Grid.Row="1"
-                             ItemsSource="{Binding CurrentTags}"
-                             MouseDoubleClick="CurrentTagsList_MouseDoubleClick"/>
-
-                    <TextBlock Grid.Row="2" Text="(Double click to remove)" Foreground="#8F8F8F" FontSize="11" Margin="0,8,0,0"/>
-                </Grid>
-            </Border>
-        </Grid>
+            <Button Content="Clear"
+                    Width="70"
+                    Click="Clear_Click"/>
+        </StackPanel>
     </Grid>
 </UserControl>
