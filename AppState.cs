@@ -130,7 +130,7 @@ namespace PlayCutWin
         }
 
         // -----------------------------
-        // Playback (互換: PlaybackSeconds / PlaybackDuration / PlaybackPositionText)
+        // Playback (互換: PlaybackSeconds / PlaybackDuration / PlaybackPositionText / PlaybackDurationText)
         // -----------------------------
         private double _playbackSeconds;
         public double PlaybackSeconds
@@ -142,6 +142,7 @@ namespace PlayCutWin
                 _playbackSeconds = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PlaybackPositionText));
+                OnPropertyChanged(nameof(PlaybackSecondsText));
             }
         }
 
@@ -155,17 +156,22 @@ namespace PlayCutWin
                 _playbackDuration = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PlaybackPositionText));
+                OnPropertyChanged(nameof(PlaybackDurationText));
             }
         }
 
+        // 互換：いまの位置 / 全体
         public string PlaybackPositionText
             => $"{FormatTime(PlaybackSeconds)} / {FormatTime(PlaybackDuration)}";
+
+        // 互換：それぞれ単体
+        public string PlaybackSecondsText => FormatTime(PlaybackSeconds);
+        public string PlaybackDurationText => FormatTime(PlaybackDuration);
 
         public static string FormatTime(double seconds)
         {
             if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0) seconds = 0;
             var ts = TimeSpan.FromSeconds(seconds);
-            // 01:23:45 か 12:34 を出し分け
             if (ts.TotalHours >= 1)
                 return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
             return $"{ts.Minutes:00}:{ts.Seconds:00}";
