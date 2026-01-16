@@ -18,11 +18,13 @@
                            Text="{Binding SelectedVideoPath, StringFormat=Selected video: {0}}"/>
 
                 <StackPanel Grid.Row="2" VerticalAlignment="Top" Margin="0,18,0,0">
-                    <Button Content="Choose Folder (dummy)" Width="220" Height="34" Margin="0,0,0,10"
-                            Click="ChooseFolder_Click"/>
-                    <TextBlock x:Name="FolderText" Foreground="#CFCFCF" Margin="0,0,0,16"/>
-                    <Button Content="Export Selected Clip (dummy)" Width="260" Height="38"
+                    <Button Content="Export Selected Clip (dummy)"
+                            Width="280" Height="38"
                             Click="ExportSelected_Click"/>
+
+                    <TextBlock Margin="0,12,0,0"
+                               Foreground="#888"
+                               Text="※WPFのみで動くように SaveFileDialog を使っています（Forms不要）"/>
                 </StackPanel>
             </Grid>
         </Border>
