@@ -8,11 +8,13 @@ using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
-    // いまの段階は「共有状態のハブ」
-    // Clips / Tags / Exports から共通で参照する。
     public sealed class AppState : INotifyPropertyChanged
     {
-        public static AppState Current { get; } = new AppState();
+        // 既存コード互換：AppState.Instance を生かす
+        public static AppState Instance { get; } = new AppState();
+
+        // 新コード互換：AppState.Current も生かす（どっちでも動く）
+        public static AppState Current => Instance;
 
         private AppState()
         {
@@ -61,7 +63,6 @@ namespace PlayCutWin
         public string SelectedVideoText
             => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "(no video selected)" : SelectedVideoPath!;
 
-        // Clips/Tags/Exports で共通の「選択変更」用
         public void SetSelected(string? path)
         {
             SelectedVideoPath = path;
@@ -78,7 +79,6 @@ namespace PlayCutWin
         {
             if (string.IsNullOrWhiteSpace(path)) return;
 
-            // 既にあるなら先頭へ(見つけやすく)
             var existing = ImportedVideos.FirstOrDefault(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
             if (existing != null)
             {
@@ -99,11 +99,10 @@ namespace PlayCutWin
         }
 
         // -----------------------------
-        // Tags：動画ごとのタグ一覧（Aブロック本体）
+        // Tags：動画ごとのタグ一覧
         // -----------------------------
         private readonly Dictionary<string, ObservableCollection<TagEntry>> _tagsByVideo = new();
 
-        // XAMLから ItemsSource で直接バインドする用（SelectedVideoPathに追従）
         public ObservableCollection<TagEntry> TagsForSelected
         {
             get
@@ -132,7 +131,7 @@ namespace PlayCutWin
             tagText = (tagText ?? "").Trim();
             if (tagText.Length == 0) return;
 
-            var list = TagsForSelected; // ここで辞書に作られる
+            var list = TagsForSelected;
             list.Add(new TagEntry { Text = tagText, CreatedAt = DateTime.Now });
 
             StatusMessage = $"Tag added: {tagText}";
@@ -154,7 +153,6 @@ namespace PlayCutWin
             OnPropertyChanged(nameof(TagsForSelected));
         }
 
-        // もし他Viewで使いたい時のため（安全）
         public IReadOnlyList<TagEntry> GetTags(string? videoPath)
         {
             if (string.IsNullOrWhiteSpace(videoPath)) return Array.Empty<TagEntry>();
@@ -163,9 +161,6 @@ namespace PlayCutWin
         }
     }
 
-    // -----------------------------
-    // 最小モデル（なければここで定義）
-    // -----------------------------
     public class VideoItem
     {
         public string Name { get; set; } = "";
