@@ -6,7 +6,11 @@
         MinWidth="1200" MinHeight="800"
         WindowStartupLocation="CenterScreen"
         Background="#111111">
-
+        Width="1400"
+        Height="900"
+        MinWidth="1200"
+        MinHeight="800"
+        WindowStartupLocation="CenterScreen"
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="56"/>   <!-- Top bar -->
