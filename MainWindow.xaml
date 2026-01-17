@@ -9,7 +9,9 @@
         Width="1400" Height="900"
         MinWidth="1200" MinHeight="800"
         WindowStartupLocation="CenterScreen"
-        Background="#111">
+        Background="#111"
+        Focusable="True"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Grid Margin="8">
         <Grid.ColumnDefinitions>
