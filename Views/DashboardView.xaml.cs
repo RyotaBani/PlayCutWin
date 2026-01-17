@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace PlayCutWin.Views
@@ -16,7 +17,6 @@ namespace PlayCutWin.Views
             InitializeComponent();
             DataContext = _app;
 
-            // 位置更新（再生中じゃなくても Position を拾える）
             _tick = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(200)
@@ -42,8 +42,6 @@ namespace PlayCutWin.Views
             if (dlg.ShowDialog() != true) return;
 
             _app.AddImportedVideo(dlg.FileName);
-
-            // MediaElementへ反映
             LoadSelectedVideoToPlayer(autoPlay: false);
         }
 
@@ -63,16 +61,14 @@ namespace PlayCutWin.Views
                     return;
                 }
 
-                // いったん止めてから差し替える
+                // 入れ替え前に一旦停止
                 Player.Stop();
                 Player.Source = null;
 
-                // 絶対パスを Uri で渡す（これが一番安定）
                 Player.Source = new Uri(path, UriKind.Absolute);
                 Player.LoadedBehavior = MediaState.Manual;
                 Player.UnloadedBehavior = MediaState.Manual;
 
-                // 位置・時間リセット（MediaOpenedでDurationが入る）
                 _app.PlaybackSeconds = 0;
                 _app.PlaybackDuration = 0;
 
@@ -104,15 +100,10 @@ namespace PlayCutWin.Views
         {
             try
             {
-                // Duration反映
                 if (Player.NaturalDuration.HasTimeSpan)
-                {
                     _app.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                }
                 else
-                {
                     _app.PlaybackDuration = 0;
-                }
 
                 _app.StatusMessage = "Media opened";
                 UpdatePlayerHint();
@@ -127,9 +118,11 @@ namespace PlayCutWin.Views
         {
             _app.IsPlaying = false;
             _app.PlaybackDuration = 0;
-            _app.StatusMessage = $"Media failed: {e.ErrorException?.Message ?? "Unknown error"}";
-            UpdatePlayerHint();
 
+            var msg = e.ErrorException?.Message ?? "Unknown error";
+            _app.StatusMessage = $"Media failed: {msg}";
+
+            UpdatePlayerHint();
             MessageBox.Show(_app.StatusMessage, "Media Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
@@ -138,7 +131,6 @@ namespace PlayCutWin.Views
         // =========================
         private void Play_Click(object sender, RoutedEventArgs e)
         {
-            // まだ Source 無いなら、選択中をロードしてから再生
             if (Player.Source == null && !string.IsNullOrWhiteSpace(_app.SelectedVideoPath))
             {
                 LoadSelectedVideoToPlayer(autoPlay: true);
@@ -187,7 +179,6 @@ namespace PlayCutWin.Views
                 var cur = Player.Position.TotalSeconds;
                 var next = Math.Max(0, cur + deltaSeconds);
 
-                // Durationが分かってるなら上限もかける
                 if (_app.PlaybackDuration > 0)
                     next = Math.Min(_app.PlaybackDuration, next);
 
@@ -219,7 +210,7 @@ namespace PlayCutWin.Views
         }
 
         // =========================
-        // CSV buttons (delegates to AppState)
+        // CSV buttons (AppStateへ委譲)
         // =========================
         private void ImportCsv_Click(object sender, RoutedEventArgs e)
         {
@@ -235,15 +226,55 @@ namespace PlayCutWin.Views
 
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            // ここは次で実装（落ちないダミー）
             _app.StatusMessage = "Export All: not implemented yet (dummy)";
-            MessageBox.Show("Export All は次で実装する（今はダミー）", "Export All",
+            MessageBox.Show("Export All は次で実装（今はダミー）", "Export All",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void Preferences_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show("Preferences (dummy)", "Preferences", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        // =========================
+        // ✅ Tags handlers（ここが今回のビルドエラー原因だった3つ）
+        // =========================
+        private void TagInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            AddTag_Click(sender, e);
+            e.Handled = true;
+        }
+
+        private void AddTag_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var text = TagInput?.Text ?? "";
+                _app.AddTagToSelected(text);
+
+                if (TagInput != null)
+                    TagInput.Text = "";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Add Tag", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ClearTags_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _app.ClearTagsForSelected();
+
+                if (TagInput != null)
+                    TagInput.Text = "";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Clear Tags", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         // =========================
@@ -255,27 +286,22 @@ namespace PlayCutWin.Views
 
             try
             {
-                // ここが “null警告” を出しやすい場所なので、例外/状態を丁寧に扱う
                 var pos = Player.Position.TotalSeconds;
                 if (pos < 0) pos = 0;
 
                 _app.PlaybackSeconds = pos;
 
-                // NaturalDuration を拾えるなら随時反映（MediaOpenedが来ない動画でも保険）
                 if (_app.PlaybackDuration <= 0 && Player.NaturalDuration.HasTimeSpan)
-                {
                     _app.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                }
             }
             catch
             {
-                // ここは黙殺でOK（UIタイマーなので）
+                // UIタイマーなので黙殺OK
             }
         }
 
         private void UpdatePlayerHint()
         {
-            // XAMLに PlayerHint TextBlock がいる前提（あなたのDashboardView.xamlにある）
             try
             {
                 if (PlayerHint == null) return;
