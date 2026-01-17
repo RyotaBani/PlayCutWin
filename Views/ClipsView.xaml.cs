@@ -1,3 +1,4 @@
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -5,27 +6,50 @@ namespace PlayCutWin.Views
 {
     public partial class ClipsView : UserControl
     {
-        private AppState State => AppState.Instance;
+        private AppState S => AppState.Instance;
 
         public ClipsView()
         {
             InitializeComponent();
-            DataContext = State;
+            DataContext = S;
         }
 
-        private void Clip_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void Import_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is ListBox lb && lb.SelectedItem is VideoItem v)
+            var dlg = new OpenFileDialog
             {
-                State.SelectedVideo = v;
+                Title = "Import Video",
+                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.wmv|All Files|*.*",
+                Multiselect = true
+            };
 
-                // 選択時は再生位置を先頭へ
-                State.PlaybackSeconds = 0;
-
-                // Range も初期化（事故防止）
-                State.ClipStart = 0;
-                State.ClipEnd = 0;
+            if (dlg.ShowDialog() == true)
+            {
+                foreach (var p in dlg.FileNames)
+                    S.AddImportedVideo(p);
             }
+        }
+
+        private void List_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // 選択で再生/Rangeを初期化（事故防止）
+            S.PlaybackSeconds = 0;
+            S.ResetRange();
+        }
+
+        private void OpenExports_Click(object sender, RoutedEventArgs e)
+        {
+            // 簡易：別ウィンドウで Exports を開く
+            var w = new Window
+            {
+                Title = "Exports",
+                Width = 700,
+                Height = 500,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = Window.GetWindow(this),
+                Content = new ExportsView()
+            };
+            w.ShowDialog();
         }
     }
 }

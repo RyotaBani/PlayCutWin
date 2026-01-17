@@ -8,10 +8,10 @@
         Title="PlayCutWin"
         Width="1400" Height="900"
         MinWidth="1200" MinHeight="800"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Background="#111">
 
     <Grid Margin="8">
-        <!-- 2x2 layout -->
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="*" />
@@ -22,49 +22,36 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Left Top: Player area (Phase2: MediaElement/PlayerViewをここに置く) -->
+        <!-- 左上：Player -->
         <Border Grid.Row="0" Grid.Column="0"
                 Background="#1E1E1E"
                 BorderBrush="#3A3A3A" BorderThickness="1"
-                CornerRadius="6" Padding="10" Margin="0,0,6,6">
-            <Grid>
-                <TextBlock Text="Player Area (Phase2: PlayerView / MediaElement)"
-                           Foreground="#BFBFBF"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           FontSize="16"/>
-            </Grid>
+                CornerRadius="6" Margin="0,0,6,6">
+            <views:PlayerView />
         </Border>
 
-        <!-- Left Bottom: Player controls area (Phase2: 再生/Seek/ClipStartEndなど) -->
+        <!-- 左下：Controls -->
         <Border Grid.Row="1" Grid.Column="0"
                 Background="#1E1E1E"
                 BorderBrush="#3A3A3A" BorderThickness="1"
-                CornerRadius="6" Padding="10" Margin="0,6,6,0">
-            <Grid>
-                <TextBlock Text="Player Controls (Phase2)"
-                           Foreground="#BFBFBF"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           FontSize="16"/>
-            </Grid>
+                CornerRadius="6" Margin="0,6,6,0">
+            <views:PlayerControlsView />
         </Border>
 
-        <!-- Right Top: Clips -->
+        <!-- 右上：Clips -->
         <Border Grid.Row="0" Grid.Column="1"
                 Background="#1E1E1E"
                 BorderBrush="#3A3A3A" BorderThickness="1"
-                CornerRadius="6" Padding="0" Margin="6,0,0,6">
+                CornerRadius="6" Margin="6,0,0,6">
             <views:ClipsView />
         </Border>
 
-        <!-- Right Bottom: Tags -->
+        <!-- 右下：Tags -->
         <Border Grid.Row="1" Grid.Column="1"
                 Background="#1E1E1E"
                 BorderBrush="#3A3A3A" BorderThickness="1"
-                CornerRadius="6" Padding="0" Margin="6,6,0,0">
+                CornerRadius="6" Margin="6,6,0,0">
             <views:TagsView />
         </Border>
-
     </Grid>
 </Window>

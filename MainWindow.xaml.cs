@@ -7,8 +7,6 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
-
-            // アプリ全体の状態をここで固定
             DataContext = AppState.Instance;
         }
     }

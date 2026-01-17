@@ -5,32 +5,39 @@ namespace PlayCutWin.Views
 {
     public partial class PlayerControlsView : UserControl
     {
-        private AppState State => AppState.Instance;
+        private AppState S => AppState.Instance;
 
         public PlayerControlsView()
         {
             InitializeComponent();
-            DataContext = State;
+            DataContext = S;
         }
 
         private void Minus05_Click(object sender, RoutedEventArgs e)
         {
-            State.PlaybackSeconds = System.Math.Max(0, State.PlaybackSeconds - 0.5);
+            S.PlaybackSeconds = System.Math.Max(0, S.PlaybackSeconds - 0.5);
         }
 
         private void Plus05_Click(object sender, RoutedEventArgs e)
         {
-            State.PlaybackSeconds += 0.5;
+            S.PlaybackSeconds = S.PlaybackSeconds + 0.5;
         }
 
         private void SetStart_Click(object sender, RoutedEventArgs e)
         {
-            State.ClipStart = State.PlaybackSeconds;
+            S.ClipStart = S.PlaybackSeconds;
+            S.StatusMessage = "Start set";
         }
 
         private void SetEnd_Click(object sender, RoutedEventArgs e)
         {
-            State.ClipEnd = State.PlaybackSeconds;
+            S.ClipEnd = S.PlaybackSeconds;
+            S.StatusMessage = "End set";
+        }
+
+        private void ResetRange_Click(object sender, RoutedEventArgs e)
+        {
+            S.ResetRange();
         }
     }
 }

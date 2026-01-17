@@ -7,8 +7,6 @@ namespace PlayCutWin.Views
         public PlayerView()
         {
             InitializeComponent();
-
-            // 表示だけなので AppState を DataContext にするだけ
             DataContext = AppState.Instance;
         }
     }

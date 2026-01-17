@@ -6,12 +6,14 @@ namespace PlayCutWin.Views
 {
     public partial class TagsView : UserControl
     {
-        private AppState State => AppState.Instance;
+        private AppState S => AppState.Instance;
 
         public TagsView()
         {
             InitializeComponent();
-            DataContext = State;
+            DataContext = S;
+
+            TagsList.MouseDoubleClick += TagsList_MouseDoubleClick;
         }
 
         private void Add_Click(object sender, RoutedEventArgs e)
@@ -21,7 +23,8 @@ namespace PlayCutWin.Views
 
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
-            State.ClearTags();
+            S.ClearTagsForSelected();
+            TagInput.Focus();
         }
 
         private void TagInput_KeyDown(object sender, KeyEventArgs e)
@@ -35,12 +38,20 @@ namespace PlayCutWin.Views
 
         private void AddTag()
         {
-            var text = TagInput.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(text)) return;
+            var text = TagInput.Text?.Trim() ?? "";
+            if (text.Length == 0) return;
 
-            State.AddTag(text);
+            S.AddTagToSelected(text);
             TagInput.Clear();
             TagInput.Focus();
+        }
+
+        private void TagsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (TagsList.SelectedItem is TagEntry entry)
+            {
+                S.RemoveSelectedTag(entry);
+            }
         }
     }
 }

@@ -8,67 +8,73 @@ namespace PlayCutWin.Views
 {
     public partial class ExportsView : UserControl
     {
-        private AppState State => AppState.Instance;
+        private AppState S => AppState.Instance;
 
         public ExportsView()
         {
             InitializeComponent();
-            DataContext = State;
+            DataContext = S;
         }
 
         private void ExportSelected_Click(object sender, RoutedEventArgs e)
         {
-            if (State.SelectedVideo == null)
+            if (S.SelectedVideo == null)
             {
-                MessageBox.Show("No clip selected.", "Export",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("No clip selected.", "Export", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            ExportCsv(State.SelectedVideo.Name + ".csv", onlySelected: true);
+            ExportCsv(onlySelected: true);
         }
 
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            ExportCsv("all_clips.csv", onlySelected: false);
+            ExportCsv(onlySelected: false);
         }
 
-        private void ExportCsv(string defaultName, bool onlySelected)
+        private void ExportCsv(bool onlySelected)
         {
             var dlg = new SaveFileDialog
             {
-                FileName = defaultName,
-                Filter = "CSV Files (*.csv)|*.csv",
-                Title = "Export CSV"
+                Title = "Export CSV",
+                Filter = "CSV (*.csv)|*.csv",
+                FileName = onlySelected && S.SelectedVideo != null ? $"{S.SelectedVideo.Name}_tags.csv" : "all_tags.csv"
             };
 
             if (dlg.ShowDialog() != true) return;
 
-            using var sw = new StreamWriter(dlg.FileName, false, Encoding.UTF8);
+            // Excel対策：UTF-8 BOM
+            using var sw = new StreamWriter(dlg.FileName, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
 
-            // ヘッダー
-            sw.WriteLine("Video,Tag");
+            sw.WriteLine("Video,Time,Seconds,Tag,ClipStart,ClipEnd,Path");
 
-            if (onlySelected)
+            if (onlySelected && S.SelectedVideo != null)
             {
-                WriteClip(sw, State.SelectedVideo!);
+                WriteOne(sw, S.SelectedVideo);
             }
             else
             {
-                foreach (var video in State.Videos)
-                    WriteClip(sw, video);
+                foreach (var v in S.ImportedVideos)
+                    WriteOne(sw, v);
             }
 
-            MessageBox.Show("Export completed.", "Export",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            S.StatusMessage = $"Exported: {dlg.FileName}";
+            MessageBox.Show("Export completed.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        private void WriteClip(StreamWriter sw, VideoItem video)
+        private void WriteOne(StreamWriter sw, VideoItem v)
         {
-            if (!State.TagsByVideo.TryGetValue(video, out var tags)) return;
+            // SelectedVideo以外のTagsも出したいので全列挙を使う
+            // v.Pathに紐づくタグだけ書き出し
+            foreach (var pair in S.EnumerateAllTags())
+            {
+                if (!string.Equals(pair.video.Path, v.Path, System.StringComparison.OrdinalIgnoreCase))
+                    continue;
 
-            foreach (var tag in tags)
-                sw.WriteLine($"{video.Name},{tag}");
+                var tag = pair.tag;
+                var safeText = (tag.Text ?? "").Replace("\"", "\"\"");
+                sw.WriteLine($"\"{v.Name}\",\"{tag.TimeText}\",{tag.Seconds:F1},\"{safeText}\",{S.ClipStart:F1},{S.ClipEnd:F1},\"{v.Path}\"");
+            }
         }
     }
 }
