@@ -1,205 +1,189 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Reflection;
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 
 namespace PlayCutWin.Views
 {
     public partial class PlayerView : UserControl
     {
-        private readonly AppState _state;
-        private TimeSpan _clipStart = TimeSpan.Zero;
-        private TimeSpan _clipEnd = TimeSpan.Zero;
+        private readonly object _state; // AppState.Instance
+        private INotifyPropertyChanged? _npc;
 
         public PlayerView()
         {
             InitializeComponent();
 
-            _state = AppState.Instance;
-            DataContext = _state;
+            _state = GetAppStateInstance();
+            this.DataContext = _state;
 
-            if (_state is INotifyPropertyChanged npc)
+            _npc = _state as INotifyPropertyChanged;
+            if (_npc != null) _npc.PropertyChanged += State_PropertyChanged;
+
+            // 初期反映
+            SyncFromState();
+        }
+
+        private object GetAppStateInstance()
+        {
+            // AppState.Instance を取りにいく（型が見つからなくても落ちない）
+            try
             {
-                npc.PropertyChanged += State_PropertyChanged;
-            }
+                var t = Type.GetType("PlayCutWin.AppState, PlayCutWin");
+                if (t == null) return new object();
 
-            UpdateTitleFromState();
+                var p = t.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+                var inst = p?.GetValue(null);
+                return inst ?? new object();
+            }
+            catch
+            {
+                return new object();
+            }
         }
 
         private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            // どの名前で来ても拾えるようにざっくり更新
-            if (e.PropertyName == "SelectedVideo" ||
-                e.PropertyName == "SelectedVideoPath" ||
-                e.PropertyName == "SelectedVideoText" ||
-                e.PropertyName == "CurrentVideoPath")
-            {
-                Dispatcher.Invoke(UpdateTitleFromState);
-            }
+            // 雑にまとめて同期（軽いのでOK）
+            SyncFromState();
         }
 
-        private void UpdateTitleFromState()
+        private void SyncFromState()
         {
-            var path = GetStateString(
-                "SelectedVideoPath",
-                "CurrentVideoPath",
-                "SelectedVideoText",
-                "SelectedVideo");
-
-            if (!string.IsNullOrWhiteSpace(path))
+            // 1) Video title: no video -> "Video (16:9)" / loaded -> filename
+            var videoPath = GetSelectedVideoPath();
+            if (string.IsNullOrWhiteSpace(videoPath))
             {
-                // "SelectedVideo" が VideoItem 等の可能性があるので、文字列じゃなければ無視
-                if (path.Contains("\\") || path.Contains("/") || path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                {
-                    TitleText.Text = Path.GetFileName(path);
-                    return;
-                }
-
-                // すでに "xxx.mp4" みたいな表示文字列の可能性
-                TitleText.Text = path;
-                return;
+                VideoTitleText.Text = "Video (16:9)";
+                VideoPlaceholderText.Text = "Load video from the button →";
+            }
+            else
+            {
+                VideoTitleText.Text = Path.GetFileName(videoPath);
+                VideoPlaceholderText.Text = ""; // ここは実プレイヤー入れたら消える想定
             }
 
-            TitleText.Text = "Video (16:9)";
+            // 2) (no clip selected)
+            ClipHintText.Text = IsClipSelected() ? "" : "(no clip selected)";
+
+            // 3) Team A/B text (もし AppState 側に値があれば反映)
+            var teamA = TryGetString("TeamAName") ?? TryGetString("TeamA") ?? TryGetString("HomeTeam");
+            var teamB = TryGetString("TeamBName") ?? TryGetString("TeamB") ?? TryGetString("AwayTeam");
+
+            // TextBox に「未入力」なら空のままにする（ウォーターマークで薄く表示）
+            if (!string.IsNullOrWhiteSpace(teamA) && TeamATextBox.Text != teamA)
+                TeamATextBox.Text = teamA;
+
+            if (!string.IsNullOrWhiteSpace(teamB) && TeamBTextBox.Text != teamB)
+                TeamBTextBox.Text = teamB;
         }
 
-        private string? GetStateString(params string[] propNames)
+        private string? GetSelectedVideoPath()
         {
-            foreach (var name in propNames)
-            {
-                var p = _state.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
-                if (p == null) continue;
+            // よくある名前揺れを吸収
+            string? s =
+                TryGetString("SelectedVideoPath")
+                ?? TryGetString("CurrentVideoPath")
+                ?? TryGetString("SelectedVideoText");
 
-                var v = p.GetValue(_state);
-                if (v == null) continue;
+            if (!string.IsNullOrWhiteSpace(s)) return s;
 
-                if (v is string s && !string.IsNullOrWhiteSpace(s)) return s;
-
-                // VideoItem等 → Pathっぽいプロパティを探す
-                var t = v.GetType();
-                var pathProp = t.GetProperty("Path") ?? t.GetProperty("FullPath") ?? t.GetProperty("FilePath");
-                if (pathProp != null)
-                {
-                    var pv = pathProp.GetValue(v) as string;
-                    if (!string.IsNullOrWhiteSpace(pv)) return pv;
-                }
-            }
-            return null;
-        }
-
-        // ======= MainWindow から呼ばれる想定のAPI =======
-
-        public void LoadVideo(string path, bool autoPlay)
-        {
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                Player.Source = null;
-                PlaceholderText.Visibility = Visibility.Visible;
-                TitleText.Text = "Video (16:9)";
-                return;
-            }
-
-            TitleText.Text = Path.GetFileName(path);
-
+            // SelectedVideo がオブジェクトなら Path を探す
             try
             {
-                Player.Source = new Uri(path, UriKind.Absolute);
-                PlaceholderText.Visibility = Visibility.Collapsed;
+                var v = TryGetObject("SelectedVideo");
+                if (v == null) return null;
 
-                // これがあると「前の音が残る」系が減ることがある
-                Player.Stop();
+                var tp =
+                    v.GetType().GetProperty("Path")
+                    ?? v.GetType().GetProperty("FilePath")
+                    ?? v.GetType().GetProperty("FullPath");
 
-                if (autoPlay) Player.Play();
+                return tp?.GetValue(v) as string;
             }
             catch
             {
-                Player.Source = null;
-                PlaceholderText.Visibility = Visibility.Visible;
-                TitleText.Text = "Video (16:9)";
+                return null;
             }
         }
 
-        public void Play()  => Player.Play();
-        public void Pause() => Player.Pause();
-        public void Stop()  => Player.Stop();
-
-        public void SeekBy(double deltaSeconds)
+        private bool IsClipSelected()
         {
+            // SelectedClip / SelectedClipId / SelectedClipIndex あたりを雑に判定
             try
             {
-                var t = Player.Position + TimeSpan.FromSeconds(deltaSeconds);
-                if (t < TimeSpan.Zero) t = TimeSpan.Zero;
-                Player.Position = t;
+                var clip = TryGetObject("SelectedClip");
+                if (clip != null) return true;
 
-                // AppState に再生位置を持ってるなら反映（あれば）
-                SetStateDouble("PlaybackSeconds", t.TotalSeconds);
+                var id = TryGetObject("SelectedClipId");
+                if (id != null)
+                {
+                    var s = id.ToString();
+                    if (!string.IsNullOrWhiteSpace(s) && s != "0") return true;
+                }
+
+                var idxObj = TryGetObject("SelectedClipIndex");
+                if (idxObj is int idx && idx >= 0) return true;
+
+                return false;
             }
-            catch { }
+            catch
+            {
+                return false;
+            }
         }
 
-        public void MarkClipStart()
-        {
-            _clipStart = Player.Position;
-            SetStateDouble("ClipStart", _clipStart.TotalSeconds);
-        }
-
-        public void MarkClipEnd()
-        {
-            _clipEnd = Player.Position;
-            SetStateDouble("ClipEnd", _clipEnd.TotalSeconds);
-        }
-
-        public void ResetClipRange()
-        {
-            _clipStart = TimeSpan.Zero;
-            _clipEnd = TimeSpan.Zero;
-            SetStateDouble("ClipStart", 0);
-            SetStateDouble("ClipEnd", 0);
-        }
-
-        private void SetStateDouble(string propName, double value)
+        private string? TryGetString(string propName)
         {
             try
             {
                 var p = _state.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance);
-                if (p != null && p.CanWrite && p.PropertyType == typeof(double))
-                {
+                return p?.GetValue(_state) as string;
+            }
+            catch { return null; }
+        }
+
+        private object? TryGetObject(string propName)
+        {
+            try
+            {
+                var p = _state.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance);
+                return p?.GetValue(_state);
+            }
+            catch { return null; }
+        }
+
+        private void TrySetString(string propName, string value)
+        {
+            try
+            {
+                var p = _state.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance);
+                if (p != null && p.CanWrite && p.PropertyType == typeof(string))
                     p.SetValue(_state, value);
-                }
             }
             catch { }
         }
 
-        // ======= Team A / Team B 入力（AppState のプロパティ名が違っても拾える保険） =======
+        // ===== Team A/B: 入力があれば AppState に反映（あれば） =====
 
         private void TeamATextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            SetStateStringAny(TeamATextBox.Text, "TeamAName", "TeamA", "HomeTeamName");
+            var v = TeamATextBox.Text ?? "";
+            // 未入力は空のまま（ウォーターマーク表示）
+            // 反映先が存在するなら反映
+            TrySetString("TeamAName", v);
+            TrySetString("TeamA", v);
+            TrySetString("HomeTeam", v);
         }
 
         private void TeamBTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            SetStateStringAny(TeamBTextBox.Text, "TeamBName", "TeamB", "AwayTeamName");
-        }
-
-        private void SetStateStringAny(string value, params string[] propNames)
-        {
-            foreach (var name in propNames)
-            {
-                try
-                {
-                    var p = _state.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
-                    if (p != null && p.CanWrite && p.PropertyType == typeof(string))
-                    {
-                        p.SetValue(_state, value);
-                        return;
-                    }
-                }
-                catch { }
-            }
+            var v = TeamBTextBox.Text ?? "";
+            TrySetString("TeamBName", v);
+            TrySetString("TeamB", v);
+            TrySetString("AwayTeam", v);
         }
     }
 }
