@@ -55,7 +55,6 @@ namespace PlayCutWin
 
             if (ImportedVideos.Any(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase)))
             {
-                // 既にあるなら選択だけ合わせる
                 SetSelected(path);
                 return;
             }
@@ -87,7 +86,7 @@ namespace PlayCutWin
         }
 
         // -------------------------
-        // Playback（今は“値だけ”を扱う。Player実装は後でOK）
+        // Playback（値だけ）
         // -------------------------
         private double _playbackSeconds;
         public double PlaybackSeconds
@@ -126,8 +125,28 @@ namespace PlayCutWin
             return ts.TotalHours >= 1 ? ts.ToString(@"hh\:mm\:ss") : ts.ToString(@"mm\:ss");
         }
 
+        // ✅ 再生状態（今回追加）
+        private bool _isPlaying;
+        public bool IsPlaying
+        {
+            get => _isPlaying;
+            set
+            {
+                if (_isPlaying == value) return;
+                _isPlaying = value;
+                Notify();
+            }
+        }
+
+        public void StopPlayback()
+        {
+            IsPlaying = false;
+            PlaybackSeconds = 0;
+            StatusMessage = "Stopped";
+        }
+
         // -------------------------
-        // Clip Range（左下Controlsで使う）
+        // Clip Range
         // -------------------------
         private double _clipStart;
         public double ClipStart
@@ -165,7 +184,8 @@ namespace PlayCutWin
         // -------------------------
         // Tags（動画ごと）
         // -------------------------
-        private readonly Dictionary<string, ObservableCollection<TagEntry>> _tagsByVideoPath = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ObservableCollection<TagEntry>> _tagsByVideoPath
+            = new(StringComparer.OrdinalIgnoreCase);
 
         public ObservableCollection<TagEntry> CurrentTags
         {

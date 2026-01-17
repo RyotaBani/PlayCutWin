@@ -12,18 +12,14 @@ namespace PlayCutWin.Views
 
         private readonly DispatcherTimer _timer;
         private bool _isLoaded;
-        private bool _updatingFromPlayer; // Player -> AppState の更新中フラグ（ループ防止）
+        private bool _updatingFromPlayer;
 
         public PlayerView()
         {
             InitializeComponent();
             DataContext = S;
 
-            // Player -> AppState に再生位置を定期反映
-            _timer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(120)
-            };
+            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _timer.Tick += (_, __) => PullPositionFromPlayer();
 
             Loaded += (_, __) =>
@@ -32,7 +28,7 @@ namespace PlayCutWin.Views
                 _isLoaded = true;
 
                 S.PropertyChanged += OnAppStateChanged;
-                RefreshSourceFromState(); // 起動時
+                RefreshSourceFromState();
                 _timer.Start();
             };
 
@@ -40,14 +36,10 @@ namespace PlayCutWin.Views
             {
                 _timer.Stop();
                 S.PropertyChanged -= OnAppStateChanged;
-
-                try { Player.Stop(); } catch { /* ignore */ }
+                try { Player.Stop(); } catch { }
             };
         }
 
-        // -----------------------------
-        // AppState -> Player
-        // -----------------------------
         private void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(AppState.SelectedVideo) ||
@@ -57,11 +49,16 @@ namespace PlayCutWin.Views
                 return;
             }
 
-            // Controls の ±0.5s などで PlaybackSeconds が変わったらシーク
             if (e.PropertyName == nameof(AppState.PlaybackSeconds))
             {
-                if (_updatingFromPlayer) return; // 自分が更新した分で戻すのを防ぐ
+                if (_updatingFromPlayer) return;
                 SeekToStateSeconds();
+                return;
+            }
+
+            if (e.PropertyName == nameof(AppState.IsPlaying))
+            {
+                ApplyPlayState();
                 return;
             }
         }
@@ -73,15 +70,11 @@ namespace PlayCutWin.Views
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
                 EmptyText.Visibility = System.Windows.Visibility.Visible;
-                try
-                {
-                    Player.Stop();
-                    Player.Source = null;
-                }
-                catch { /* ignore */ }
+                try { Player.Stop(); Player.Source = null; } catch { }
 
                 S.PlaybackDuration = 0;
                 S.PlaybackSeconds = 0;
+                S.IsPlaying = false;
                 return;
             }
 
@@ -92,15 +85,31 @@ namespace PlayCutWin.Views
                 Player.Stop();
                 Player.Source = new Uri(path, UriKind.Absolute);
 
-                // まずは「読み込みだけ」して止める（勝手に再生しない）
-                // ※ 将来 Play/Pause ボタン実装でここを制御する
+                // 読み込みのため一瞬 Play→Pause（勝手に再生しない）
                 Player.Play();
                 Player.Pause();
+
+                ApplyPlayState();
             }
             catch
             {
                 EmptyText.Visibility = System.Windows.Visibility.Visible;
+                S.IsPlaying = false;
             }
+        }
+
+        private void ApplyPlayState()
+        {
+            try
+            {
+                if (Player.Source == null) return;
+
+                if (S.IsPlaying)
+                    Player.Play();
+                else
+                    Player.Pause();
+            }
+            catch { }
         }
 
         private void SeekToStateSeconds()
@@ -108,31 +117,21 @@ namespace PlayCutWin.Views
             try
             {
                 if (Player.Source == null) return;
-
-                var sec = Math.Max(0, S.PlaybackSeconds);
-                Player.Position = TimeSpan.FromSeconds(sec);
+                Player.Position = TimeSpan.FromSeconds(Math.Max(0, S.PlaybackSeconds));
             }
-            catch { /* ignore */ }
+            catch { }
         }
 
-        // -----------------------------
-        // Player events
-        // -----------------------------
         private void Player_MediaOpened(object sender, System.Windows.RoutedEventArgs e)
         {
             try
             {
-                if (Player.NaturalDuration.HasTimeSpan)
-                {
-                    S.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                }
-                else
-                {
-                    S.PlaybackDuration = 0;
-                }
+                S.PlaybackDuration = Player.NaturalDuration.HasTimeSpan
+                    ? Player.NaturalDuration.TimeSpan.TotalSeconds
+                    : 0;
 
-                // 読み込み後、Stateの秒に合わせてシーク（初期0でもOK）
                 SeekToStateSeconds();
+                ApplyPlayState();
             }
             catch
             {
@@ -146,28 +145,21 @@ namespace PlayCutWin.Views
             S.StatusMessage = $"Media failed: {e.ErrorException?.Message}";
             S.PlaybackDuration = 0;
             S.PlaybackSeconds = 0;
+            S.IsPlaying = false;
         }
 
-        // -----------------------------
-        // Player -> AppState（再生中の位置反映）
-        // -----------------------------
         private void PullPositionFromPlayer()
         {
             try
             {
                 if (Player.Source == null) return;
 
-                // 再生していなくても Position は取れる（PauseでもOK）
                 var sec = Player.Position.TotalSeconds;
 
-                // ループ防止：ここで State を更新したことを示す
                 _updatingFromPlayer = true;
                 S.PlaybackSeconds = sec;
             }
-            catch
-            {
-                // ignore
-            }
+            catch { }
             finally
             {
                 _updatingFromPlayer = false;
