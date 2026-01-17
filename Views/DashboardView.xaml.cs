@@ -1,56 +1,35 @@
 using Microsoft.Win32;
 using System;
-using System.IO;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace PlayCutWin.Views
 {
     public partial class DashboardView : UserControl
     {
-        private readonly DispatcherTimer _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        private readonly AppState _app = AppState.Instance;
+        private readonly DispatcherTimer _tick;
 
         public DashboardView()
         {
             InitializeComponent();
-            DataContext = AppState.Instance;
+            DataContext = _app;
 
-            Loaded += (_, __) =>
+            // 位置更新（再生中じゃなくても Position を拾える）
+            _tick = new DispatcherTimer
             {
-                _timer.Tick += Timer_Tick;
-                _timer.Start();
-                RefreshHint();
+                Interval = TimeSpan.FromMilliseconds(200)
             };
+            _tick.Tick += (_, __) => SyncPositionToAppState();
+            _tick.Start();
 
-            Unloaded += (_, __) =>
-            {
-                _timer.Stop();
-                _timer.Tick -= Timer_Tick;
-            };
+            UpdatePlayerHint();
         }
 
-        // ===== MediaElement =====
-        private void Player_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            if (Player.NaturalDuration.HasTimeSpan)
-                AppState.Instance.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
-            else
-                AppState.Instance.PlaybackDuration = 0;
-
-            AppState.Instance.StatusMessage = "Media opened";
-            RefreshHint();
-        }
-
-        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-        {
-            AppState.Instance.StatusMessage = $"Media failed: {e.ErrorException.Message}";
-            RefreshHint();
-        }
-
-        // ===== Top buttons =====
+        // =========================
+        // Video Load
+        // =========================
         private void LoadVideo_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
@@ -62,166 +41,249 @@ namespace PlayCutWin.Views
 
             if (dlg.ShowDialog() != true) return;
 
-            AppState.Instance.AddImportedVideo(dlg.FileName);
+            _app.AddImportedVideo(dlg.FileName);
 
-            if (AppState.Instance.SelectedVideo == null && AppState.Instance.ImportedVideos.Any())
-                AppState.Instance.SetSelected(AppState.Instance.ImportedVideos.First());
-
-            ApplySelectedVideoToPlayer(autoplay: false);
+            // MediaElementへ反映
+            LoadSelectedVideoToPlayer(autoPlay: false);
         }
 
-        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        private void LoadSelectedVideoToPlayer(bool autoPlay)
         {
-            AppState.Instance.ImportCsvFromDialog();
+            try
+            {
+                var path = _app.SelectedVideoPath;
+
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    Player.Source = null;
+                    _app.PlaybackSeconds = 0;
+                    _app.PlaybackDuration = 0;
+                    _app.IsPlaying = false;
+                    UpdatePlayerHint();
+                    return;
+                }
+
+                // いったん止めてから差し替える
+                Player.Stop();
+                Player.Source = null;
+
+                // 絶対パスを Uri で渡す（これが一番安定）
+                Player.Source = new Uri(path, UriKind.Absolute);
+                Player.LoadedBehavior = MediaState.Manual;
+                Player.UnloadedBehavior = MediaState.Manual;
+
+                // 位置・時間リセット（MediaOpenedでDurationが入る）
+                _app.PlaybackSeconds = 0;
+                _app.PlaybackDuration = 0;
+
+                UpdatePlayerHint();
+
+                if (autoPlay)
+                {
+                    Player.Play();
+                    _app.IsPlaying = true;
+                    _app.StatusMessage = "Playing";
+                }
+                else
+                {
+                    _app.IsPlaying = false;
+                    _app.StatusMessage = "Video loaded";
+                }
+            }
+            catch (Exception ex)
+            {
+                _app.StatusMessage = $"Load failed: {ex.Message}";
+                MessageBox.Show(ex.Message, "Load Video", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
-        private void ExportCsv_Click(object sender, RoutedEventArgs e)
+        // =========================
+        // MediaElement events
+        // =========================
+        private void Player_MediaOpened(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ExportCsvToDialog();
+            try
+            {
+                // Duration反映
+                if (Player.NaturalDuration.HasTimeSpan)
+                {
+                    _app.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                }
+                else
+                {
+                    _app.PlaybackDuration = 0;
+                }
+
+                _app.StatusMessage = "Media opened";
+                UpdatePlayerHint();
+            }
+            catch (Exception ex)
+            {
+                _app.StatusMessage = $"MediaOpened error: {ex.Message}";
+            }
         }
 
-        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            MessageBox.Show("Export All (TODO: clip export)", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            _app.IsPlaying = false;
+            _app.PlaybackDuration = 0;
+            _app.StatusMessage = $"Media failed: {e.ErrorException?.Message ?? "Unknown error"}";
+            UpdatePlayerHint();
+
+            MessageBox.Show(_app.StatusMessage, "Media Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
-        // ===== Controls =====
+        // =========================
+        // Controls buttons
+        // =========================
         private void Play_Click(object sender, RoutedEventArgs e)
         {
+            // まだ Source 無いなら、選択中をロードしてから再生
+            if (Player.Source == null && !string.IsNullOrWhiteSpace(_app.SelectedVideoPath))
+            {
+                LoadSelectedVideoToPlayer(autoPlay: true);
+                return;
+            }
+
             if (Player.Source == null)
             {
-                ApplySelectedVideoToPlayer(autoplay: true);
+                _app.StatusMessage = "No video selected";
+                UpdatePlayerHint();
                 return;
             }
 
             Player.Play();
-            AppState.Instance.IsPlaying = true;
+            _app.IsPlaying = true;
+            _app.StatusMessage = "Playing";
+            UpdatePlayerHint();
         }
 
         private void Pause_Click(object sender, RoutedEventArgs e)
         {
+            if (Player.Source == null) return;
             Player.Pause();
-            AppState.Instance.IsPlaying = false;
+            _app.IsPlaying = false;
+            _app.StatusMessage = "Paused";
         }
 
         private void Stop_Click(object sender, RoutedEventArgs e)
         {
+            if (Player.Source == null) return;
             Player.Stop();
-            AppState.Instance.IsPlaying = false;
-            AppState.Instance.PlaybackSeconds = 0;
+            _app.IsPlaying = false;
+            _app.PlaybackSeconds = 0;
+            _app.StatusMessage = "Stopped";
         }
 
-        private void Minus05_Click(object sender, RoutedEventArgs e) => SeekBy(-0.5);
-        private void Plus05_Click(object sender, RoutedEventArgs e) => SeekBy(+0.5);
+        private void Minus05_Click(object sender, RoutedEventArgs e) => SeekDelta(-0.5);
+        private void Plus05_Click(object sender, RoutedEventArgs e) => SeekDelta(+0.5);
+
+        private void SeekDelta(double deltaSeconds)
+        {
+            if (Player.Source == null) return;
+
+            try
+            {
+                var cur = Player.Position.TotalSeconds;
+                var next = Math.Max(0, cur + deltaSeconds);
+
+                // Durationが分かってるなら上限もかける
+                if (_app.PlaybackDuration > 0)
+                    next = Math.Min(_app.PlaybackDuration, next);
+
+                Player.Position = TimeSpan.FromSeconds(next);
+                _app.PlaybackSeconds = next;
+                _app.StatusMessage = $"Seek {deltaSeconds:+0.0;-0.0}s";
+            }
+            catch (Exception ex)
+            {
+                _app.StatusMessage = $"Seek failed: {ex.Message}";
+            }
+        }
 
         private void SetStart_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ClipStart = Player?.Position.TotalSeconds ?? 0;
+            _app.ClipStart = _app.PlaybackSeconds;
+            _app.StatusMessage = $"Start set: {_app.PlaybackPositionText}";
         }
 
         private void SetEnd_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ClipEnd = Player?.Position.TotalSeconds ?? 0;
+            _app.ClipEnd = _app.PlaybackSeconds;
+            _app.StatusMessage = $"End set: {_app.PlaybackPositionText}";
         }
 
         private void ResetClip_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ResetRange();
+            _app.ResetRange();
         }
 
-        // ===== Tags =====
+        // =========================
+        // CSV buttons (delegates to AppState)
+        // =========================
+        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            try { _app.ImportCsvFromDialog(); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Import CSV", MessageBoxButton.OK, MessageBoxImage.Error); }
+        }
+
+        private void ExportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            try { _app.ExportCsvToDialog(); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Export CSV", MessageBoxButton.OK, MessageBoxImage.Error); }
+        }
+
+        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        {
+            // ここは次で実装（落ちないダミー）
+            _app.StatusMessage = "Export All: not implemented yet (dummy)";
+            MessageBox.Show("Export All は次で実装する（今はダミー）", "Export All",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         private void Preferences_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show("Preferences (dummy)", "Preferences", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        private void AddTag_Click(object sender, RoutedEventArgs e)
-        {
-            var text = TagInput?.Text?.Trim() ?? "";
-            if (text.Length == 0) return;
-
-            AppState.Instance.AddTagToSelected(text);
-            TagInput.Text = "";
-        }
-
-        private void ClearTags_Click(object sender, RoutedEventArgs e)
-        {
-            AppState.Instance.ClearTagsForSelected();
-        }
-
-        private void TagInput_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-            {
-                AddTag_Click(sender, e);
-                e.Handled = true;
-            }
-        }
-
-        // ===== Internal =====
-        private void ApplySelectedVideoToPlayer(bool autoplay)
-        {
-            var path = AppState.Instance.SelectedVideoPath;
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                AppState.Instance.StatusMessage = "Video path not found.";
-                RefreshHint();
-                return;
-            }
-
-            try
-            {
-                Player.Stop();
-                Player.Source = new Uri(path, UriKind.Absolute);
-
-                AppState.Instance.PlaybackDuration = 0;
-                AppState.Instance.PlaybackSeconds = 0;
-                AppState.Instance.IsPlaying = false;
-
-                if (autoplay)
-                {
-                    Player.Play();
-                    AppState.Instance.IsPlaying = true;
-                }
-
-                AppState.Instance.StatusMessage = $"Loaded: {System.IO.Path.GetFileName(path)}";
-                RefreshHint();
-            }
-            catch (Exception ex)
-            {
-                AppState.Instance.StatusMessage = $"Load failed: {ex.Message}";
-                RefreshHint();
-            }
-        }
-
-        private void SeekBy(double deltaSeconds)
+        // =========================
+        // Helpers
+        // =========================
+        private void SyncPositionToAppState()
         {
             if (Player.Source == null) return;
 
-            var cur = Player.Position.TotalSeconds;
-            var next = Math.Max(0, cur + deltaSeconds);
+            try
+            {
+                // ここが “null警告” を出しやすい場所なので、例外/状態を丁寧に扱う
+                var pos = Player.Position.TotalSeconds;
+                if (pos < 0) pos = 0;
 
-            var dur = AppState.Instance.PlaybackDuration;
-            if (dur > 0) next = Math.Min(dur, next);
+                _app.PlaybackSeconds = pos;
 
-            Player.Position = TimeSpan.FromSeconds(next);
-            AppState.Instance.PlaybackSeconds = next;
+                // NaturalDuration を拾えるなら随時反映（MediaOpenedが来ない動画でも保険）
+                if (_app.PlaybackDuration <= 0 && Player.NaturalDuration.HasTimeSpan)
+                {
+                    _app.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                }
+            }
+            catch
+            {
+                // ここは黙殺でOK（UIタイマーなので）
+            }
         }
 
-        private void Timer_Tick(object? sender, EventArgs e)
+        private void UpdatePlayerHint()
         {
-            var sec = Player?.Position.TotalSeconds ?? 0;
-            if (sec < 0) sec = 0;
+            // XAMLに PlayerHint TextBlock がいる前提（あなたのDashboardView.xamlにある）
+            try
+            {
+                if (PlayerHint == null) return;
 
-            if (Math.Abs(AppState.Instance.PlaybackSeconds - sec) > 0.05)
-                AppState.Instance.PlaybackSeconds = sec;
-
-            RefreshHint();
-        }
-
-        private void RefreshHint()
-        {
-            PlayerHint.Visibility = (Player.Source == null) ? Visibility.Visible : Visibility.Collapsed;
+                var hasVideo = !string.IsNullOrWhiteSpace(_app.SelectedVideoPath);
+                PlayerHint.Visibility = hasVideo ? Visibility.Collapsed : Visibility.Visible;
+            }
+            catch { }
         }
     }
 }
