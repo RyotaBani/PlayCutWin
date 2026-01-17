@@ -1,5 +1,7 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace PlayCutWin.Views
 {
@@ -9,29 +11,78 @@ namespace PlayCutWin.Views
         {
             InitializeComponent();
             DataContext = AppState.Instance;
+
+            // DataGridでDeleteキー削除を許可
+            TagsGrid.PreviewKeyDown += TagsGrid_PreviewKeyDown;
         }
 
-        private void Add_Click(object sender, RoutedEventArgs e)
+        private void TagInput_KeyDown(object sender, KeyEventArgs e)
         {
-            var text = TagInput?.Text?.Trim() ?? "";
-            if (text.Length == 0) return;
-
-            AppState.Instance.AddTagToSelected(text);
-            TagInput.Text = "";
-        }
-
-        private void Clear_Click(object sender, RoutedEventArgs e)
-        {
-            AppState.Instance.ClearTagsForSelected();
-        }
-
-        private void TagsList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            // 既存XAMLの ItemsSource が AppState.Tags を見てる想定
-            // 選択要素の型は AppState.TagEntry
-            if (TagsList?.SelectedItem is AppState.TagEntry entry)
+            if (e.Key == Key.Enter)
             {
-                AppState.Instance.RemoveSelectedTag(entry);
+                AddFromInput();
+                e.Handled = true;
+            }
+        }
+
+        private void AddTag_Click(object sender, RoutedEventArgs e)
+        {
+            AddFromInput();
+        }
+
+        private void ClearTags_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                AppState.Instance.ClearTagsForSelected();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Tags", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void TagsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Delete) return;
+
+            try
+            {
+                if (TagsGrid.SelectedItem is AppState.TagEntry te)
+                {
+                    AppState.Instance.RemoveSelectedTag(te);
+                    e.Handled = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Tags", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void AddFromInput()
+        {
+            try
+            {
+                var text = (TagInput.Text ?? "").Trim();
+                if (text.Length == 0) return;
+
+                AppState.Instance.AddTagToSelected(text);
+
+                TagInput.Text = "";
+                TagInput.Focus();
+
+                // 末尾にスクロール
+                if (AppState.Instance.Tags.Count > 0)
+                {
+                    var last = AppState.Instance.Tags[^1];
+                    TagsGrid.SelectedItem = last;
+                    TagsGrid.ScrollIntoView(last);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Tags", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
