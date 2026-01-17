@@ -92,6 +92,7 @@ namespace PlayCutWin
         }
 
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new();
+
         private VideoItem? _selectedVideo;
         public VideoItem? SelectedVideo
         {
@@ -100,14 +101,29 @@ namespace PlayCutWin
             {
                 if (Set(ref _selectedVideo, value))
                 {
+                    // 画面バインディング更新
                     OnPropertyChanged(nameof(SelectedVideoPath));
                     OnPropertyChanged(nameof(SelectedVideoName));
+                    OnPropertyChanged(nameof(VideoHeaderText));
+                    OnPropertyChanged(nameof(ClipsHeaderText));
+                    OnPropertyChanged(nameof(SelectedVideoPathText));
                 }
             }
         }
 
         public string SelectedVideoPath => SelectedVideo?.Path ?? "";
         public string SelectedVideoName => SelectedVideo?.Name ?? "Video (16:9)";
+
+        // =========
+        // Dashboard bindings (XAMLで使ってる表示専用)
+        // =========
+        public string VideoHeaderText => SelectedVideo?.Name ?? "Video (16:9)";
+        public string ClipsHeaderText => $"Clips (Total {Clips.Count})";
+        public string SelectedVideoPathText => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "" : SelectedVideoPath;
+
+        public string TimeText => $"{PlaybackPositionText} / {PlaybackDurationTextLong}";
+        public string ClipStartText => $"Start {FormatClock(ClipStart)}";
+        public string ClipEndText => $"End {FormatClock(ClipEnd)}";
 
         // Playback (MediaElement側が更新する)
         private bool _isPlaying;
@@ -126,6 +142,7 @@ namespace PlayCutWin
                 if (Set(ref _playbackSeconds, value))
                 {
                     OnPropertyChanged(nameof(PlaybackPositionText));
+                    OnPropertyChanged(nameof(TimeText));
                 }
             }
         }
@@ -140,6 +157,7 @@ namespace PlayCutWin
                 {
                     OnPropertyChanged(nameof(PlaybackDurationText));
                     OnPropertyChanged(nameof(PlaybackDurationTextLong));
+                    OnPropertyChanged(nameof(TimeText));
                 }
             }
         }
@@ -150,15 +168,17 @@ namespace PlayCutWin
 
         private static string FormatClock(double sec)
         {
-            if (sec <= 0) return "00:00";
+            if (sec < 0) sec = 0;
             var ts = TimeSpan.FromSeconds(sec);
+            if (ts.TotalSeconds <= 0) return "00:00";
             return ts.Hours > 0 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"mm\:ss");
         }
 
         private static string FormatClockLong(double sec)
         {
-            if (sec <= 0) return "00:00:00";
+            if (sec < 0) sec = 0;
             var ts = TimeSpan.FromSeconds(sec);
+            if (ts.TotalSeconds <= 0) return "00:00:00";
             return ts.ToString(@"hh\:mm\:ss");
         }
 
@@ -167,14 +187,22 @@ namespace PlayCutWin
         public double ClipStart
         {
             get => _clipStart;
-            set => Set(ref _clipStart, value);
+            set
+            {
+                if (Set(ref _clipStart, value))
+                    OnPropertyChanged(nameof(ClipStartText));
+            }
         }
 
         private double _clipEnd;
         public double ClipEnd
         {
             get => _clipEnd;
-            set => Set(ref _clipEnd, value);
+            set
+            {
+                if (Set(ref _clipEnd, value))
+                    OnPropertyChanged(nameof(ClipEndText));
+            }
         }
 
         public void ResetRange()
@@ -186,11 +214,15 @@ namespace PlayCutWin
 
         // Tags / Clips
         public ObservableCollection<TagEntry> Tags { get; } = new();
+
         public ObservableCollection<ClipItem> Clips { get; } = new();
+        public void NotifyClipsChanged()
+        {
+            OnPropertyChanged(nameof(ClipsHeaderText));
+        }
 
         public IEnumerable<string> EnumerateAllTags()
         {
-            // Tagsコレクション + Clips内のTagsTextを雑に分解（後でCSV仕様に合わせて強化）
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var t in Tags)
@@ -241,7 +273,6 @@ namespace PlayCutWin
         {
             if (string.IsNullOrWhiteSpace(path)) return;
 
-            // 重複排除
             if (ImportedVideos.Any(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase)))
                 return;
 
@@ -267,7 +298,7 @@ namespace PlayCutWin
         }
 
         // =========
-        // CSV（最小実装：後でMac版のフォーマットに合わせて強化）
+        // CSV（最小実装：後でMac版フォーマットに合わせて強化）
         // =========
         public void ImportCsvFromDialog()
         {
@@ -299,7 +330,6 @@ namespace PlayCutWin
 
         // 形式（暫定）:
         // TAG,CreatedAt
-        // or
         // CLIP,Team,Start,End,Tags
         public void ImportCsv(string filePath)
         {
@@ -312,7 +342,6 @@ namespace PlayCutWin
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var cols = line.Split(',');
-
                     if (cols.Length == 0) continue;
 
                     var kind = cols[0].Trim();
@@ -350,7 +379,6 @@ namespace PlayCutWin
                     }
                     else
                     {
-                        // 何も付いてないCSVは「タグ1列」とみなす（Mac版CSVに合わせて後で調整）
                         var tag = cols[0].Trim();
                         if (tag.Length > 0)
                         {
@@ -360,6 +388,7 @@ namespace PlayCutWin
                     }
                 }
 
+                NotifyClipsChanged();
                 StatusMessage = $"Imported CSV: tags={addedTags}, clips={addedClips}";
             }
             catch (Exception ex)
