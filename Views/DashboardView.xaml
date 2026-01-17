@@ -4,195 +4,170 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             Background="Transparent">
+             Background="{DynamicResource BgWindow}">
 
-    <UserControl.Resources>
-
-        <!-- 見出し（Video(16:9) / Clips(Total 0) / Team A Clips(0) と同サイズ） -->
-        <!-- ★ここが “Team A Clips(0)” の基準サイズ：必要なら FontSize をここだけ変えれば全体揃う -->
-        <Style x:Key="PanelHeaderText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#EDEDED"/>
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-            <Setter Property="TextWrapping" Value="NoWrap"/>
-        </Style>
-
-        <!-- サブ文字（旧 “(no clip selected)” 相当のサイズ） -->
-        <Style x:Key="SubText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#BFBFBF"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <!-- Team A / Team B ラベル：右上(no clip selected)と同サイズ -->
-        <Style x:Key="TeamLabel" TargetType="TextBlock" BasedOn="{StaticResource SubText}">
-            <Setter Property="Foreground" Value="#D0D0D0"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-        </Style>
-
-        <!-- Team A / Team B 入力欄：右上(no clip selected)と同サイズ + 枠小さめ -->
-        <Style x:Key="TeamTextBox" TargetType="TextBox">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#EDEDED"/>
-            <Setter Property="Background" Value="#1B1B1B"/>
-            <Setter Property="BorderBrush" Value="#2A2A2A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,4"/>
-            <Setter Property="Height" Value="28"/> <!-- ★「高さを半分に」：ここ -->
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-
-        <!-- パネル枠 -->
-        <Style x:Key="PanelBorder" TargetType="Border">
-            <Setter Property="Background" Value="#151515"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="BorderBrush" Value="#2A2A2A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14"/>
-        </Style>
-
-        <!-- 標準ボタン（右上のボタン群用） -->
-        <Style x:Key="TopButton" TargetType="Button">
-            <Setter Property="MinWidth" Value="110"/>
-            <Setter Property="Height" Value="30"/>
-            <Setter Property="Margin" Value="8,0,0,0"/>
-            <Setter Property="Padding" Value="10,0"/>
-        </Style>
-
-    </UserControl.Resources>
-
-    <!-- 2x2：左上=Video / 左下=Controls / 右上=Clips / 右下=Tags -->
-    <Grid>
+    <Grid Margin="{DynamicResource Gap}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="1*"/>
-            <RowDefinition Height="1*"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1.15*"/>
-            <ColumnDefinition Width="0.85*"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- 左上：Video -->
-        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource PanelBorder}" Margin="0,0,12,12">
+        <!-- ===================== LEFT TOP : VIDEO ===================== -->
+        <Border Grid.Row="0" Grid.Column="0" Style="{DynamicResource PanelBorder}" Margin="0,0,10,10">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>  <!-- タイトル -->
-                    <RowDefinition Height="Auto"/>  <!-- Team A/B -->
-                    <RowDefinition Height="*"/>     <!-- Player -->
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- タイトル：未ロードなら "Video (16:9)" -->
+                <!-- Title: Video (16:9) -> ファイル名（長いのでEllipsis） -->
                 <TextBlock Grid.Row="0"
-                           Style="{StaticResource PanelHeaderText}"
-                           Text="{Binding SelectedVideoTitle, TargetNullValue=Video (16:9), FallbackValue=Video (16:9)}"
-                           Margin="0,0,0,10"/>
+                           Style="{DynamicResource H2}"
+                           Text="{Binding SelectedVideoDisplayName}"
+                           />
 
-                <!-- Team入力：左上領域の “横幅の半分” で収めたい → 2列にして各50% -->
-                <Grid Grid.Row="1" Margin="0,0,0,10">
+                <!-- Team inputs (上部領域の半分くらいの高さ感に) -->
+                <Grid Grid.Row="1" Margin="0,10,0,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1*"/>
-                        <ColumnDefinition Width="1*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                        <TextBlock Style="{StaticResource TeamLabel}" Text="Team A"/>
-                        <TextBox Style="{StaticResource TeamTextBox}"
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{DynamicResource Small}" Text="Team A" Margin="2,0,0,4"/>
+                        <TextBox Style="{DynamicResource TeamTextBox}"
                                  Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Team A name"
                                  />
-                        <!-- placeholder は WPF 素の TextBox だと無いので「初期値を入れておく」運用を想定 -->
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Style="{StaticResource TeamLabel}" Text="Team B"/>
-                        <TextBox Style="{StaticResource TeamTextBox}"
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{DynamicResource Small}" Text="Team B" Margin="2,0,0,4"/>
+                        <TextBox Style="{DynamicResource TeamTextBox}"
                                  Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Team B name"
                                  />
                     </StackPanel>
                 </Grid>
 
-                <!-- Player -->
-                <Border Grid.Row="2"
-                        Background="#111111"
-                        CornerRadius="10"
-                        BorderBrush="#2A2A2A"
-                        BorderThickness="1"
-                        Padding="8">
-                    <!-- ここは既存の Player 構成に合わせて差し替えてOK -->
+                <!-- Player area -->
+                <Border Grid.Row="2" Style="{DynamicResource InnerBorder}">
+                    <!-- 既存が MediaElement / Image / PlayerView などの場合、ここをあなたの現状に合わせて差し替えOK -->
                     <MediaElement x:Name="Player"
                                   LoadedBehavior="Manual"
-                                  UnloadedBehavior="Manual"
+                                  UnloadedBehavior="Stop"
                                   Stretch="Uniform"/>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- 左下：Controls（ここは既存の ControlsView を置いてるなら差し替えでOK） -->
-        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource PanelBorder}" Margin="0,0,12,0">
-            <Grid>
-                <TextBlock Style="{StaticResource PanelHeaderText}" Text="Controls" Margin="0,0,0,10"/>
-                <!-- 既存の Controls UI をここに -->
-            </Grid>
-        </Border>
-
-        <!-- 右上：Clips -->
-        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,0,12">
+        <!-- ===================== RIGHT TOP : CLIPS ===================== -->
+        <Border Grid.Row="0" Grid.Column="1" Style="{DynamicResource PanelBorder}" Margin="10,0,0,10">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/> <!-- ヘッダー -->
-                    <RowDefinition Height="*"/>    <!-- リスト -->
-                    <RowDefinition Height="Auto"/> <!-- Stats -->
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- ヘッダー行：Clips(Total 0) を PanelHeaderText で統一 -->
-                <Grid Grid.Row="0" Margin="0,0,0,10">
+                <!-- Header row: Clips (Total) + Buttons -->
+                <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1*"/>
+                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
-                               Style="{StaticResource PanelHeaderText}"
-                               Text="{Binding ClipsHeaderText, TargetNullValue=Clips (Total 0), FallbackValue=Clips (Total 0)}"/>
+                               Style="{DynamicResource H2}"
+                               Text="{Binding ClipsHeaderText}"/>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Style="{StaticResource TopButton}" Content="Import CSV" />
-                        <Button Style="{StaticResource TopButton}" Content="Export CSV" />
-                        <Button Style="{StaticResource TopButton}" Content="Export All" />
-                        <Button Style="{StaticResource TopButton}" Content="Load Video" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{DynamicResource TopButton}" Content="Import CSV" Click="ImportCsv_Click"/>
+                        <Button Style="{DynamicResource TopButton}" Content="Export CSV" Click="ExportCsv_Click"/>
+                        <Button Style="{DynamicResource TopButton}" Content="Export All" Click="ExportAll_Click"/>
+                        <Button Style="{DynamicResource AccentButton}" Content="Load Video" Click="LoadVideo_Click"/>
                     </StackPanel>
                 </Grid>
 
-                <!-- Clips List -->
-                <Border Grid.Row="1"
-                        Background="#111111"
-                        CornerRadius="8"
-                        BorderBrush="#2A2A2A"
-                        BorderThickness="1"
-                        Padding="8">
-                    <TextBlock Style="{StaticResource SubText}" Text="No clips yet."/>
+                <!-- Lists -->
+                <Border Grid.Row="1" Style="{DynamicResource InnerBorder}" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{DynamicResource H2}" Text="{Binding TeamAClipsHeader}" Margin="0,0,0,6"/>
+                            <ListBox ItemsSource="{Binding TeamAClips}" />
+                        </StackPanel>
+
+                        <Border Grid.Column="1" Background="#2A2A2A" Margin="10,0"/>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{DynamicResource H2}" Text="{Binding TeamBClipsHeader}" Margin="0,0,0,6"/>
+                            <ListBox ItemsSource="{Binding TeamBClips}" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
-                <!-- Tag Stats -->
-                <Border Grid.Row="2"
-                        Margin="0,10,0,0"
-                        Background="#111111"
-                        CornerRadius="8"
-                        BorderBrush="#2A2A2A"
-                        BorderThickness="1"
-                        Padding="10">
-                    <TextBlock Style="{StaticResource PanelHeaderText}" Text="Tag Stats"/>
+                <!-- Tag stats -->
+                <Border Grid.Row="2" Style="{DynamicResource InnerBorder}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource H2}" Text="Tag Stats"/>
+                        <TextBlock Style="{DynamicResource Small}" Text="{Binding TagStatsText}" Margin="0,6,0,0"/>
+                    </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- 右下：Tags -->
-        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource PanelBorder}">
+        <!-- ===================== LEFT BOTTOM : CONTROLS ===================== -->
+        <Border Grid.Row="1" Grid.Column="0" Style="{DynamicResource PanelBorder}" Margin="0,10,10,0">
             <Grid>
-                <TextBlock Style="{StaticResource PanelHeaderText}" Text="Tags" Margin="0,0,0,10"/>
-                <!-- 既存の Tags UI をここに -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{DynamicResource H2}" Text="Controls"/>
+
+                <!-- 既存のControls UIがあるなら、ここをそのまま移植してOK（見た目はApp.xaml側で揃う） -->
+                <Border Grid.Row="1" Style="{DynamicResource InnerBorder}" Margin="0,12,0,0">
+                    <Grid>
+                        <!-- ダミー：あなたの既存Controlsを置き換えて使って -->
+                        <TextBlock Style="{DynamicResource Small}" Text="(controls area)" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ===================== RIGHT BOTTOM : TAGS ===================== -->
+        <Border Grid.Row="1" Grid.Column="1" Style="{DynamicResource PanelBorder}" Margin="10,10,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Style="{DynamicResource H2}" Text="Tags"/>
+                    <Button Grid.Column="1" Style="{DynamicResource TopButton}" Content="Preferences..." Click="Preferences_Click"/>
+                </Grid>
+
+                <!-- あなたの TagsView をここに表示しているなら ContentPresenter に差し替えOK -->
+                <Border Grid.Row="1" Style="{DynamicResource InnerBorder}" Margin="0,12,0,0">
+                    <TextBlock Style="{DynamicResource Small}" Text="(tags area)" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                </Border>
             </Grid>
         </Border>
 
