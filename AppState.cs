@@ -1,96 +1,195 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
     public sealed class AppState : INotifyPropertyChanged
     {
-        private static readonly Lazy<AppState> _lazy = new(() => new AppState());
-        public static AppState Instance => _lazy.Value;
+        // 互換：Instance / Current どっちで呼ばれても同じ
+        private static readonly AppState _instance = new AppState();
+        public static AppState Instance => _instance;
+        public static AppState Current => _instance;
 
         private AppState()
         {
-            TeamAName = "";
-            TeamBName = "";
-            CurrentVideoPath = "";
-            CurrentVideoFileName = "";
-            PlaybackSeconds = 0;
-            DurationSeconds = 0;
+            // 初期値（Macの見た目に近いデフォルト）
+            TeamAName = "Home / Our Team";
+            TeamBName = "Away / Opponent";
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-        // ---- Video / Team ----
-        private string _currentVideoPath = "";
-        public string CurrentVideoPath
+        private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
         {
-            get => _currentVideoPath;
-            set { _currentVideoPath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasVideo)); }
+            if (Equals(field, value)) return;
+            field = value;
+            OnPropertyChanged(name);
         }
 
-        private string _currentVideoFileName = "";
-        public string CurrentVideoFileName
+        // ----------------------------
+        // Videos
+        // ----------------------------
+        public ObservableCollection<VideoItem> ImportedVideos { get; } = new();
+
+        private VideoItem? _selectedVideo;
+        public VideoItem? SelectedVideo
         {
-            get => _currentVideoFileName;
-            set { _currentVideoFileName = value; OnPropertyChanged(); OnPropertyChanged(nameof(VideoTitleText)); }
+            get => _selectedVideo;
+            set
+            {
+                if (_selectedVideo == value) return;
+                _selectedVideo = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedVideoPath));
+                OnPropertyChanged(nameof(SelectedVideoName));
+                OnPropertyChanged(nameof(VideoHeaderText));
+                OnPropertyChanged(nameof(SelectedVideoPathText));
+            }
         }
 
-        public bool HasVideo => !string.IsNullOrWhiteSpace(CurrentVideoPath);
+        public string? SelectedVideoPath => SelectedVideo?.Path;
+        public string SelectedVideoName => SelectedVideo?.Name ?? "";
 
-        public string VideoTitleText
-            => HasVideo ? CurrentVideoFileName : "Video (16:9)";
+        // 左上ヘッダ（未選択なら "Video (16:9)"）
+        public string VideoHeaderText => string.IsNullOrWhiteSpace(SelectedVideoName) ? "Video (16:9)" : SelectedVideoName;
 
-        private string _teamAName = "";
-        public string TeamAName
+        // Tagsエリアに表示する用（未選択なら空でOK）
+        public string SelectedVideoPathText => SelectedVideoPath ?? "";
+
+        public void AddImportedVideo(string path)
         {
-            get => _teamAName;
-            set { _teamAName = value; OnPropertyChanged(); }
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            // 重複防止
+            if (ImportedVideos.Any(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            ImportedVideos.Add(new VideoItem(path));
+
+            // 最初の1本は自動選択
+            if (SelectedVideo == null)
+                SelectedVideo = ImportedVideos.FirstOrDefault();
         }
 
-        private string _teamBName = "";
-        public string TeamBName
+        public void SetSelected(string path)
         {
-            get => _teamBName;
-            set { _teamBName = value; OnPropertyChanged(); }
+            if (string.IsNullOrWhiteSpace(path)) return;
+            var found = ImportedVideos.FirstOrDefault(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
+            if (found != null) SelectedVideo = found;
         }
 
-        // ---- Playback ----
-        private double _playbackSeconds;
+        // ----------------------------
+        // Team Names
+        // ----------------------------
+        private string _teamAName = "Home / Our Team";
+        public string TeamAName { get => _teamAName; set => Set(ref _teamAName, value); }
+
+        private string _teamBName = "Away / Opponent";
+        public string TeamBName { get => _teamBName; set => Set(ref _teamBName, value); }
+
+        // ----------------------------
+        // Playback
+        // ----------------------------
+        private TimeSpan _playbackPosition = TimeSpan.Zero;
+        public TimeSpan PlaybackPosition
+        {
+            get => _playbackPosition;
+            set
+            {
+                if (_playbackPosition == value) return;
+                _playbackPosition = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackSeconds));
+                OnPropertyChanged(nameof(PlaybackPositionText));
+                OnPropertyChanged(nameof(TimeText));
+            }
+        }
+
+        private TimeSpan _playbackDuration = TimeSpan.Zero;
+        public TimeSpan PlaybackDuration
+        {
+            get => _playbackDuration;
+            set
+            {
+                if (_playbackDuration == value) return;
+                _playbackDuration = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlaybackDurationText));
+                OnPropertyChanged(nameof(TimeText));
+            }
+        }
+
         public double PlaybackSeconds
         {
-            get => _playbackSeconds;
-            set { _playbackSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlaybackPositionText)); }
+            get => PlaybackPosition.TotalSeconds;
+            set
+            {
+                var s = Math.Max(0, value);
+                PlaybackPosition = TimeSpan.FromSeconds(s);
+            }
         }
 
-        private double _durationSeconds;
-        public double DurationSeconds
+        public string PlaybackPositionText => FormatTime(PlaybackPosition);
+        public string PlaybackDurationText => FormatTime(PlaybackDuration);
+
+        // 左下 Controls の "00:00 / 00:00"
+        public string TimeText => $"{PlaybackPositionText} / {PlaybackDurationText}";
+
+        private static string FormatTime(TimeSpan t)
         {
-            get => _durationSeconds;
-            set { _durationSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlaybackDurationText)); }
+            // 1時間超は H:MM:SS
+            if (t.TotalHours >= 1)
+                return $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}";
+            return $"{t.Minutes:00}:{t.Seconds:00}";
         }
 
-        public string PlaybackPositionText => FormatTime(PlaybackSeconds);
-        public string PlaybackDurationText => DurationSeconds > 0 ? FormatTime(DurationSeconds) : "00:00";
+        // ----------------------------
+        // Clip Start / End (秒)
+        // ----------------------------
+        private double _clipStartSeconds = 0;
+        public double ClipStartSeconds { get => _clipStartSeconds; set { Set(ref _clipStartSeconds, Math.Max(0, value)); OnPropertyChanged(nameof(ClipStartText)); } }
 
-        public void SetVideo(string fullPath, string fileName)
+        private double _clipEndSeconds = 0;
+        public double ClipEndSeconds { get => _clipEndSeconds; set { Set(ref _clipEndSeconds, Math.Max(0, value)); OnPropertyChanged(nameof(ClipEndText)); } }
+
+        public string ClipStartText => $"Start {FormatTime(TimeSpan.FromSeconds(ClipStartSeconds))}";
+        public string ClipEndText => $"End {FormatTime(TimeSpan.FromSeconds(ClipEndSeconds))}";
+
+        // ----------------------------
+        // Tags
+        // ----------------------------
+        public ObservableCollection<string> Tags { get; } = new();
+
+        public void AddTag(string tag)
         {
-            CurrentVideoPath = fullPath ?? "";
-            CurrentVideoFileName = fileName ?? "";
-            PlaybackSeconds = 0;
-            DurationSeconds = 0;
+            tag = (tag ?? "").Trim();
+            if (tag.Length == 0) return;
+            if (!Tags.Contains(tag)) Tags.Add(tag);
         }
 
-        private static string FormatTime(double seconds)
+        public void ClearTagsForSelected()
         {
-            if (seconds < 0) seconds = 0;
-            var ts = TimeSpan.FromSeconds(seconds);
-            // 1時間超も見えるように
-            return ts.TotalHours >= 1
-                ? $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}"
-                : $"{ts.Minutes:00}:{ts.Seconds:00}";
+            Tags.Clear();
         }
+
+        // ----------------------------
+        // UI Status
+        // ----------------------------
+        private string _statusMessage = "Ready";
+        public string StatusMessage { get => _statusMessage; set => Set(ref _statusMessage, value); }
+
+        // ----------------------------
+        // Clips (今は数だけ)
+        // ----------------------------
+        private int _clipsTotal = 0;
+        public int ClipsTotal { get => _clipsTotal; set { Set(ref _clipsTotal, value); OnPropertyChanged(nameof(ClipsHeaderText)); } }
+
+        public string ClipsHeaderText => $"Clips (Total {ClipsTotal})";
     }
 }
