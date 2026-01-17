@@ -4,23 +4,50 @@
              Background="Black">
 
     <Grid Margin="10">
-        <Border Background="Black" CornerRadius="6" BorderBrush="#333" BorderThickness="1">
+        <Border Background="Black"
+                CornerRadius="6"
+                BorderBrush="#333"
+                BorderThickness="1">
+
             <Grid>
-                <TextBlock Text="PLAYER (placeholder)"
+                <!-- 実プレイヤー -->
+                <MediaElement x:Name="Player"
+                              LoadedBehavior="Manual"
+                              UnloadedBehavior="Manual"
+                              Stretch="Uniform"
+                              MediaOpened="Player_MediaOpened"
+                              MediaFailed="Player_MediaFailed"/>
+
+                <!-- 何も選択されていない時の表示 -->
+                <TextBlock x:Name="EmptyText"
+                           Text="No video selected"
                            Foreground="#777"
-                           FontSize="28"
+                           FontSize="24"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"/>
 
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Bottom"
-                            Margin="10">
-                    <TextBlock Text="{Binding PlaybackPositionText}" Foreground="#DDD" FontSize="14"/>
-                    <TextBlock Text=" / " Foreground="#777" FontSize="14"/>
-                    <TextBlock Text="{Binding PlaybackDurationText}" Foreground="#777" FontSize="14"/>
-                </StackPanel>
+                <!-- 右下の時間表示 -->
+                <Border HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="10"
+                        Background="#66000000"
+                        CornerRadius="6"
+                        Padding="10"
+                        IsHitTestVisible="False">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding PlaybackPositionText}"
+                                   Foreground="#EEE"
+                                   FontSize="14"/>
+                        <TextBlock Text=" / "
+                                   Foreground="#AAA"
+                                   FontSize="14"/>
+                        <TextBlock Text="{Binding PlaybackDurationText}"
+                                   Foreground="#AAA"
+                                   FontSize="14"/>
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
     </Grid>
