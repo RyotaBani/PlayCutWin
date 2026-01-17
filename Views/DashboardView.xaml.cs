@@ -20,15 +20,28 @@ namespace PlayCutWin.Views
 
         private string? _currentVideoPath;
 
+        private readonly DispatcherTimer _uiTimer = new DispatcherTimer();
+
         public DashboardView()
         {
             InitializeComponent();
 
-            // 初期表示（薄い文字っぽく見せる）
+            // placeholder
             ApplyPlaceholder(TeamATextBox, _teamAPlaceholder, ref _teamAIsPlaceholder);
             ApplyPlaceholder(TeamBTextBox, _teamBPlaceholder, ref _teamBIsPlaceholder);
 
             UpdateVideoUI(null);
+
+            // timer: 再生中はPosition更新を見える化（= 再生できてるか即わかる）
+            _uiTimer.Interval = TimeSpan.FromMilliseconds(200);
+            _uiTimer.Tick += (_, __) => UpdateTimeText();
+            _uiTimer.Start();
+
+            // Player初期化（重要）
+            Player.LoadedBehavior = MediaState.Manual;
+            Player.UnloadedBehavior = MediaState.Manual;
+            Player.Volume = 1.0;
+            Player.SpeedRatio = 1.0;
         }
 
         // =========================
@@ -45,11 +58,12 @@ namespace PlayCutWin.Views
                 ClipsVideoPathText.Text = "No video loaded";
                 TagsVideoPathText.Text = "";
                 NoVideoText.Visibility = Visibility.Visible;
+                TimeText.Text = "00:00  /  00:00";
                 return;
             }
 
             var name = Path.GetFileName(videoPath);
-            VideoTitle.Text = name; // 長い時は XAML側で Ellipsis
+            VideoTitle.Text = name; // XAMLのEllipsisで省略
             ClipsVideoPathText.Text = videoPath;
             TagsVideoPathText.Text = videoPath;
             NoVideoText.Visibility = Visibility.Collapsed;
@@ -63,18 +77,17 @@ namespace PlayCutWin.Views
         {
             try
             {
+                // MediaOpenedが来た時点で再生を強制
                 Player.LoadedBehavior = MediaState.Manual;
                 Player.UnloadedBehavior = MediaState.Manual;
 
-                Player.Position = TimeSpan.Zero;
+                Player.Volume = 1.0;
+                Player.SpeedRatio = 1.0;
+
+                // ここでPlay（来たり来なかったりする環境があるので保険）
                 Player.Play();
 
-                // 総時間更新
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    var total = Player.NaturalDuration.HasTimeSpan ? Player.NaturalDuration.TimeSpan : TimeSpan.Zero;
-                    TimeText.Text = $"{FormatTime(Player.Position)}  /  {FormatTime(total)}";
-                }), DispatcherPriority.Background);
+                UpdateTimeText();
             }
             catch (Exception ex)
             {
@@ -86,7 +99,7 @@ namespace PlayCutWin.Views
         {
             var msg = e.ErrorException?.Message ?? "(unknown)";
             MessageBox.Show(
-                $"MediaFailed:\n{msg}\n\n※この場合はコーデック/形式の可能性があります。\n(H.265/HEVC は WPF 標準だと失敗しがち)\nまずは H.264 の mp4 でも試してみて。",
+                $"MediaFailed:\n{msg}\n\n※WPF MediaElement はPCのコーデック依存です。\nH.265/HEVC だと失敗しがち。\nまずは H.264 の mp4 で試してみて。",
                 "Player",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -109,17 +122,16 @@ namespace PlayCutWin.Views
 
             var path = dlg.FileName;
 
-            // UIの更新（ファイル名/パス）
             UpdateVideoUI(path);
 
-            // AppStateへ渡す（関数名が違っても落ちないように）
+            // AppStateへ（あれば）
             _ =
                 TryInvokeAppState("AddImportedVideo", new object[] { path }) ||
                 TryInvokeAppState("AddVideo", new object[] { path }) ||
                 TrySetAppStateProperty("SelectedVideoPath", path) ||
                 TrySetAppStateProperty("SelectedVideo", path);
 
-            // Playerにセット（PlayはMediaOpenedで行う）
+            // ★ここが肝：Sourceを一回null→再セット→即Play（MediaOpened待ちだけにしない）
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 try
@@ -128,7 +140,15 @@ namespace PlayCutWin.Views
                     Player.UnloadedBehavior = MediaState.Manual;
 
                     Player.Stop();
+                    Player.Source = null;               // 重要：同一動画再セット問題の回避
+                    Player.Position = TimeSpan.Zero;
+
                     Player.Source = new Uri(path, UriKind.Absolute);
+
+                    // MediaOpenedが来ない環境があるので、ここでもPlay叩く（保険）
+                    Player.Play();
+
+                    UpdateTimeText();
                 }
                 catch (Exception ex)
                 {
@@ -154,7 +174,7 @@ namespace PlayCutWin.Views
             if (TryInvokeAppState("Import", new object[] { path })) return;
 
             MessageBox.Show(
-                "Import CSV はUI側は接続済み。\nただし AppState 側に ImportCsv/Import が見つからなかった。\n(AppStateの関数名に合わせればすぐ実働化できる)",
+                "Import CSV はUI側は接続済み。\nただし AppState 側に ImportCsv/Import が見つからなかった。",
                 "Import CSV", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -175,16 +195,15 @@ namespace PlayCutWin.Views
             if (TryInvokeAppState("Export", new object[] { path })) return;
 
             MessageBox.Show(
-                "Export CSV はUI側は接続済み。\nただし AppState 側に ExportCsv/Export が見つからなかった。\n(AppStateの関数名に合わせればすぐ実働化できる)",
+                "Export CSV はUI側は接続済み。\nただし AppState 側に ExportCsv/Export が見つからなかった。",
                 "Export CSV", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            // フォルダ選択UIは後でちゃんとやる。いまは“保存先を選ばせる”で代用。
             var dlg = new SaveFileDialog
             {
-                Title = "Export All (choose destination folder by selecting a file name)",
+                Title = "Export All (choose folder by selecting file name)",
                 Filter = "Folder|*.folder",
                 FileName = "export.folder"
             };
@@ -197,7 +216,7 @@ namespace PlayCutWin.Views
             if (TryInvokeAppState("ExportClips", new object[] { folder })) return;
 
             MessageBox.Show(
-                "Export All はUI側は接続済み。\nただし AppState 側に ExportAll/ExportClips が見つからなかった。\n(AppStateの関数名に合わせればすぐ実働化できる)",
+                "Export All はUI側は接続済み。\nただし AppState 側に ExportAll/ExportClips が見つからなかった。",
                 "Export All", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -212,14 +231,29 @@ namespace PlayCutWin.Views
 
         private void Play_Click(object sender, RoutedEventArgs e)
         {
-            try { Player?.Play(); }
-            catch { }
+            try
+            {
+                if (Player.Source == null && !string.IsNullOrWhiteSpace(_currentVideoPath))
+                {
+                    Player.Source = new Uri(_currentVideoPath!, UriKind.Absolute);
+                }
+
+                Player.LoadedBehavior = MediaState.Manual;
+                Player.UnloadedBehavior = MediaState.Manual;
+
+                Player.Play();
+                UpdateTimeText();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Play failed:\n{ex.Message}", "Player", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void Pause_Click(object sender, RoutedEventArgs e)
         {
-            try { Player?.Pause(); }
-            catch { }
+            try { Player?.Pause(); } catch { }
+            UpdateTimeText();
         }
 
         private void Stop_Click(object sender, RoutedEventArgs e)
@@ -227,26 +261,20 @@ namespace PlayCutWin.Views
             try
             {
                 Player?.Stop();
-                UpdateTimeText();
+                Player.Position = TimeSpan.Zero;
             }
             catch { }
+            UpdateTimeText();
         }
 
-        private void Minus05_Click(object sender, RoutedEventArgs e)
-        {
-            SeekBy(TimeSpan.FromSeconds(-0.5));
-        }
-
-        private void Plus05_Click(object sender, RoutedEventArgs e)
-        {
-            SeekBy(TimeSpan.FromSeconds(0.5));
-        }
+        private void Minus05_Click(object sender, RoutedEventArgs e) => SeekBy(TimeSpan.FromSeconds(-0.5));
+        private void Plus05_Click(object sender, RoutedEventArgs e) => SeekBy(TimeSpan.FromSeconds(0.5));
 
         private void SeekBy(TimeSpan delta)
         {
             try
             {
-                if (Player == null) return;
+                if (Player.Source == null) return;
 
                 var pos = Player.Position + delta;
                 if (pos < TimeSpan.Zero) pos = TimeSpan.Zero;
@@ -269,7 +297,6 @@ namespace PlayCutWin.Views
 
         private static string FormatTime(TimeSpan t)
         {
-            // mm:ss
             if (t.TotalHours >= 1)
                 return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";
             return $"{t.Minutes:00}:{t.Seconds:00}";
