@@ -46,13 +46,11 @@ namespace PlayCutWin.Views
 
         private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            // 軽いのでまとめて同期
             Dispatcher.Invoke(SyncFromState);
         }
 
         private void SyncFromState()
         {
-            // video path
             var videoPath = GetSelectedVideoPath();
 
             // タイトル表示
@@ -67,16 +65,12 @@ namespace PlayCutWin.Views
                 VideoTitleText.Text = Path.GetFileName(videoPath);
                 VideoPlaceholderText.Visibility = Visibility.Collapsed;
 
-                // 変化したときだけロード
                 if (!string.Equals(_currentVideoPath, videoPath, StringComparison.OrdinalIgnoreCase))
                 {
                     _currentVideoPath = videoPath;
                     LoadToMediaElement(videoPath);
                 }
             }
-
-            // (no clip selected)
-            ClipHintText.Text = IsClipSelected() ? "" : "(no clip selected)";
 
             // Team A/B (AppStateに値があれば反映)
             var teamA = TryGetString("TeamAName") ?? TryGetString("TeamA") ?? TryGetString("HomeTeam");
@@ -100,7 +94,6 @@ namespace PlayCutWin.Views
                     return;
                 }
 
-                // いったん停止して差し替え
                 try { Player.Stop(); } catch { }
 
                 Player.Source = new Uri(path, UriKind.Absolute);
@@ -149,7 +142,6 @@ namespace PlayCutWin.Views
 
         private string? GetSelectedVideoPath()
         {
-            // よくある名前揺れ
             var s =
                 TryGetString("SelectedVideoPath")
                 ?? TryGetString("CurrentVideoPath")
@@ -157,7 +149,6 @@ namespace PlayCutWin.Views
 
             if (!string.IsNullOrWhiteSpace(s)) return s;
 
-            // SelectedVideo がオブジェクトなら Path を探す
             try
             {
                 var v = TryGetObject("SelectedVideo");
@@ -173,31 +164,6 @@ namespace PlayCutWin.Views
             catch
             {
                 return null;
-            }
-        }
-
-        private bool IsClipSelected()
-        {
-            try
-            {
-                var clip = TryGetObject("SelectedClip");
-                if (clip != null) return true;
-
-                var id = TryGetObject("SelectedClipId");
-                if (id != null)
-                {
-                    var ss = id.ToString();
-                    if (!string.IsNullOrWhiteSpace(ss) && ss != "0") return true;
-                }
-
-                var idxObj = TryGetObject("SelectedClipIndex");
-                if (idxObj is int idx && idx >= 0) return true;
-
-                return false;
-            }
-            catch
-            {
-                return false;
             }
         }
 
