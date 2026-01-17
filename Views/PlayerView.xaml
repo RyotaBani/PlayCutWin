@@ -15,7 +15,7 @@
             <Setter Property="BorderBrush" Value="#3A3A3A"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,10"/>
-            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontSize" Value="16"/>
             <Setter Property="CaretBrush" Value="#E6E6E6"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
@@ -31,11 +31,9 @@
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="10"/>
 
-                            <!-- ScrollViewer (actual text) -->
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Margin="{TemplateBinding Padding}"/>
 
-                            <!-- Watermark -->
                             <TextBlock x:Name="WatermarkText"
                                        Text="{TemplateBinding Tag}"
                                        Foreground="#8A8A8A"
@@ -44,65 +42,36 @@
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False"
                                        Opacity="1"/>
+
                         </Grid>
                         <ControlTemplate.Triggers>
-                            <!-- Hide watermark when Text is not empty -->
-                            <Trigger Property="Text" Value="">
-                                <Setter TargetName="WatermarkText" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="Text" Value="{x:Null}">
-                                <Setter TargetName="WatermarkText" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-
-                            <!-- If has text -> hide -->
-                            <Trigger Property="Text" Value="{x:Static sys:String.Empty}"
-                                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
-                                <Setter TargetName="WatermarkText" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="Text" Value=""/>
-                                    <Condition Property="IsKeyboardFocusWithin" Value="True"/>
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="WatermarkText" Property="Opacity" Value="0.45"/>
-                            </MultiTrigger>
-
-                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter Property="BorderBrush" Value="#4F86C6"/>
-                            </Trigger>
-
-                            <!-- When text exists, hide watermark -->
-                            <Trigger Property="Text" Value="{x:Null}">
-                                <Setter TargetName="WatermarkText" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="Text" Value=" ">
-                                <Setter TargetName="WatermarkText" Property="Visibility" Value="Collapsed"/>
-                            </Trigger>
-
-                            <!-- Generic: when Text length > 0, hide -->
                             <DataTrigger Binding="{Binding Text.Length, RelativeSource={RelativeSource TemplatedParent}}" Value="0">
                                 <Setter TargetName="WatermarkText" Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Text.Length, RelativeSource={RelativeSource TemplatedParent}}" Value="1">
                                 <Setter TargetName="WatermarkText" Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
+
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter Property="BorderBrush" Value="#4F86C6"/>
+                                <Setter TargetName="WatermarkText" Property="Opacity" Value="0.45"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- Section Title -->
+        <!-- Titles -->
         <Style x:Key="SectionTitle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#E6E6E6"/>
-            <Setter Property="FontSize" Value="26"/>
+            <Setter Property="FontSize" Value="18"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
         <Style x:Key="SubLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#BDBDBD"/>
-            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
@@ -121,58 +90,82 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Header title (Video (16:9) or filename) -->
+            <!-- Header -->
             <StackPanel Grid.Row="0" Orientation="Vertical">
+                <!-- ファイル名は小さめ + 折り返し + 省略 -->
                 <TextBlock x:Name="VideoTitleText"
                            Style="{StaticResource SectionTitle}"
-                           Text="Video (16:9)"/>
+                           Text="Video (16:9)"
+                           TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis"
+                           MaxHeight="44"
+                           ToolTip="{Binding ElementName=VideoTitleText, Path=Text}"/>
 
                 <TextBlock x:Name="ClipHintText"
                            Margin="0,6,0,0"
                            Foreground="#9E9E9E"
-                           FontSize="14"
+                           FontSize="13"
                            Text="(no clip selected)"/>
             </StackPanel>
 
-            <!-- Team inputs -->
-            <Grid Grid.Row="1" Margin="0,14,0,14">
+            <!-- Team inputs (左上領域の “横幅1/2” だけ使う) -->
+            <Grid Grid.Row="1" Margin="0,12,0,12">
                 <Grid.ColumnDefinitions>
+                    <!-- 左半分: チーム入力 -->
                     <ColumnDefinition Width="1*"/>
-                    <ColumnDefinition Width="16"/>
+                    <!-- 右半分: 予約領域（将来ボタン等置く用） -->
                     <ColumnDefinition Width="1*"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
-                    <TextBlock Style="{StaticResource SubLabel}" Text="Team A" Margin="2,0,0,6"/>
-                    <TextBox x:Name="TeamATextBox"
-                             Style="{StaticResource WatermarkTextBox}"
-                             Tag="Home / Our Team"
-                             TextChanged="TeamATextBox_TextChanged"/>
-                </StackPanel>
+                <Grid Grid.Column="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="2">
-                    <TextBlock Style="{StaticResource SubLabel}" Text="Team B" Margin="2,0,0,6"/>
-                    <TextBox x:Name="TeamBTextBox"
-                             Style="{StaticResource WatermarkTextBox}"
-                             Tag="Away / Opponent"
-                             TextChanged="TeamBTextBox_TextChanged"/>
-                </StackPanel>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource SubLabel}" Text="Team A" Margin="2,0,0,6"/>
+                        <TextBox x:Name="TeamATextBox"
+                                 Style="{StaticResource WatermarkTextBox}"
+                                 Tag="Home / Our Team"
+                                 TextChanged="TeamATextBox_TextChanged"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource SubLabel}" Text="Team B" Margin="2,0,0,6"/>
+                        <TextBox x:Name="TeamBTextBox"
+                                 Style="{StaticResource WatermarkTextBox}"
+                                 Tag="Away / Opponent"
+                                 TextChanged="TeamBTextBox_TextChanged"/>
+                    </StackPanel>
+                </Grid>
             </Grid>
 
-            <!-- Video area placeholder (actual player can be embedded later) -->
+            <!-- Video area (MediaElement) -->
             <Border Grid.Row="2"
                     Background="#3A3A3A"
                     CornerRadius="12"
-                    Padding="16">
+                    ClipToBounds="True">
+
                 <Grid>
+                    <MediaElement x:Name="Player"
+                                  LoadedBehavior="Manual"
+                                  UnloadedBehavior="Manual"
+                                  Stretch="Uniform"
+                                  MediaOpened="Player_MediaOpened"
+                                  MediaFailed="Player_MediaFailed"/>
+
+                    <!-- no video overlay -->
                     <TextBlock x:Name="VideoPlaceholderText"
                                Text="Load video from the button →"
                                Foreground="#BDBDBD"
-                               FontSize="22"
+                               FontSize="20"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"/>
                 </Grid>
             </Border>
+
         </Grid>
     </Border>
 </UserControl>

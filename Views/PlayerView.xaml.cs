@@ -1,8 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.IO;
-using System.Linq;
 using System.Reflection;
+using System.Windows;
 using System.Windows.Controls;
 
 namespace PlayCutWin.Views
@@ -12,31 +12,31 @@ namespace PlayCutWin.Views
         private readonly object _state; // AppState.Instance
         private INotifyPropertyChanged? _npc;
 
+        private string? _currentVideoPath;
+        private bool _pauseOnOpened;
+
         public PlayerView()
         {
             InitializeComponent();
 
             _state = GetAppStateInstance();
-            this.DataContext = _state;
+            DataContext = _state;
 
             _npc = _state as INotifyPropertyChanged;
             if (_npc != null) _npc.PropertyChanged += State_PropertyChanged;
 
-            // 初期反映
             SyncFromState();
         }
 
         private object GetAppStateInstance()
         {
-            // AppState.Instance を取りにいく（型が見つからなくても落ちない）
             try
             {
                 var t = Type.GetType("PlayCutWin.AppState, PlayCutWin");
                 if (t == null) return new object();
 
                 var p = t.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-                var inst = p?.GetValue(null);
-                return inst ?? new object();
+                return p?.GetValue(null) ?? new object();
             }
             catch
             {
@@ -46,33 +46,42 @@ namespace PlayCutWin.Views
 
         private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            // 雑にまとめて同期（軽いのでOK）
-            SyncFromState();
+            // 軽いのでまとめて同期
+            Dispatcher.Invoke(SyncFromState);
         }
 
         private void SyncFromState()
         {
-            // 1) Video title: no video -> "Video (16:9)" / loaded -> filename
+            // video path
             var videoPath = GetSelectedVideoPath();
+
+            // タイトル表示
             if (string.IsNullOrWhiteSpace(videoPath))
             {
                 VideoTitleText.Text = "Video (16:9)";
-                VideoPlaceholderText.Text = "Load video from the button →";
+                VideoPlaceholderText.Visibility = Visibility.Visible;
+                StopPlayerIfNeeded();
             }
             else
             {
                 VideoTitleText.Text = Path.GetFileName(videoPath);
-                VideoPlaceholderText.Text = ""; // ここは実プレイヤー入れたら消える想定
+                VideoPlaceholderText.Visibility = Visibility.Collapsed;
+
+                // 変化したときだけロード
+                if (!string.Equals(_currentVideoPath, videoPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    _currentVideoPath = videoPath;
+                    LoadToMediaElement(videoPath);
+                }
             }
 
-            // 2) (no clip selected)
+            // (no clip selected)
             ClipHintText.Text = IsClipSelected() ? "" : "(no clip selected)";
 
-            // 3) Team A/B text (もし AppState 側に値があれば反映)
+            // Team A/B (AppStateに値があれば反映)
             var teamA = TryGetString("TeamAName") ?? TryGetString("TeamA") ?? TryGetString("HomeTeam");
             var teamB = TryGetString("TeamBName") ?? TryGetString("TeamB") ?? TryGetString("AwayTeam");
 
-            // TextBox に「未入力」なら空のままにする（ウォーターマークで薄く表示）
             if (!string.IsNullOrWhiteSpace(teamA) && TeamATextBox.Text != teamA)
                 TeamATextBox.Text = teamA;
 
@@ -80,10 +89,68 @@ namespace PlayCutWin.Views
                 TeamBTextBox.Text = teamB;
         }
 
+        private void LoadToMediaElement(string path)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    VideoPlaceholderText.Text = "Video file not found";
+                    VideoPlaceholderText.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                // いったん停止して差し替え
+                try { Player.Stop(); } catch { }
+
+                Player.Source = new Uri(path, UriKind.Absolute);
+
+                // “表示されない”対策：MediaOpenedで一瞬Play→Pauseしてフレーム出す
+                _pauseOnOpened = true;
+                Player.Play();
+            }
+            catch
+            {
+                VideoPlaceholderText.Text = "Failed to load video";
+                VideoPlaceholderText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void StopPlayerIfNeeded()
+        {
+            _currentVideoPath = null;
+            try
+            {
+                Player.Stop();
+                Player.Source = null;
+            }
+            catch { }
+        }
+
+        private void Player_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            if (_pauseOnOpened)
+            {
+                _pauseOnOpened = false;
+                try
+                {
+                    Player.Position = TimeSpan.Zero;
+                    Player.Pause(); // 先頭フレーム表示
+                }
+                catch { }
+            }
+        }
+
+        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            VideoPlaceholderText.Text = "Failed to play video";
+            VideoPlaceholderText.Visibility = Visibility.Visible;
+        }
+
         private string? GetSelectedVideoPath()
         {
-            // よくある名前揺れを吸収
-            string? s =
+            // よくある名前揺れ
+            var s =
                 TryGetString("SelectedVideoPath")
                 ?? TryGetString("CurrentVideoPath")
                 ?? TryGetString("SelectedVideoText");
@@ -111,7 +178,6 @@ namespace PlayCutWin.Views
 
         private bool IsClipSelected()
         {
-            // SelectedClip / SelectedClipId / SelectedClipIndex あたりを雑に判定
             try
             {
                 var clip = TryGetObject("SelectedClip");
@@ -120,8 +186,8 @@ namespace PlayCutWin.Views
                 var id = TryGetObject("SelectedClipId");
                 if (id != null)
                 {
-                    var s = id.ToString();
-                    if (!string.IsNullOrWhiteSpace(s) && s != "0") return true;
+                    var ss = id.ToString();
+                    if (!string.IsNullOrWhiteSpace(ss) && ss != "0") return true;
                 }
 
                 var idxObj = TryGetObject("SelectedClipIndex");
@@ -166,13 +232,9 @@ namespace PlayCutWin.Views
             catch { }
         }
 
-        // ===== Team A/B: 入力があれば AppState に反映（あれば） =====
-
         private void TeamATextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             var v = TeamATextBox.Text ?? "";
-            // 未入力は空のまま（ウォーターマーク表示）
-            // 反映先が存在するなら反映
             TrySetString("TeamAName", v);
             TrySetString("TeamA", v);
             TrySetString("HomeTeam", v);
