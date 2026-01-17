@@ -1,168 +1,204 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Reflection;
+using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
+using System.Windows.Media;
 
 namespace PlayCutWin.Views
 {
     public partial class PlayerView : UserControl
     {
-        private AppState S => AppState.Instance;
-
-        private readonly DispatcherTimer _timer;
-        private bool _isLoaded;
-        private bool _updatingFromPlayer;
+        private readonly AppState _state;
+        private TimeSpan _clipStart = TimeSpan.Zero;
+        private TimeSpan _clipEnd = TimeSpan.Zero;
 
         public PlayerView()
         {
             InitializeComponent();
-            DataContext = S;
 
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-            _timer.Tick += (_, __) => PullPositionFromPlayer();
+            _state = AppState.Instance;
+            DataContext = _state;
 
-            Loaded += (_, __) =>
+            if (_state is INotifyPropertyChanged npc)
             {
-                if (_isLoaded) return;
-                _isLoaded = true;
+                npc.PropertyChanged += State_PropertyChanged;
+            }
 
-                S.PropertyChanged += OnAppStateChanged;
-                RefreshSourceFromState();
-                _timer.Start();
-            };
-
-            Unloaded += (_, __) =>
-            {
-                _timer.Stop();
-                S.PropertyChanged -= OnAppStateChanged;
-                try { Player.Stop(); } catch { }
-            };
+            UpdateTitleFromState();
         }
 
-        private void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
+        private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppState.SelectedVideo) ||
-                e.PropertyName == nameof(AppState.SelectedVideoPath))
+            // どの名前で来ても拾えるようにざっくり更新
+            if (e.PropertyName == "SelectedVideo" ||
+                e.PropertyName == "SelectedVideoPath" ||
+                e.PropertyName == "SelectedVideoText" ||
+                e.PropertyName == "CurrentVideoPath")
             {
-                RefreshSourceFromState();
-                return;
-            }
-
-            if (e.PropertyName == nameof(AppState.PlaybackSeconds))
-            {
-                if (_updatingFromPlayer) return;
-                SeekToStateSeconds();
-                return;
-            }
-
-            if (e.PropertyName == nameof(AppState.IsPlaying))
-            {
-                ApplyPlayState();
-                return;
+                Dispatcher.Invoke(UpdateTitleFromState);
             }
         }
 
-        private void RefreshSourceFromState()
+        private void UpdateTitleFromState()
         {
-            var path = S.SelectedVideoPath;
+            var path = GetStateString(
+                "SelectedVideoPath",
+                "CurrentVideoPath",
+                "SelectedVideoText",
+                "SelectedVideo");
 
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                // "SelectedVideo" が VideoItem 等の可能性があるので、文字列じゃなければ無視
+                if (path.Contains("\\") || path.Contains("/") || path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                {
+                    TitleText.Text = Path.GetFileName(path);
+                    return;
+                }
+
+                // すでに "xxx.mp4" みたいな表示文字列の可能性
+                TitleText.Text = path;
+                return;
+            }
+
+            TitleText.Text = "Video (16:9)";
+        }
+
+        private string? GetStateString(params string[] propNames)
+        {
+            foreach (var name in propNames)
+            {
+                var p = _state.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+                if (p == null) continue;
+
+                var v = p.GetValue(_state);
+                if (v == null) continue;
+
+                if (v is string s && !string.IsNullOrWhiteSpace(s)) return s;
+
+                // VideoItem等 → Pathっぽいプロパティを探す
+                var t = v.GetType();
+                var pathProp = t.GetProperty("Path") ?? t.GetProperty("FullPath") ?? t.GetProperty("FilePath");
+                if (pathProp != null)
+                {
+                    var pv = pathProp.GetValue(v) as string;
+                    if (!string.IsNullOrWhiteSpace(pv)) return pv;
+                }
+            }
+            return null;
+        }
+
+        // ======= MainWindow から呼ばれる想定のAPI =======
+
+        public void LoadVideo(string path, bool autoPlay)
+        {
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
-                EmptyText.Visibility = System.Windows.Visibility.Visible;
-                try { Player.Stop(); Player.Source = null; } catch { }
-
-                S.PlaybackDuration = 0;
-                S.PlaybackSeconds = 0;
-                S.IsPlaying = false;
+                Player.Source = null;
+                PlaceholderText.Visibility = Visibility.Visible;
+                TitleText.Text = "Video (16:9)";
                 return;
             }
 
-            EmptyText.Visibility = System.Windows.Visibility.Collapsed;
+            TitleText.Text = Path.GetFileName(path);
 
             try
             {
-                Player.Stop();
                 Player.Source = new Uri(path, UriKind.Absolute);
+                PlaceholderText.Visibility = Visibility.Collapsed;
 
-                // 読み込みのため一瞬 Play→Pause（勝手に再生しない）
-                Player.Play();
-                Player.Pause();
+                // これがあると「前の音が残る」系が減ることがある
+                Player.Stop();
 
-                ApplyPlayState();
+                if (autoPlay) Player.Play();
             }
             catch
             {
-                EmptyText.Visibility = System.Windows.Visibility.Visible;
-                S.IsPlaying = false;
+                Player.Source = null;
+                PlaceholderText.Visibility = Visibility.Visible;
+                TitleText.Text = "Video (16:9)";
             }
         }
 
-        private void ApplyPlayState()
+        public void Play()  => Player.Play();
+        public void Pause() => Player.Pause();
+        public void Stop()  => Player.Stop();
+
+        public void SeekBy(double deltaSeconds)
         {
             try
             {
-                if (Player.Source == null) return;
+                var t = Player.Position + TimeSpan.FromSeconds(deltaSeconds);
+                if (t < TimeSpan.Zero) t = TimeSpan.Zero;
+                Player.Position = t;
 
-                if (S.IsPlaying)
-                    Player.Play();
-                else
-                    Player.Pause();
+                // AppState に再生位置を持ってるなら反映（あれば）
+                SetStateDouble("PlaybackSeconds", t.TotalSeconds);
             }
             catch { }
         }
 
-        private void SeekToStateSeconds()
+        public void MarkClipStart()
+        {
+            _clipStart = Player.Position;
+            SetStateDouble("ClipStart", _clipStart.TotalSeconds);
+        }
+
+        public void MarkClipEnd()
+        {
+            _clipEnd = Player.Position;
+            SetStateDouble("ClipEnd", _clipEnd.TotalSeconds);
+        }
+
+        public void ResetClipRange()
+        {
+            _clipStart = TimeSpan.Zero;
+            _clipEnd = TimeSpan.Zero;
+            SetStateDouble("ClipStart", 0);
+            SetStateDouble("ClipEnd", 0);
+        }
+
+        private void SetStateDouble(string propName, double value)
         {
             try
             {
-                if (Player.Source == null) return;
-                Player.Position = TimeSpan.FromSeconds(Math.Max(0, S.PlaybackSeconds));
+                var p = _state.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance);
+                if (p != null && p.CanWrite && p.PropertyType == typeof(double))
+                {
+                    p.SetValue(_state, value);
+                }
             }
             catch { }
         }
 
-        private void Player_MediaOpened(object sender, System.Windows.RoutedEventArgs e)
-        {
-            try
-            {
-                S.PlaybackDuration = Player.NaturalDuration.HasTimeSpan
-                    ? Player.NaturalDuration.TimeSpan.TotalSeconds
-                    : 0;
+        // ======= Team A / Team B 入力（AppState のプロパティ名が違っても拾える保険） =======
 
-                SeekToStateSeconds();
-                ApplyPlayState();
-            }
-            catch
-            {
-                S.PlaybackDuration = 0;
-            }
+        private void TeamATextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            SetStateStringAny(TeamATextBox.Text, "TeamAName", "TeamA", "HomeTeamName");
         }
 
-        private void Player_MediaFailed(object sender, System.Windows.ExceptionRoutedEventArgs e)
+        private void TeamBTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            EmptyText.Visibility = System.Windows.Visibility.Visible;
-            S.StatusMessage = $"Media failed: {e.ErrorException?.Message}";
-            S.PlaybackDuration = 0;
-            S.PlaybackSeconds = 0;
-            S.IsPlaying = false;
+            SetStateStringAny(TeamBTextBox.Text, "TeamBName", "TeamB", "AwayTeamName");
         }
 
-        private void PullPositionFromPlayer()
+        private void SetStateStringAny(string value, params string[] propNames)
         {
-            try
+            foreach (var name in propNames)
             {
-                if (Player.Source == null) return;
-
-                var sec = Player.Position.TotalSeconds;
-
-                _updatingFromPlayer = true;
-                S.PlaybackSeconds = sec;
-            }
-            catch { }
-            finally
-            {
-                _updatingFromPlayer = false;
+                try
+                {
+                    var p = _state.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+                    if (p != null && p.CanWrite && p.PropertyType == typeof(string))
+                    {
+                        p.SetValue(_state, value);
+                        return;
+                    }
+                }
+                catch { }
             }
         }
     }
