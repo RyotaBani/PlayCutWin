@@ -1,5 +1,7 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace PlayCutWin.Views
 {
@@ -10,56 +12,129 @@ namespace PlayCutWin.Views
         public PlayerControlsView()
         {
             InitializeComponent();
-            DataContext = S;
         }
 
-        private void Play_Click(object sender, RoutedEventArgs e)
+        // ===== Play / Pause toggle =====
+        private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(S.SelectedVideoPath))
+            var player = FindMediaElement("Player");
+            if (player == null)
             {
-                S.StatusMessage = "No clip selected";
+                S.StatusMessage = "Player not found (x:Name=\"Player\")";
                 return;
             }
-            S.IsPlaying = true;
-            S.StatusMessage = "Play";
+
+            try
+            {
+                if (S.IsPlaying)
+                {
+                    player.Pause();
+                    S.IsPlaying = false;
+                    S.StatusMessage = "Paused";
+                }
+                else
+                {
+                    player.Play();
+                    S.IsPlaying = true;
+                    S.StatusMessage = "Playing";
+                }
+            }
+            catch (Exception ex)
+            {
+                S.StatusMessage = $"Play/Pause failed: {ex.Message}";
+            }
         }
 
-        private void Pause_Click(object sender, RoutedEventArgs e)
+        // ===== Seek =====
+        private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
+        private void SeekMinus1_Click(object sender, RoutedEventArgs e) => SeekBy(-1);
+        private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(+1);
+        private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(+5);
+
+        private void SeekBy(double deltaSec)
         {
-            S.IsPlaying = false;
-            S.StatusMessage = "Pause";
+            var player = FindMediaElement("Player");
+            if (player == null)
+            {
+                S.StatusMessage = "Player not found (x:Name=\"Player\")";
+                return;
+            }
+
+            try
+            {
+                var pos = player.Position.TotalSeconds + deltaSec;
+                if (pos < 0) pos = 0;
+                player.Position = TimeSpan.FromSeconds(pos);
+                S.PlaybackSeconds = pos;
+                S.StatusMessage = $"{(deltaSec >= 0 ? "+" : "")}{deltaSec:0}s";
+            }
+            catch (Exception ex)
+            {
+                S.StatusMessage = $"Seek failed: {ex.Message}";
+            }
         }
 
-        private void Stop_Click(object sender, RoutedEventArgs e)
+        // ===== Speed (いったん「見た目揃え」優先：速度は実装先に合わせて後で強化) =====
+        private void Speed025_Click(object sender, RoutedEventArgs e) => SetSpeed(0.25);
+        private void Speed05_Click(object sender, RoutedEventArgs e) => SetSpeed(0.5);
+        private void Speed1_Click(object sender, RoutedEventArgs e) => SetSpeed(1.0);
+        private void Speed2_Click(object sender, RoutedEventArgs e) => SetSpeed(2.0);
+
+        private void SetSpeed(double speed)
         {
-            S.StopPlayback();
+            // MediaElement は速度変更が直接できないので、将来MediaPlayer/VLCへ移す前提でメッセージだけ。
+            S.StatusMessage = $"Speed {speed:0.##}x (MediaElement: speed control is limited)";
         }
 
-        private void Minus05_Click(object sender, RoutedEventArgs e)
-        {
-            S.PlaybackSeconds = System.Math.Max(0, S.PlaybackSeconds - 0.5);
-        }
-
-        private void Plus05_Click(object sender, RoutedEventArgs e)
-        {
-            S.PlaybackSeconds = S.PlaybackSeconds + 0.5;
-        }
-
-        private void SetStart_Click(object sender, RoutedEventArgs e)
+        // ===== Clip Range buttons (今は状態だけ) =====
+        private void ClipStart_Click(object sender, RoutedEventArgs e)
         {
             S.ClipStart = S.PlaybackSeconds;
-            S.StatusMessage = "Start set";
+            S.StatusMessage = $"Clip START set: {S.PlaybackPositionText}";
         }
 
-        private void SetEnd_Click(object sender, RoutedEventArgs e)
+        private void ClipEnd_Click(object sender, RoutedEventArgs e)
         {
             S.ClipEnd = S.PlaybackSeconds;
-            S.StatusMessage = "End set";
+            S.StatusMessage = $"Clip END set: {S.PlaybackPositionText}";
         }
 
-        private void ResetRange_Click(object sender, RoutedEventArgs e)
+        private void SaveTeamA_Click(object sender, RoutedEventArgs e)
         {
-            S.ResetRange();
+            S.StatusMessage = "Save Team A (TODO)";
+        }
+
+        private void SaveTeamB_Click(object sender, RoutedEventArgs e)
+        {
+            S.StatusMessage = "Save Team B (TODO)";
+        }
+
+        // ===== helper: find MediaElement by name in VisualTree =====
+        private MediaElement? FindMediaElement(string name)
+        {
+            var root = Application.Current?.MainWindow as DependencyObject;
+            if (root == null) return null;
+
+            return FindChildByName<MediaElement>(root, name);
+        }
+
+        private static T? FindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
+        {
+            if (parent == null) return null;
+
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+
+                if (child is T fe && fe.Name == name)
+                    return fe;
+
+                var result = FindChildByName<T>(child, name);
+                if (result != null) return result;
+            }
+
+            return null;
         }
     }
 }

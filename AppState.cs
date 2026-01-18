@@ -16,11 +16,8 @@ namespace PlayCutWin
 
         private AppState()
         {
-            // Mac版の見た目に合わせた初期値（プレースホルダー相当）
             TeamAName = "Home / Our Team";
             TeamBName = "Away / Opponent";
-
-            PlaybackSpeed = 1.0; // 0.25 / 0.5 / 1 / 2 を想定
             StatusMessage = "Ready";
         }
 
@@ -94,7 +91,6 @@ namespace PlayCutWin
         }
 
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new();
-
         private VideoItem? _selectedVideo;
         public VideoItem? SelectedVideo
         {
@@ -112,15 +108,26 @@ namespace PlayCutWin
         public string SelectedVideoPath => SelectedVideo?.Path ?? "";
         public string SelectedVideoName => SelectedVideo?.Name ?? "Video (16:9)";
 
-        // =========
-        // Playback
-        // =========
+        // Playback (MediaElement側が更新する)
         private bool _isPlaying;
         public bool IsPlaying
         {
             get => _isPlaying;
-            set => Set(ref _isPlaying, value);
+            set
+            {
+                if (Set(ref _isPlaying, value))
+                {
+                    // ▶ / ⏸ を即更新
+                    OnPropertyChanged(nameof(PlayPauseGlyph));
+                    OnPropertyChanged(nameof(PlayPauseTooltip));
+                }
+            }
         }
+
+        // ✅ 再生ボタン用 glyph（Segoe MDL2 Assets）
+        // Play:  E768 / Pause: E769
+        public string PlayPauseGlyph => IsPlaying ? "\uE769" : "\uE768";
+        public string PlayPauseTooltip => IsPlaying ? "Pause" : "Play";
 
         private double _playbackSeconds;
         public double PlaybackSeconds
@@ -129,7 +136,9 @@ namespace PlayCutWin
             set
             {
                 if (Set(ref _playbackSeconds, value))
+                {
                     OnPropertyChanged(nameof(PlaybackPositionText));
+                }
             }
         }
 
@@ -145,27 +154,6 @@ namespace PlayCutWin
                     OnPropertyChanged(nameof(PlaybackDurationTextLong));
                 }
             }
-        }
-
-        // ✅ 追加：PlaybackSpeed（DashboardView が参照している）
-        private double _playbackSpeed = 1.0;
-        public double PlaybackSpeed
-        {
-            get => _playbackSpeed;
-            set
-            {
-                // 変な値を防ぐ（UIのボタンは 0.25/0.5/1/2想定）
-                var v = value;
-                if (v <= 0) v = 1.0;
-
-                if (Set(ref _playbackSpeed, v))
-                    StatusMessage = $"Speed: {PlaybackSpeed:0.##}x";
-            }
-        }
-
-        public void SetPlaybackSpeed(double speed)
-        {
-            PlaybackSpeed = speed;
         }
 
         public string PlaybackPositionText => FormatClock(PlaybackSeconds);
@@ -186,9 +174,7 @@ namespace PlayCutWin
             return ts.ToString(@"hh\:mm\:ss");
         }
 
-        // =========
         // Clip Range
-        // =========
         private double _clipStart;
         public double ClipStart
         {
@@ -210,9 +196,7 @@ namespace PlayCutWin
             StatusMessage = "Range reset";
         }
 
-        // =========
         // Tags / Clips
-        // =========
         public ObservableCollection<TagEntry> Tags { get; } = new();
         public ObservableCollection<ClipItem> Clips { get; } = new();
 
@@ -262,7 +246,7 @@ namespace PlayCutWin
         }
 
         // =========
-        // 操作系
+        // 操作API
         // =========
         public void AddImportedVideo(string path)
         {
@@ -289,53 +273,10 @@ namespace PlayCutWin
         public void StopPlayback()
         {
             IsPlaying = false;
-            StatusMessage = "Stopped";
-        }
-
-        // ✅ 追加：SaveClip（DashboardView で呼ばれている）
-        // team: "A" or "B"
-        public void SaveClip(string team)
-        {
-            team = (team ?? "").Trim().ToUpperInvariant();
-            if (team != "A" && team != "B") team = "A";
-
-            var s = ClipStart;
-            var e = ClipEnd;
-
-            if (s < 0) s = 0;
-            if (e < 0) e = 0;
-
-            // 逆転・同値対策（最低限落ちないように）
-            if (e < s)
-            {
-                var tmp = s;
-                s = e;
-                e = tmp;
-            }
-
-            var tagsText = string.Join(", ",
-                Tags.Select(t => (t.Tag ?? "").Trim())
-                    .Where(x => x.Length > 0));
-
-            Clips.Add(new ClipItem
-            {
-                Team = team,
-                Start = s,
-                End = e,
-                TagsText = tagsText
-            });
-
-            StatusMessage = $"Saved clip ({team}): {FormatClock(s)} - {FormatClock(e)}";
-        }
-
-        // 互換用（もしboolで呼ばれても落ちないように）
-        public void SaveClip(bool toTeamA)
-        {
-            SaveClip(toTeamA ? "A" : "B");
         }
 
         // =========
-        // CSV（最小）
+        // CSV
         // =========
         public void ImportCsvFromDialog()
         {
@@ -376,6 +317,7 @@ namespace PlayCutWin
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var cols = line.Split(',');
+
                     if (cols.Length == 0) continue;
 
                     var kind = cols[0].Trim();
