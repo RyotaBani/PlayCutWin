@@ -16,25 +16,11 @@ namespace PlayCutWin
 
         private AppState()
         {
+            // Mac版の見た目に合わせた初期値（プレースホルダー相当）
             TeamAName = "Home / Our Team";
             TeamBName = "Away / Opponent";
 
             StatusMessage = "Ready";
-
-            // Mac版っぽいプリセット（まずは固定でOK）
-            OffensePresetTags = new ObservableCollection<string>(new[]
-            {
-                "Transition", "Set", "PnR",
-                "BLOB", "SLOB", "vs M/M",
-                "vs Zone", "2nd Attack", "3rd Attack more"
-            });
-
-            DefensePresetTags = new ObservableCollection<string>(new[]
-            {
-                "M/M", "Zone", "Rebound", "Steal"
-            });
-
-            PlaybackSpeed = 1.0;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -64,7 +50,6 @@ namespace PlayCutWin
             public string Tag { get; set; } = "";
             public DateTime CreatedAt { get; set; } = DateTime.Now;
             public string TimeText => CreatedAt.ToString("HH:mm:ss");
-            public override string ToString() => Tag;
         }
 
         public sealed class ClipItem
@@ -73,7 +58,6 @@ namespace PlayCutWin
             public double Start { get; set; }
             public double End { get; set; }
             public string TagsText { get; set; } = "";
-
             public string Display => $"{FormatTime(Start)} - {FormatTime(End)}  {TagsText}";
 
             private static string FormatTime(double sec)
@@ -88,19 +72,26 @@ namespace PlayCutWin
         // Core State
         // =========
         private string _teamAName = "";
-        public string TeamAName { get => _teamAName; set => Set(ref _teamAName, value); }
+        public string TeamAName
+        {
+            get => _teamAName;
+            set => Set(ref _teamAName, value);
+        }
 
         private string _teamBName = "";
-        public string TeamBName { get => _teamBName; set => Set(ref _teamBName, value); }
+        public string TeamBName
+        {
+            get => _teamBName;
+            set => Set(ref _teamBName, value);
+        }
 
         private string _statusMessage = "";
-        public string StatusMessage { get => _statusMessage; set => Set(ref _statusMessage, value); }
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set => Set(ref _statusMessage, value);
+        }
 
-        // Presets (Mac寄せ)
-        public ObservableCollection<string> OffensePresetTags { get; }
-        public ObservableCollection<string> DefensePresetTags { get; }
-
-        // Videos
         public ObservableCollection<VideoItem> ImportedVideos { get; } = new();
 
         private VideoItem? _selectedVideo;
@@ -113,7 +104,6 @@ namespace PlayCutWin
                 {
                     OnPropertyChanged(nameof(SelectedVideoPath));
                     OnPropertyChanged(nameof(SelectedVideoName));
-                    OnPropertyChanged(nameof(ClipsSubHeaderText));
                 }
             }
         }
@@ -121,23 +111,13 @@ namespace PlayCutWin
         public string SelectedVideoPath => SelectedVideo?.Path ?? "";
         public string SelectedVideoName => SelectedVideo?.Name ?? "Video (16:9)";
 
-        // Clips panel sub header (Macは "No video loaded" 表記)
-        public string ClipsSubHeaderText => SelectedVideo == null ? "No video loaded" : SelectedVideoName;
-
-        // Playback
+        // Playback (MediaElement側が更新する)
         private bool _isPlaying;
         public bool IsPlaying
         {
             get => _isPlaying;
-            set
-            {
-                if (Set(ref _isPlaying, value))
-                    OnPropertyChanged(nameof(PlayPauseGlyph));
-            }
+            set => Set(ref _isPlaying, value);
         }
-
-        // ▶ / ⏸
-        public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
 
         private double _playbackSeconds;
         public double PlaybackSeconds
@@ -148,7 +128,6 @@ namespace PlayCutWin
                 if (Set(ref _playbackSeconds, value))
                 {
                     OnPropertyChanged(nameof(PlaybackPositionText));
-                    OnPropertyChanged(nameof(TimeText));
                 }
             }
         }
@@ -163,35 +142,24 @@ namespace PlayCutWin
                 {
                     OnPropertyChanged(nameof(PlaybackDurationText));
                     OnPropertyChanged(nameof(PlaybackDurationTextLong));
-                    OnPropertyChanged(nameof(TimeText));
                 }
             }
         }
 
-        private double _playbackSpeed;
-        public double PlaybackSpeed
-        {
-            get => _playbackSpeed;
-            set => Set(ref _playbackSpeed, value);
-        }
-
-        public string PlaybackPositionText => FormatClockShort(PlaybackSeconds);
-        public string PlaybackDurationText => FormatClockShort(PlaybackDuration);
+        public string PlaybackPositionText => FormatClock(PlaybackSeconds);
+        public string PlaybackDurationText => FormatClock(PlaybackDuration);
         public string PlaybackDurationTextLong => FormatClockLong(PlaybackDuration);
 
-        // Windows版で欲しい表示: 00:21 / 01:29:26
-        public string TimeText => $"{FormatClockShort(PlaybackSeconds)} / {FormatClockLong(PlaybackDuration)}";
-
-        private static string FormatClockShort(double sec)
+        private static string FormatClock(double sec)
         {
-            if (sec < 0) sec = 0;
+            if (sec <= 0) return "00:00";
             var ts = TimeSpan.FromSeconds(sec);
             return ts.Hours > 0 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"mm\:ss");
         }
 
         private static string FormatClockLong(double sec)
         {
-            if (sec < 0) sec = 0;
+            if (sec <= 0) return "00:00:00";
             var ts = TimeSpan.FromSeconds(sec);
             return ts.ToString(@"hh\:mm\:ss");
         }
@@ -201,26 +169,15 @@ namespace PlayCutWin
         public double ClipStart
         {
             get => _clipStart;
-            set
-            {
-                if (Set(ref _clipStart, value))
-                    OnPropertyChanged(nameof(ClipStartText));
-            }
+            set => Set(ref _clipStart, value);
         }
 
         private double _clipEnd;
         public double ClipEnd
         {
             get => _clipEnd;
-            set
-            {
-                if (Set(ref _clipEnd, value))
-                    OnPropertyChanged(nameof(ClipEndText));
-            }
+            set => Set(ref _clipEnd, value);
         }
-
-        public string ClipStartText => $"START: {FormatClockShort(ClipStart)}";
-        public string ClipEndText => $"END:   {FormatClockShort(ClipEnd)}";
 
         public void ResetRange()
         {
@@ -235,6 +192,7 @@ namespace PlayCutWin
 
         public IEnumerable<string> EnumerateAllTags()
         {
+            // Tagsコレクション + Clips内のTagsTextを雑に分解（後でCSV仕様に合わせて強化）
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var t in Tags)
@@ -278,61 +236,22 @@ namespace PlayCutWin
             StatusMessage = "Tags cleared";
         }
 
-        // Save Team A / B (Macの緑ボタン相当：まずは保存だけ)
-        public void SaveClip(string team)
-        {
-            if (string.IsNullOrWhiteSpace(team)) team = "A";
-            team = team.Trim().ToUpperInvariant();
-            if (team != "A" && team != "B") team = "A";
-
-            var s = ClipStart;
-            var e = ClipEnd;
-
-            // 順序修正
-            if (e > 0 && s > e)
-            {
-                var tmp = s;
-                s = e;
-                e = tmp;
-            }
-
-            if (e <= 0 || Math.Abs(e - s) < 0.01)
-            {
-                StatusMessage = "Clip range is not set (need START & END)";
-                return;
-            }
-
-            var tagsText = string.Join("; ", Tags.Select(t => t.Tag).Where(x => !string.IsNullOrWhiteSpace(x)));
-
-            Clips.Add(new ClipItem
-            {
-                Team = team,
-                Start = s,
-                End = e,
-                TagsText = tagsText
-            });
-
-            StatusMessage = $"Saved clip to Team {team}: {FormatClockShort(s)} - {FormatClockShort(e)}";
-        }
-
         // =========
-        // Videos
+        // “操作” はここに寄せる（Views側はAppStateのAPIだけ叩く）
         // =========
         public void AddImportedVideo(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
 
+            // 重複排除
             if (ImportedVideos.Any(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase)))
-            {
-                // 既にあるならそれを選ぶ
-                SelectedVideo = ImportedVideos.First(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase));
-                StatusMessage = $"Selected: {SelectedVideo.Name}";
                 return;
-            }
 
             var item = new VideoItem { Path = path };
             ImportedVideos.Add(item);
-            SelectedVideo = item;
+
+            if (SelectedVideo == null)
+                SelectedVideo = item;
 
             StatusMessage = $"Imported: {System.IO.Path.GetFileName(path)}";
         }
@@ -343,8 +262,15 @@ namespace PlayCutWin
             StatusMessage = $"Selected: {item.Name}";
         }
 
+        // ✅ 重要：PlayerControlsView から呼ばれる停止API（今回のビルドエラーの原因）
+        public void StopPlayback()
+        {
+            IsPlaying = false;
+            StatusMessage = "Stopped";
+        }
+
         // =========
-        // CSV（暫定。後でMac版フォーマットへ揃える）
+        // CSV（最小実装：後でMac版のフォーマットに合わせて強化）
         // =========
         public void ImportCsvFromDialog()
         {
@@ -375,7 +301,8 @@ namespace PlayCutWin
         }
 
         // 形式（暫定）:
-        // TAG,tag,CreatedAt
+        // TAG,CreatedAt
+        // or
         // CLIP,Team,Start,End,Tags
         public void ImportCsv(string filePath)
         {
@@ -426,7 +353,7 @@ namespace PlayCutWin
                     }
                     else
                     {
-                        // 1列だけのCSVはタグ列として読む
+                        // 何も付いてないCSVは「タグ1列」とみなす（Mac版CSVに合わせて後で調整）
                         var tag = cols[0].Trim();
                         if (tag.Length > 0)
                         {
