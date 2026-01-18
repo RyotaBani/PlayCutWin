@@ -12,6 +12,8 @@
         <sys:Double x:Key="FontSmall">11</sys:Double>  <!-- サブ -->
 
         <sys:Double x:Key="Corner">12</sys:Double>
+        <sys:Double x:Key="CornerSmall">8</sys:Double>
+
         <Thickness x:Key="Gap">10</Thickness>
         <Thickness x:Key="PanelPad">14</Thickness>
 
@@ -26,13 +28,23 @@
         <SolidColorBrush x:Key="BgWindow" Color="#101010"/>
         <SolidColorBrush x:Key="BgPanel"  Color="#171717"/>
         <SolidColorBrush x:Key="BgInner"  Color="#1E1E1E"/>
+
         <SolidColorBrush x:Key="Border"   Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="Border2"  Color="#3A3A3A"/>
+
         <SolidColorBrush x:Key="Text1"    Color="#EDEDED"/>
         <SolidColorBrush x:Key="Text2"    Color="#D0D0D0"/>
         <SolidColorBrush x:Key="Text3"    Color="#BFBFBF"/>
-        <SolidColorBrush x:Key="Accent"   Color="#2F6FED"/>
 
-        <!-- ====== TEXT STYLES ====== -->
+        <SolidColorBrush x:Key="BtnBg"        Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="BtnBgHover"   Color="#343434"/>
+        <SolidColorBrush x:Key="BtnBgPressed" Color="#222222"/>
+        <SolidColorBrush x:Key="BtnDisabled"  Color="#1B1B1B"/>
+
+        <SolidColorBrush x:Key="Accent"   Color="#2F6FED"/>
+        <SolidColorBrush x:Key="AccentHover" Color="#3C7BFF"/>
+
+        <!-- ====== TEXT (Key付き：必要な所で使える) ====== -->
         <Style x:Key="H1" TargetType="TextBlock">
             <Setter Property="FontSize" Value="{DynamicResource FontH1}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -59,6 +71,18 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
 
+        <!-- ====== WINDOW / BASE ====== -->
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{DynamicResource BgWindow}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontBody}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        </Style>
+
+        <Style TargetType="UserControl">
+            <Setter Property="Background" Value="{DynamicResource BgWindow}"/>
+        </Style>
+
         <!-- ====== PANEL (カード) ====== -->
         <Style x:Key="PanelBorder" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource BgPanel}"/>
@@ -77,34 +101,140 @@
             <Setter Property="Padding" Value="10"/>
         </Style>
 
-        <!-- ====== BUTTONS ====== -->
-        <Style x:Key="TopButton" TargetType="Button">
+        <!-- ====== DEFAULT TextBlock（Keyなし：全体統一） ====== -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text2}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontBody}"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+
+        <!-- ====== DEFAULT Button（Keyなし：白ボタン撲滅） ====== -->
+        <Style TargetType="Button">
             <Setter Property="Height" Value="{DynamicResource BtnH}"/>
             <Setter Property="MinWidth" Value="{DynamicResource BtnMinW}"/>
             <Setter Property="Padding" Value="{DynamicResource BtnPad}"/>
-            <Setter Property="Margin" Value="8,0,0,0"/>
             <Setter Property="FontSize" Value="{DynamicResource FontBody}"/>
             <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
-            <Setter Property="Background" Value="#2A2A2A"/>
-            <Setter Property="BorderBrush" Value="#3A3A3A"/>
+            <Setter Property="Background" Value="{DynamicResource BtnBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Border2}"/>
             <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{DynamicResource CornerSmall}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BtnBgHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BtnBgPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BtnDisabled}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Text3}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource TopButton}">
+        <!-- “上段ボタン” みたいにしたいとき用（Key付きで残す） -->
+        <Style x:Key="TopButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+
+        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{DynamicResource Accent}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource AccentHover}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentHover}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
-        <!-- ====== TEXTBOX (Team A/B) ====== -->
-        <Style x:Key="TeamTextBox" TargetType="TextBox">
+        <!-- ====== DEFAULT TextBox（Keyなし：白枠/白背景撲滅） ====== -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#141414"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontBody}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Team A/B はさらに小さめ（Key付き） -->
+        <Style x:Key="TeamTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Height" Value="{DynamicResource TeamBoxH}"/>
             <Setter Property="Padding" Value="{DynamicResource TeamBoxPad}"/>
             <Setter Property="FontSize" Value="{DynamicResource FontSmall}"/>
+        </Style>
+
+        <!-- ====== DEFAULT ListBox（黒いカードっぽく） ====== -->
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
-            <Setter Property="Background" Value="#141414"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerSmall}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#262626"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2A2A2A"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource Text3}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ====== ScrollBar も暗く（最低限） ====== -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <Style TargetType="Thumb">
+            <Setter Property="Background" Value="#3A3A3A"/>
+            <Setter Property="Height" Value="40"/>
         </Style>
 
     </Application.Resources>
