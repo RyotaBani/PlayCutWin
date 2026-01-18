@@ -6,12 +6,14 @@
     <Application.Resources>
 
         <!-- ====== TUNING (ここだけ触れば全体が変わる) ====== -->
-        <sys:Double x:Key="FontH1">16</sys:Double>     <!-- Video / Clips / Controls / Tags -->
-        <sys:Double x:Key="FontH2">13</sys:Double>     <!-- Team A Clips / Team B Clips など -->
-        <sys:Double x:Key="FontBody">12</sys:Double>   <!-- 通常 -->
-        <sys:Double x:Key="FontSmall">11</sys:Double>  <!-- サブ -->
+        <sys:Double x:Key="FontH1">16</sys:Double>
+        <sys:Double x:Key="FontH2">13</sys:Double>
+        <sys:Double x:Key="FontBody">12</sys:Double>
+        <sys:Double x:Key="FontSmall">11</sys:Double>
 
-        <sys:Double x:Key="Corner">12</sys:Double>
+        <!-- ★ここが重要：DoubleではなくCornerRadius型にする -->
+        <CornerRadius x:Key="Corner">12</CornerRadius>
+
         <Thickness x:Key="Gap">10</Thickness>
         <Thickness x:Key="PanelPad">14</Thickness>
 
@@ -19,7 +21,7 @@
         <sys:Double x:Key="BtnMinW">96</sys:Double>
         <Thickness x:Key="BtnPad">12,0</Thickness>
 
-        <sys:Double x:Key="TeamBoxH">26</sys:Double>   <!-- Team A/B入力欄：小さめ -->
+        <sys:Double x:Key="TeamBoxH">26</sys:Double>
         <Thickness x:Key="TeamBoxPad">10,2</Thickness>
 
         <!-- ====== COLORS ====== -->
