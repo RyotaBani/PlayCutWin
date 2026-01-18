@@ -9,23 +9,25 @@ namespace PlayCutWin.Views
 {
     public partial class DashboardView : UserControl
     {
-        private readonly DispatcherTimer _timer;
+        private AppState S => AppState.Instance;
+        private readonly DispatcherTimer _timer = new DispatcherTimer();
 
         public DashboardView()
         {
             InitializeComponent();
+            DataContext = S;
 
-            // 再生位置更新用
-            _timer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(200)
-            };
+            _timer.Interval = TimeSpan.FromMilliseconds(200);
             _timer.Tick += (_, __) =>
             {
-                if (Player.Source != null)
+                try
                 {
-                    AppState.Instance.PlaybackSeconds = Player.Position.TotalSeconds;
+                    if (Player.Source != null)
+                    {
+                        S.PlaybackSeconds = Player.Position.TotalSeconds;
+                    }
                 }
+                catch { /* ignore */ }
             };
             _timer.Start();
 
@@ -33,19 +35,36 @@ namespace PlayCutWin.Views
         }
 
         // ===== MediaElement events =====
+
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
         {
-            var dur = Player.NaturalDuration.HasTimeSpan ? Player.NaturalDuration.TimeSpan.TotalSeconds : 0;
-            AppState.Instance.PlaybackDuration = dur;
-            AppState.Instance.StatusMessage = "Media opened";
-            UpdateHint();
+            try
+            {
+                if (Player.NaturalDuration.HasTimeSpan)
+                {
+                    S.PlaybackDuration = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                }
+                S.StatusMessage = "Media opened";
+                UpdateHint();
+            }
+            catch (Exception ex)
+            {
+                S.StatusMessage = $"MediaOpened failed: {ex.Message}";
+            }
         }
 
         private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            AppState.Instance.StatusMessage = $"Media failed: {e.ErrorException?.Message}";
-            AppState.Instance.IsPlaying = false;
+            S.IsPlaying = false;
+            S.StatusMessage = $"Media failed: {e.ErrorException.Message}";
             UpdateHint();
+        }
+
+        private void Player_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            // 終了したら停止状態へ
+            S.IsPlaying = false;
+            S.StatusMessage = "Ended";
         }
 
         private void UpdateHint()
@@ -53,19 +72,20 @@ namespace PlayCutWin.Views
             PlayerHint.Visibility = (Player.Source == null) ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // ===== Top Buttons =====
+        // ===== Top buttons (右上) =====
+
         private void LoadVideo_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
-                Title = "Import Video",
-                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.wmv|All Files|*.*",
+                Title = "Load Video",
+                Filter = "Video files|*.mp4;*.mov;*.m4v;*.avi;*.wmv;*.mkv|All files|*.*",
                 Multiselect = false
             };
 
             if (dlg.ShowDialog() != true) return;
 
-            AppState.Instance.AddImportedVideo(dlg.FileName);
+            S.AddImportedVideo(dlg.FileName);
 
             try
             {
@@ -73,60 +93,61 @@ namespace PlayCutWin.Views
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
                 Player.Position = TimeSpan.Zero;
 
-                AppState.Instance.IsPlaying = false;
-                AppState.Instance.PlaybackSeconds = 0;
-                // Duration は MediaOpened で入る
-                AppState.Instance.StatusMessage = "Loaded";
+                // 読み込みだけ。勝手に再生しない（Macっぽく）
+                S.IsPlaying = false;
+                S.PlaybackSeconds = 0;
+                S.StatusMessage = "Video loaded";
+                UpdateHint();
             }
             catch (Exception ex)
             {
-                AppState.Instance.StatusMessage = $"Load failed: {ex.Message}";
+                S.StatusMessage = $"Load failed: {ex.Message}";
             }
-
-            UpdateHint();
         }
 
-        private void ImportCsv_Click(object sender, RoutedEventArgs e)
-        {
-            AppState.Instance.ImportCsvFromDialog();
-        }
-
-        private void ExportCsv_Click(object sender, RoutedEventArgs e)
-        {
-            AppState.Instance.ExportCsvToDialog();
-        }
+        private void ImportCsv_Click(object sender, RoutedEventArgs e) => S.ImportCsvFromDialog();
+        private void ExportCsv_Click(object sender, RoutedEventArgs e) => S.ExportCsvToDialog();
 
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            // ここは後で「Clip START/ENDの範囲を切り出して書き出し」に拡張
-            AppState.Instance.StatusMessage = "Export All (dummy)";
+            // ここは後で実装（いまは落ちないように）
+            S.StatusMessage = "Export All: (todo)";
         }
 
         private void Preferences_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Preferences (dummy)", "Preferences", MessageBoxButton.OK, MessageBoxImage.Information);
+            S.StatusMessage = "Preferences: (todo)";
         }
 
-        // ===== Controls: ▶ / ⏸ toggle =====
+        // ===== Controls (左下) =====
+
         private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
             if (Player.Source == null)
             {
-                AppState.Instance.StatusMessage = "No video loaded";
+                S.StatusMessage = "No video loaded";
                 return;
             }
 
-            if (AppState.Instance.IsPlaying)
+            try
             {
-                Player.Pause();
-                AppState.Instance.IsPlaying = false;
-                AppState.Instance.StatusMessage = "Paused";
+                if (S.IsPlaying)
+                {
+                    Player.Pause();
+                    S.IsPlaying = false;
+                    S.StatusMessage = "Paused";
+                }
+                else
+                {
+                    Player.Play();
+                    S.IsPlaying = true;
+                    S.StatusMessage = "Playing";
+                }
             }
-            else
+            catch (Exception ex)
             {
-                Player.Play();
-                AppState.Instance.IsPlaying = true;
-                AppState.Instance.StatusMessage = "Playing";
+                S.StatusMessage = $"Play/Pause failed: {ex.Message}";
+                S.IsPlaying = false;
             }
         }
 
@@ -134,73 +155,74 @@ namespace PlayCutWin.Views
         {
             if (Player.Source == null) return;
 
-            Player.Stop();
-            Player.Position = TimeSpan.Zero;
-
-            AppState.Instance.IsPlaying = false;
-            AppState.Instance.PlaybackSeconds = 0;
-            AppState.Instance.StatusMessage = "Stopped";
+            try
+            {
+                Player.Stop();
+                Player.Position = TimeSpan.Zero;
+                S.IsPlaying = false;
+                S.PlaybackSeconds = 0;
+                S.StatusMessage = "Stopped";
+            }
+            catch (Exception ex)
+            {
+                S.StatusMessage = $"Stop failed: {ex.Message}";
+            }
         }
 
-        private void Minus05_Click(object sender, RoutedEventArgs e)
-        {
-            SeekBy(-0.5);
-        }
+        private void Minus05_Click(object sender, RoutedEventArgs e) => SeekBy(-0.5);
+        private void Plus05_Click(object sender, RoutedEventArgs e) => SeekBy(+0.5);
 
-        private void Plus05_Click(object sender, RoutedEventArgs e)
-        {
-            SeekBy(+0.5);
-        }
-
-        private void SeekBy(double seconds)
+        private void SeekBy(double deltaSec)
         {
             if (Player.Source == null) return;
 
-            var cur = Player.Position.TotalSeconds;
-            var next = cur + seconds;
-            if (next < 0) next = 0;
+            try
+            {
+                var t = Player.Position.TotalSeconds + deltaSec;
+                if (t < 0) t = 0;
 
-            // Durationが取れていれば上限をクリップ
-            if (AppState.Instance.PlaybackDuration > 0 && next > AppState.Instance.PlaybackDuration)
-                next = AppState.Instance.PlaybackDuration;
-
-            Player.Position = TimeSpan.FromSeconds(next);
-            AppState.Instance.PlaybackSeconds = next;
-            AppState.Instance.StatusMessage = $"Seek {seconds:+0.0;-0.0}s";
+                Player.Position = TimeSpan.FromSeconds(t);
+                S.PlaybackSeconds = t;
+                S.StatusMessage = "Seek";
+            }
+            catch (Exception ex)
+            {
+                S.StatusMessage = $"Seek failed: {ex.Message}";
+            }
         }
 
-        // ===== Clip START / Clip END =====
+        // Clip Range
         private void SetStart_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ClipStart = AppState.Instance.PlaybackSeconds;
-            AppState.Instance.StatusMessage = "Clip START set";
+            S.ClipStart = S.PlaybackSeconds;
+            S.StatusMessage = $"Clip START: {S.PlaybackPositionText}";
         }
 
         private void SetEnd_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ClipEnd = AppState.Instance.PlaybackSeconds;
-            AppState.Instance.StatusMessage = "Clip END set";
+            S.ClipEnd = S.PlaybackSeconds;
+            S.StatusMessage = $"Clip END: {S.PlaybackPositionText}";
         }
 
         private void ResetClip_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ResetRange();
+            S.ResetRange();
         }
 
-        // ===== Tags =====
+        // ===== Tags (右下) =====
+
         private void AddTag_Click(object sender, RoutedEventArgs e)
         {
-            var t = TagInput.Text?.Trim() ?? "";
-            if (t.Length == 0) return;
+            var tag = (TagInput.Text ?? "").Trim();
+            if (tag.Length == 0) return;
 
-            AppState.Instance.AddTagToSelected(t);
-            TagInput.Clear();
-            TagInput.Focus();
+            S.AddTagToSelected(tag);
+            TagInput.Text = "";
         }
 
         private void ClearTags_Click(object sender, RoutedEventArgs e)
         {
-            AppState.Instance.ClearTagsForSelected();
+            S.ClearTagsForSelected();
         }
 
         private void TagInput_KeyDown(object sender, KeyEventArgs e)
@@ -208,6 +230,7 @@ namespace PlayCutWin.Views
             if (e.Key == Key.Enter)
             {
                 AddTag_Click(sender, e);
+                e.Handled = true;
             }
         }
     }
