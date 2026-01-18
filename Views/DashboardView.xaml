@@ -3,8 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d"
-             Background="{DynamicResource BgWindow}">
+             mc:Ignorable="d">
 
     <Grid Margin="10">
         <Grid.RowDefinitions>
@@ -18,7 +17,7 @@
 
         <!-- ===== 左上：Video ===== -->
         <Border Grid.Row="0" Grid.Column="0"
-                Style="{StaticResource PanelBorder}"
+                Style="{DynamicResource PanelBorder}"
                 Margin="0,0,8,8">
             <Grid>
                 <Grid.RowDefinitions>
@@ -28,9 +27,9 @@
                 </Grid.RowDefinitions>
 
                 <!-- タイトル（ファイル名 or Video(16:9)） -->
-                <TextBlock Text="{Binding SelectedVideoName}"
-                           Style="{StaticResource H1}"
-                           Margin="0,0,0,8"/>
+                <TextBlock Style="{DynamicResource H1}"
+                           Text="{Binding VideoHeaderText}"
+                           Margin="0,0,0,10"/>
 
                 <!-- Team A / Team B -->
                 <Grid Grid.Row="1" Margin="0,0,0,10">
@@ -40,37 +39,34 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                        <TextBlock Text="Team A" Style="{StaticResource Small}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource TeamTextBox}"/>
+                        <TextBlock Style="{DynamicResource Small}" Text="Team A" Margin="0,0,0,4"/>
+                        <TextBox Style="{DynamicResource TeamTextBox}"
+                                 Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="Team B" Style="{StaticResource Small}" Margin="0,0,0,4"/>
-                        <TextBox Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource TeamTextBox}"/>
+                        <TextBlock Style="{DynamicResource Small}" Text="Team B" Margin="0,0,0,4"/>
+                        <TextBox Style="{DynamicResource TeamTextBox}"
+                                 Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Grid>
 
                 <!-- Player -->
-                <Border Grid.Row="2" Style="{StaticResource InnerBorder}">
+                <Border Grid.Row="2" Style="{DynamicResource InnerBorder}">
                     <Grid>
                         <MediaElement x:Name="Player"
                                       LoadedBehavior="Manual"
                                       UnloadedBehavior="Manual"
                                       Stretch="Uniform"
                                       MediaOpened="Player_MediaOpened"
-                                      MediaFailed="Player_MediaFailed"
-                                      MediaEnded="Player_MediaEnded"/>
+                                      MediaFailed="Player_MediaFailed" />
 
-                        <!-- overlay -->
                         <TextBlock x:Name="PlayerHint"
                                    Text="Load video from the button →"
-                                   Style="{StaticResource Body}"
-                                   FontSize="18"
+                                   Foreground="{DynamicResource Text3}"
+                                   FontSize="{DynamicResource FontH1}"
                                    HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Visibility="Visible"/>
+                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
             </Grid>
@@ -78,7 +74,7 @@
 
         <!-- ===== 右上：Clips ===== -->
         <Border Grid.Row="0" Grid.Column="1"
-                Style="{StaticResource PanelBorder}"
+                Style="{DynamicResource PanelBorder}"
                 Margin="8,0,0,8">
             <Grid>
                 <Grid.RowDefinitions>
@@ -87,33 +83,30 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- Header row -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="Clips (Total 0)"
-                               Style="{StaticResource H1}"
+                    <TextBlock Style="{DynamicResource H1}"
+                               Text="{Binding ClipsHeaderText}"
                                VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Import CSV" Style="{StaticResource TopButton}" Click="ImportCsv_Click"/>
-                        <Button Content="Export CSV" Style="{StaticResource TopButton}" Click="ExportCsv_Click"/>
-                        <Button Content="Export All" Style="{StaticResource TopButton}" Click="ExportAll_Click"/>
-                        <Button Content="Load Video" Style="{StaticResource AccentButton}" Click="LoadVideo_Click"/>
+                        <Button Style="{DynamicResource TopButton}" Content="Import CSV" Click="ImportCsv_Click"/>
+                        <Button Style="{DynamicResource TopButton}" Content="Export CSV" Click="ExportCsv_Click"/>
+                        <Button Style="{DynamicResource TopButton}" Content="Export All" Click="ExportAll_Click"/>
+                        <Button Style="{DynamicResource AccentButton}" Content="Load Video" Click="LoadVideo_Click"/>
                     </StackPanel>
                 </Grid>
 
-                <!-- selected filename line -->
                 <TextBlock Grid.Row="1"
+                           Style="{DynamicResource Small}"
                            Text="{Binding SelectedVideoName}"
-                           Style="{StaticResource Small}"
                            Margin="0,8,0,10"/>
 
-                <!-- Placeholder area -->
-                <Border Grid.Row="2" Style="{StaticResource InnerBorder}">
+                <Border Grid.Row="2" Style="{DynamicResource InnerBorder}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -122,15 +115,15 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Team A Clips (0)" Style="{StaticResource H2}"/>
-                            <TextBlock Text="No clips for Team A with current filter." Style="{StaticResource Small}" Margin="0,6,0,0"/>
+                            <TextBlock Style="{DynamicResource H2}" Text="Team A Clips (0)"/>
+                            <TextBlock Style="{DynamicResource Small}" Text="No clips for Team A with current filter." Margin="0,6,0,0"/>
                         </StackPanel>
 
                         <Border Grid.Column="1" Background="{DynamicResource Border}" Margin="12,0"/>
 
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="Team B Clips (0)" Style="{StaticResource H2}"/>
-                            <TextBlock Text="No clips for Team B with current filter." Style="{StaticResource Small}" Margin="0,6,0,0"/>
+                            <TextBlock Style="{DynamicResource H2}" Text="Team B Clips (0)"/>
+                            <TextBlock Style="{DynamicResource Small}" Text="No clips for Team B with current filter." Margin="0,6,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -139,7 +132,7 @@
 
         <!-- ===== 左下：Controls ===== -->
         <Border Grid.Row="1" Grid.Column="0"
-                Style="{StaticResource PanelBorder}"
+                Style="{DynamicResource PanelBorder}"
                 Margin="0,8,8,0">
             <Grid>
                 <Grid.RowDefinitions>
@@ -148,46 +141,24 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="Controls" Style="{StaticResource H1}"/>
+                <TextBlock Style="{DynamicResource H1}" Text="Controls"/>
 
-                <!-- 上段ボタン列 -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,10" VerticalAlignment="Center">
-
-                    <!-- ★ トグル（▶ / ⏸） -->
-                    <Button x:Name="PlayPauseButton"
-                            Width="72"
-                            Click="PlayPause_Click"
-                            Background="#2A2A2A"
-                            BorderBrush="#3A3A3A"
-                            BorderThickness="1"
-                            Foreground="{DynamicResource Text1}"
-                            FontFamily="Segoe UI Symbol"
-                            FontSize="18"
-                            Padding="0"
-                            Margin="0,0,8,0">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Content" Value="▶"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                        <Setter Property="Content" Value="⏸"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
+                <!-- Top row -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,10">
+                    <!-- ▶ / ⏸ トグル -->
+                    <Button Style="{DynamicResource TopButton}" MinWidth="52" Margin="0,0,8,0" Click="Play_Click" ToolTip="{Binding PlayPauseHint}">
+                        <TextBlock Text="{Binding PlayPauseGlyph}" FontSize="{DynamicResource FontH2}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Button>
 
-                    <Button Content="Stop" Width="72" Margin="0,0,8,0" Click="Stop_Click"/>
+                    <Button Style="{DynamicResource TopButton}" Content="Stop" Margin="0,0,8,0" Click="Stop_Click"/>
 
-                    <Button Content="-0.5s" Width="72" Margin="12,0,8,0" Click="Minus05_Click"/>
-                    <Button Content="+0.5s" Width="72" Margin="0,0,12,0" Click="Plus05_Click"/>
+                    <Button Style="{DynamicResource TopButton}" Content="-0.5s" Margin="12,0,8,0" Click="Minus05_Click"/>
+                    <Button Style="{DynamicResource TopButton}" Content="+0.5s" Margin="0,0,12,0" Click="Plus05_Click"/>
 
-                    <TextBlock Text="{Binding PlaybackPositionText}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
-                    <TextBlock Text=" / " Style="{StaticResource H2}" VerticalAlignment="Center" Margin="6,0"/>
-                    <TextBlock Text="{Binding PlaybackDurationTextLong}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+                    <TextBlock Style="{DynamicResource H1}" Text="{Binding TimeText}" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- 下段：Clip Range -->
+                <!-- Big buttons -->
                 <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="180"/>
@@ -196,14 +167,14 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0" Content="Clip START" Height="140" Margin="0,0,10,0" Click="SetStart_Click"/>
-                    <Button Grid.Column="1" Content="Clip END" Height="140" Margin="0,0,10,0" Click="SetEnd_Click"/>
-                    <Button Grid.Column="2" Content="Reset" Height="140" Margin="0,0,10,0" Click="ResetClip_Click"/>
+                    <Button Grid.Column="0" Content="Clip START" Height="160" Margin="0,0,10,0" Click="SetStart_Click"/>
+                    <Button Grid.Column="1" Content="Clip END" Height="160" Margin="0,0,10,0" Click="SetEnd_Click"/>
+                    <Button Grid.Column="2" Content="Reset" Height="160" Margin="0,0,10,0" Click="ResetClip_Click"/>
 
                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ClipStartText}" Style="{StaticResource Small}" Margin="0,0,0,6"/>
-                        <TextBlock Text="{Binding ClipEndText}" Style="{StaticResource Small}" Margin="0,0,0,14"/>
-                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Small}" TextWrapping="Wrap"/>
+                        <TextBlock Style="{DynamicResource Small}" Text="Start 00:00" Margin="0,0,0,6"/>
+                        <TextBlock Style="{DynamicResource Small}" Text="End 00:00" Margin="0,0,0,14"/>
+                        <TextBlock Style="{DynamicResource Small}" Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Grid>
             </Grid>
@@ -211,7 +182,7 @@
 
         <!-- ===== 右下：Tags ===== -->
         <Border Grid.Row="1" Grid.Column="1"
-                Style="{StaticResource PanelBorder}"
+                Style="{DynamicResource PanelBorder}"
                 Margin="8,8,0,0">
             <Grid>
                 <Grid.RowDefinitions>
@@ -227,46 +198,40 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="Tags" Style="{StaticResource H1}"/>
-                    <Button Grid.Column="1" Content="Preferences..." Padding="14,6" Click="Preferences_Click"/>
+                    <TextBlock Style="{DynamicResource H1}" Text="Tags"/>
+                    <Button Grid.Column="1" Style="{DynamicResource TopButton}" Content="Preferences..." Click="Preferences_Click"/>
                 </Grid>
 
                 <TextBlock Grid.Row="1"
-                           Text="{Binding SelectedVideoPath}"
-                           Style="{StaticResource Small}"
+                           Style="{DynamicResource Small}"
+                           Text="{Binding SelectedVideoPathText}"
                            Margin="0,8,0,10"/>
 
                 <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="90" />
-                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="96" />
+                        <ColumnDefinition Width="96" />
                     </Grid.ColumnDefinitions>
 
                     <TextBox x:Name="TagInput"
                              Grid.Column="0"
-                             Height="28"
-                             Background="#141414"
-                             Foreground="{DynamicResource Text1}"
-                             BorderBrush="{DynamicResource Border}"
-                             BorderThickness="1"
-                             Padding="10,4"
-                             FontSize="{DynamicResource FontSmall}"
+                             Style="{DynamicResource TeamTextBox}"
                              KeyDown="TagInput_KeyDown"/>
 
-                    <Button Grid.Column="1" Content="Add" Margin="10,0,0,0" Click="AddTag_Click"/>
-                    <Button Grid.Column="2" Content="Clear" Margin="10,0,0,0" Click="ClearTags_Click"/>
+                    <Button Grid.Column="1" Style="{DynamicResource TopButton}" Content="Add" Margin="10,0,0,0" Click="AddTag_Click"/>
+                    <Button Grid.Column="2" Style="{DynamicResource TopButton}" Content="Clear" Margin="10,0,0,0" Click="ClearTags_Click"/>
                 </Grid>
 
-                <Border Grid.Row="3" Style="{StaticResource InnerBorder}" Margin="0,10,0,0">
+                <Border Grid.Row="3" Style="{DynamicResource InnerBorder}" Margin="0,10,0,0">
                     <ListBox ItemsSource="{Binding Tags}"
                              Background="Transparent"
                              Foreground="{DynamicResource Text1}"
                              BorderThickness="0"
-                             FontSize="{DynamicResource FontBody}"/>
+                             FontSize="{DynamicResource FontBody}"
+                             DisplayMemberPath="Tag"/>
                 </Border>
             </Grid>
         </Border>
-
     </Grid>
 </UserControl>
