@@ -49,6 +49,7 @@ namespace PlayCutWin
             public string Tag { get; set; } = "";
             public DateTime CreatedAt { get; set; } = DateTime.Now;
             public string TimeText => CreatedAt.ToString("HH:mm:ss");
+            public override string ToString() => Tag;
         }
 
         public sealed class ClipItem
@@ -115,7 +116,6 @@ namespace PlayCutWin
         public string VideoHeaderText => string.IsNullOrWhiteSpace(SelectedVideoName) ? "Video (16:9)" : SelectedVideoName;
         public string SelectedVideoPathText => string.IsNullOrWhiteSpace(SelectedVideoPath) ? "" : SelectedVideoPath;
 
-        // Tags/Clips ヘッダ
         public string ClipsHeaderText => $"Clips (Total {Clips.Count})";
 
         // Playback
@@ -132,7 +132,7 @@ namespace PlayCutWin
             }
         }
 
-        // ▶️ / ⏸️ を自動切替（ここが今回のキモ）
+        // ▶️ / ⏸️ 自動切替
         public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
 
         private double _playbackSeconds;
@@ -167,8 +167,6 @@ namespace PlayCutWin
         public string PlaybackPositionText => FormatClockShort(PlaybackSeconds);
         public string PlaybackDurationText => FormatClockShort(PlaybackDuration);
         public string PlaybackDurationTextLong => FormatClockLong(PlaybackDuration);
-
-        // 画面の「00:00 / 00:00:00」表示
         public string TimeText => $"{PlaybackPositionText} / {PlaybackDurationTextLong}";
 
         private static string FormatClockShort(double sec)
@@ -212,7 +210,6 @@ namespace PlayCutWin
             }
         }
 
-        // Mac表記に寄せる（Clip START / Clip END の表示）
         public string ClipStartText => $"Start {FormatClockShort(ClipStart)}";
         public string ClipEndText => $"End {FormatClockShort(ClipEnd)}";
 
@@ -225,7 +222,6 @@ namespace PlayCutWin
 
         // Tags / Clips
         public ObservableCollection<TagEntry> Tags { get; } = new();
-
         public ObservableCollection<ClipItem> Clips { get; } = new();
 
         public IEnumerable<string> EnumerateAllTags()
@@ -258,6 +254,17 @@ namespace PlayCutWin
 
             Tags.Add(new TagEntry { Tag = tag, CreatedAt = DateTime.Now });
             StatusMessage = $"Tag added: {tag}";
+        }
+
+        // ✅ これを復活：TagsView.xaml.cs が呼んでいる
+        public void RemoveSelectedTag(TagEntry? tag)
+        {
+            if (tag == null) return;
+
+            if (Tags.Remove(tag))
+                StatusMessage = $"Tag removed: {tag.Tag}";
+            else
+                StatusMessage = "Tag remove failed";
         }
 
         public void ClearTagsForSelected()
@@ -385,9 +392,7 @@ namespace PlayCutWin
                     }
                 }
 
-                // ClipsHeaderText 更新
                 OnPropertyChanged(nameof(ClipsHeaderText));
-
                 StatusMessage = $"Imported CSV: tags={addedTags}, clips={addedClips}";
             }
             catch (Exception ex)
