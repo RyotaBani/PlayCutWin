@@ -3,10 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d"
-             Background="#1E1E1E">
+             mc:Ignorable="d">
 
-    <Grid Margin="10">
+    <Grid Margin="{StaticResource Gap}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="*" />
@@ -17,7 +16,9 @@
         </Grid.ColumnDefinitions>
 
         <!-- ===== 左上：Video ===== -->
-        <Border Grid.Row="0" Grid.Column="0" CornerRadius="10" Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" Margin="0,0,8,8" Padding="12">
+        <Border Grid.Row="0" Grid.Column="0"
+                Style="{StaticResource PanelBorder}"
+                Margin="0,0,{Binding Left, Source={StaticResource Gap}}, {Binding Bottom, Source={StaticResource Gap}}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -26,49 +27,33 @@
                 </Grid.RowDefinitions>
 
                 <!-- タイトル（ファイル名 or Video(16:9)） -->
-                <TextBlock Text="{Binding VideoHeaderText}"
-                           Foreground="#EDEDED"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"
+                <TextBlock Text="{Binding SelectedVideoName}"
+                           Style="{StaticResource H1}"
                            Margin="0,0,0,8"/>
 
                 <!-- Team A / Team B -->
                 <Grid Grid.Row="1" Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="{StaticResource Gap}" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                        <TextBlock Text="Team A" Foreground="#CFCFCF" FontSize="12" Margin="0,0,0,4"/>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Team A" Style="{StaticResource Small}" Margin="0,0,0,4"/>
                         <TextBox Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
-                                 Height="28"
-                                 Background="#1F1F1F"
-                                 Foreground="#EDEDED"
-                                 BorderBrush="#3A3A3A"
-                                 BorderThickness="1"
-                                 Padding="10,4"
-                                 FontSize="12"
-                                 />
+                                 Style="{StaticResource TeamTextBox}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="Team B" Foreground="#CFCFCF" FontSize="12" Margin="0,0,0,4"/>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Team B" Style="{StaticResource Small}" Margin="0,0,0,4"/>
                         <TextBox Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
-                                 Height="28"
-                                 Background="#1F1F1F"
-                                 Foreground="#EDEDED"
-                                 BorderBrush="#3A3A3A"
-                                 BorderThickness="1"
-                                 Padding="10,4"
-                                 FontSize="12"
-                                 />
+                                 Style="{StaticResource TeamTextBox}"/>
                     </StackPanel>
                 </Grid>
 
                 <!-- Player -->
-                <Border Grid.Row="2" CornerRadius="10" Background="#3A3A3A" Padding="10">
+                <Border Grid.Row="2" Style="{StaticResource InnerBorder}">
                     <Grid>
                         <MediaElement x:Name="Player"
                                       LoadedBehavior="Manual"
@@ -80,8 +65,7 @@
                         <!-- overlay -->
                         <TextBlock x:Name="PlayerHint"
                                    Text="Load video from the button →"
-                                   Foreground="#BDBDBD"
-                                   FontSize="18"
+                                   Style="{StaticResource Body}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    Visibility="Collapsed"/>
@@ -91,7 +75,9 @@
         </Border>
 
         <!-- ===== 右上：Clips ===== -->
-        <Border Grid.Row="0" Grid.Column="1" CornerRadius="10" Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" Margin="8,0,0,8" Padding="12">
+        <Border Grid.Row="0" Grid.Column="1"
+                Style="{StaticResource PanelBorder}"
+                Margin="{Binding Left, Source={StaticResource Gap}},0,0,{Binding Bottom, Source={StaticResource Gap}}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -107,46 +93,56 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Text="{Binding ClipsHeaderText}"
-                               Foreground="#EDEDED"
-                               FontSize="16"
-                               FontWeight="SemiBold"
+                               Style="{StaticResource H1}"
                                VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Import CSV" Margin="6,0,0,0" Padding="16,6" Click="ImportCsv_Click"/>
-                        <Button Content="Export CSV" Margin="6,0,0,0" Padding="16,6" Click="ExportCsv_Click"/>
-                        <Button Content="Export All" Margin="6,0,0,0" Padding="16,6" Click="ExportAll_Click"/>
-                        <Button Content="Load Video" Margin="6,0,0,0" Padding="16,6" Click="LoadVideo_Click"/>
+                        <Button Content="Import CSV" Style="{StaticResource TopButton}" Click="ImportCsv_Click"/>
+                        <Button Content="Export CSV" Style="{StaticResource TopButton}" Click="ExportCsv_Click"/>
+                        <Button Content="Export All" Style="{StaticResource TopButton}" Click="ExportAll_Click"/>
+                        <Button Content="Load Video" Style="{StaticResource AccentButton}" Click="LoadVideo_Click"/>
                     </StackPanel>
                 </Grid>
 
                 <!-- selected filename line -->
                 <TextBlock Grid.Row="1"
                            Text="{Binding SelectedVideoName}"
-                           Foreground="#CFCFCF"
-                           FontSize="12"
-                           TextTrimming="CharacterEllipsis"
+                           Style="{StaticResource Small}"
                            Margin="0,8,0,10"/>
 
-                <!-- Placeholder area -->
-                <Border Grid.Row="2" CornerRadius="10" Background="#262626" BorderBrush="#3A3A3A" BorderThickness="1" Padding="10">
+                <!-- Clips area -->
+                <Border Grid.Row="2" Style="{StaticResource InnerBorder}">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="1" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Team A Clips (0)" Foreground="#EDEDED" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="No clips for Team A with current filter." Foreground="#AFAFAF" FontSize="12" Margin="0,6,0,0"/>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="1" Background="#3A3A3A" Margin="12,0"/>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Team A Clips (0)" Style="{StaticResource H2}"/>
+                                <TextBlock Text="No clips for Team A with current filter." Style="{StaticResource Small}" Margin="0,6,0,0"/>
+                            </StackPanel>
 
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Team B Clips (0)" Foreground="#EDEDED" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="No clips for Team B with current filter." Foreground="#AFAFAF" FontSize="12" Margin="0,6,0,0"/>
+                            <Border Grid.Column="1" Background="{StaticResource Border}" Margin="12,0"/>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Team B Clips (0)" Style="{StaticResource H2}"/>
+                                <TextBlock Text="No clips for Team B with current filter." Style="{StaticResource Small}" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Tag Stats (簡易枠) -->
+                        <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                            <Border Height="1" Background="{StaticResource Border}" Margin="0,0,0,10"/>
+                            <TextBlock Text="Tag Stats" Style="{StaticResource H2}"/>
+                            <TextBlock Text="No clips yet." Style="{StaticResource Small}" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -154,7 +150,9 @@
         </Border>
 
         <!-- ===== 左下：Controls ===== -->
-        <Border Grid.Row="1" Grid.Column="0" CornerRadius="10" Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" Margin="0,8,8,0" Padding="12">
+        <Border Grid.Row="1" Grid.Column="0"
+                Style="{StaticResource PanelBorder}"
+                Margin="0,{Binding Top, Source={StaticResource Gap}},{Binding Right, Source={StaticResource Gap}},0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -162,7 +160,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="Controls" Foreground="#EDEDED" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock Text="Controls" Style="{StaticResource H1}"/>
 
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,10">
                     <Button Content="Play" Width="72" Margin="0,0,8,0" Click="Play_Click"/>
@@ -172,7 +170,7 @@
                     <Button Content="-0.5s" Width="72" Margin="12,0,8,0" Click="Minus05_Click"/>
                     <Button Content="+0.5s" Width="72" Margin="0,0,12,0" Click="Plus05_Click"/>
 
-                    <TextBlock Text="{Binding TimeText}" Foreground="#EDEDED" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding TimeText}" Style="{StaticResource H1}" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <Grid Grid.Row="2">
@@ -188,16 +186,18 @@
                     <Button Grid.Column="2" Content="Reset" Height="140" Margin="0,0,10,0" Click="ResetClip_Click"/>
 
                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ClipStartText}" Foreground="#EDEDED" FontSize="12" Margin="0,0,0,6"/>
-                        <TextBlock Text="{Binding ClipEndText}" Foreground="#EDEDED" FontSize="12"/>
-                        <TextBlock Text="{Binding StatusMessage}" Foreground="#BDBDBD" FontSize="12" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding ClipStartText}" Style="{StaticResource Small}" Margin="0,0,0,6"/>
+                        <TextBlock Text="{Binding ClipEndText}" Style="{StaticResource Small}"/>
+                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Small}" Margin="0,14,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Grid>
             </Grid>
         </Border>
 
         <!-- ===== 右下：Tags ===== -->
-        <Border Grid.Row="1" Grid.Column="1" CornerRadius="10" Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" Margin="8,8,0,0" Padding="12">
+        <Border Grid.Row="1" Grid.Column="1"
+                Style="{StaticResource PanelBorder}"
+                Margin="{Binding Left, Source={StaticResource Gap}},{Binding Top, Source={StaticResource Gap}},0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -212,15 +212,13 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="Tags" Foreground="#EDEDED" FontSize="16" FontWeight="SemiBold"/>
-                    <Button Grid.Column="1" Content="Preferences..." Padding="14,6" Click="Preferences_Click"/>
+                    <TextBlock Text="Tags" Style="{StaticResource H1}"/>
+                    <Button Grid.Column="1" Content="Preferences..." Style="{StaticResource TopButton}" Click="Preferences_Click"/>
                 </Grid>
 
                 <TextBlock Grid.Row="1"
-                           Text="{Binding SelectedVideoPathText}"
-                           Foreground="#CFCFCF"
-                           FontSize="12"
-                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding SelectedVideoPath}"
+                           Style="{StaticResource Small}"
                            Margin="0,8,0,10"/>
 
                 <Grid Grid.Row="2">
@@ -232,26 +230,26 @@
 
                     <TextBox x:Name="TagInput"
                              Grid.Column="0"
-                             Height="28"
-                             Background="#1F1F1F"
-                             Foreground="#EDEDED"
-                             BorderBrush="#3A3A3A"
+                             Height="{DynamicResource BtnH}"
+                             Background="#141414"
+                             Foreground="{DynamicResource Text1}"
+                             BorderBrush="{DynamicResource Border}"
                              BorderThickness="1"
-                             Padding="10,4"
-                             FontSize="12"
-                             KeyDown="TagInput_KeyDown"
-                             />
+                             Padding="10,2"
+                             FontSize="{DynamicResource FontSmall}"
+                             VerticalContentAlignment="Center"
+                             KeyDown="TagInput_KeyDown"/>
 
                     <Button Grid.Column="1" Content="Add" Margin="10,0,0,0" Click="AddTag_Click"/>
                     <Button Grid.Column="2" Content="Clear" Margin="10,0,0,0" Click="ClearTags_Click"/>
                 </Grid>
 
-                <Border Grid.Row="3" CornerRadius="10" Background="#262626" BorderBrush="#3A3A3A" BorderThickness="1" Margin="0,10,0,0" Padding="10">
+                <Border Grid.Row="3" Style="{StaticResource InnerBorder}" Margin="0,10,0,0">
                     <ListBox ItemsSource="{Binding Tags}"
                              Background="Transparent"
-                             Foreground="#EDEDED"
+                             Foreground="{DynamicResource Text1}"
                              BorderThickness="0"
-                             FontSize="12"/>
+                             FontSize="{DynamicResource FontSmall}"/>
                 </Border>
             </Grid>
         </Border>
