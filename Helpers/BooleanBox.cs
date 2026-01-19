@@ -3,16 +3,25 @@ using System.Windows.Markup;
 
 namespace PlayCutWin.Helpers
 {
-    // XAMLで <helpers:BooleanBox>True</helpers:BooleanBox> みたいに使える
-    [ContentProperty(nameof(Value))]
-    public sealed class BooleanBox : MarkupExtension
+    /// <summary>
+    /// XAMLから bool を object として渡すための箱（CommandParameter用）
+    /// 例: CommandParameter="{helpers:BooleanBox True}"
+    /// </summary>
+    [MarkupExtensionReturnType(typeof(bool))]
+    public class BooleanBox : MarkupExtension
     {
         public bool Value { get; set; }
 
-        public override object ProvideValue(IServiceProvider serviceProvider)
-            => Value ? TrueBox : FalseBox;
+        public BooleanBox() { }
 
-        private static readonly object TrueBox = true;
-        private static readonly object FalseBox = false;
+        public BooleanBox(bool value)
+        {
+            Value = value;
+        }
+
+        public override object ProvideValue(IServiceProvider serviceProvider)
+        {
+            return Value;
+        }
     }
 }

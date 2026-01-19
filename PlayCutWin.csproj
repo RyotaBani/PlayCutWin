@@ -9,3 +9,6 @@
   </PropertyGroup>
 
 </Project>
+<ItemGroup>
+  <Compile Include="Helpers\BooleanBox.cs" />
+</ItemGroup>
