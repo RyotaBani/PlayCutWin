@@ -21,6 +21,10 @@ namespace PlayCutWin
 
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
+    // GitHub Actions で「Player does not exist in the current context」が出る場合に備えて
+    // XAML 側の自動生成フィールドに依存しない参照にしている（XAML 側は x:Name="Player" 推奨）。
+    private MediaElement? PlayerEl => FindName("Player") as MediaElement;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -41,6 +45,13 @@ namespace PlayCutWin
         // ----------------------------
         private void LoadVideo_Click(object sender, RoutedEventArgs e)
         {
+            var player = PlayerEl;
+            if (player == null)
+            {
+                MessageBox.Show("MediaElement 'Player' が見つかりません。MainWindow.xaml の MediaElement に x:Name=\"Player\" を付けてください。", "XAML Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             var dlg = new OpenFileDialog
             {
                 Title = "Select video",
@@ -57,11 +68,11 @@ namespace PlayCutWin
 
                 VideoHint.Visibility = Visibility.Collapsed;
 
-                Player.Stop();
-                Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
-                Player.SpeedRatio = 1.0;
-                Player.Play();
-                Player.Pause();
+                player.Stop();
+                player.Source = new Uri(dlg.FileName, UriKind.Absolute);
+                player.SpeedRatio = 1.0;
+                player.Play();
+                player.Pause();
 
                 VM.IsPlaying = false;
                 VM.StatusText = "Video loaded.";
@@ -75,9 +86,12 @@ namespace PlayCutWin
 
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
         {
-            if (Player.NaturalDuration.HasTimeSpan)
+            var player = (sender as MediaElement) ?? PlayerEl;
+            if (player == null) return;
+
+            if (player.NaturalDuration.HasTimeSpan)
             {
-                VM.DurationSeconds = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                VM.DurationSeconds = player.NaturalDuration.TimeSpan.TotalSeconds;
                 TimelineSlider.Maximum = VM.DurationSeconds;
                 VM.StatusText = "Ready";
             }
@@ -91,15 +105,17 @@ namespace PlayCutWin
 
         private void Tick()
         {
-            if (Player.Source == null) return;
-            if (!Player.NaturalDuration.HasTimeSpan) return;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
+            if (!player.NaturalDuration.HasTimeSpan) return;
 
             if (!_isDraggingTimeline)
             {
-                VM.CurrentSeconds = Player.Position.TotalSeconds;
+                VM.CurrentSeconds = player.Position.TotalSeconds;
             }
 
-            VM.TimeDisplay = $"{FormatTime(Player.Position.TotalSeconds)} / {FormatTime(VM.DurationSeconds)}";
+            VM.TimeDisplay = $"{FormatTime(player.Position.TotalSeconds)} / {FormatTime(VM.DurationSeconds)}";
         }
 
         private void TimelineSlider_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -115,30 +131,36 @@ namespace PlayCutWin
 
         private void SeekTo(double seconds)
         {
-            if (Player.Source == null) return;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
 
             seconds = Math.Max(0, Math.Min(seconds, VM.DurationSeconds));
-            Player.Position = TimeSpan.FromSeconds(seconds);
+            player.Position = TimeSpan.FromSeconds(seconds);
         }
 
         private void SeekBy(double deltaSeconds)
         {
-            if (Player.Source == null) return;
-            SeekTo(Player.Position.TotalSeconds + deltaSeconds);
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
+            SeekTo(player.Position.TotalSeconds + deltaSeconds);
         }
 
         private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
-            if (Player.Source == null) return;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
 
             if (VM.IsPlaying)
             {
-                Player.Pause();
+                player.Pause();
                 VM.IsPlaying = false;
             }
             else
             {
-                Player.Play();
+                player.Play();
                 VM.IsPlaying = true;
             }
         }
@@ -150,8 +172,10 @@ namespace PlayCutWin
 
         private void SetSpeed(double speed)
         {
-            if (Player.Source == null) return;
-            Player.SpeedRatio = speed;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
+            player.SpeedRatio = speed;
             VM.StatusText = $"Speed: {speed:0.##}x";
         }
 
@@ -165,15 +189,19 @@ namespace PlayCutWin
         // ----------------------------
         private void ClipStart_Click(object sender, RoutedEventArgs e)
         {
-            if (Player.Source == null) return;
-            VM.ClipStartSeconds = Player.Position.TotalSeconds;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
+            VM.ClipStartSeconds = player.Position.TotalSeconds;
             VM.StatusText = $"Clip START = {FormatTime(VM.ClipStartSeconds)}";
         }
 
         private void ClipEnd_Click(object sender, RoutedEventArgs e)
         {
-            if (Player.Source == null) return;
-            VM.ClipEndSeconds = Player.Position.TotalSeconds;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
+            VM.ClipEndSeconds = player.Position.TotalSeconds;
             VM.StatusText = $"Clip END = {FormatTime(VM.ClipEndSeconds)}";
         }
 
@@ -182,7 +210,9 @@ namespace PlayCutWin
 
         private void SaveClip(string team)
         {
-            if (Player.Source == null) return;
+            var player = PlayerEl;
+            if (player == null) return;
+            if (player.Source == null) return;
 
             var start = VM.ClipStartSeconds;
             var end = VM.ClipEndSeconds;
