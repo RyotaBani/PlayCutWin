@@ -1,24 +1,36 @@
-using System;
-using System.Windows.Input;
+using System.ComponentModel;
 
-namespace PlayCutWin.Helpers
+namespace PlayCutWin.Models
 {
-    public class RelayCommand : ICommand
+    public enum TagGroup
     {
-        private readonly Action _execute;
-        private readonly Func<bool>? _canExecute;
+        Offense,
+        Defense
+    }
 
-        public RelayCommand(Action execute, Func<bool>? canExecute = null)
+    public class TagItem : INotifyPropertyChanged
+    {
+        public string Name { get; }
+        public TagGroup Group { get; }
+
+        private bool _isSelected;
+        public bool IsSelected
         {
-            _execute = execute;
-            _canExecute = canExecute;
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value) return;
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
         }
 
-        public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-        public void Execute(object? parameter) => _execute();
+        public TagItem(string name, TagGroup group)
+        {
+            Name = name;
+            Group = group;
+        }
 
-        public event EventHandler? CanExecuteChanged;
-
-        public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        public event PropertyChangedEventHandler? PropertyChanged;
     }
 }
