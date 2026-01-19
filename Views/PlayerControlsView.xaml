@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:PlayCutWin"
              mc:Ignorable="d">
 
     <Border Style="{StaticResource PanelBorder}">
@@ -12,65 +13,63 @@
                 <RowDefinition Height="10"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="10"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Title -->
-            <TextBlock Grid.Row="0" Text="Controls" Style="{StaticResource H1}"/>
+            <!-- Header -->
+            <TextBlock Text="Controls" Style="{StaticResource H1}" />
 
-            <!-- Playback Speed -->
+            <!-- === Playback Speed === -->
             <StackPanel Grid.Row="2" Orientation="Vertical">
                 <TextBlock Text="Playback Speed" Style="{StaticResource Small}" Margin="0,0,0,6"/>
 
-                <UniformGrid Columns="4" HorizontalAlignment="Left">
-                    <Button Content="0.25x" Style="{StaticResource TopButton}" Margin="0,0,8,0" Click="Rate025_Click"/>
-                    <Button Content="0.5x"  Style="{StaticResource TopButton}" Margin="0,0,8,0" Click="Rate05_Click"/>
-                    <Button Content="1x"    Style="{StaticResource TopButton}" Margin="0,0,8,0" Click="Rate1_Click"/>
-                    <Button Content="2x"    Style="{StaticResource TopButton}" Click="Rate2_Click"/>
+                <UniformGrid Columns="4">
+                    <Button Content="0.25x" Style="{StaticResource TopButton}" Margin="0" Click="Rate025_Click"/>
+                    <Button Content="0.5x"  Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="Rate05_Click"/>
+                    <Button Content="1x"    Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="Rate1_Click"/>
+                    <Button Content="2x"    Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="Rate2_Click"/>
                 </UniformGrid>
             </StackPanel>
 
-            <!-- Seek + Play/Pause -->
-            <Grid Grid.Row="4">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="20"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <!-- === Seek / Play / Time === -->
+            <StackPanel Grid.Row="4" Orientation="Vertical">
 
-                <Button Grid.Column="0" Content="-5s" Style="{StaticResource TopButton}" Margin="0,0,8,0" Click="SeekMinus5_Click"/>
-                <Button Grid.Column="1" Content="-1s" Style="{StaticResource TopButton}" Margin="0,0,8,0" Click="SeekMinus1_Click"/>
+                <UniformGrid Columns="5" Margin="0,0,0,10">
+                    <Button Content="-5s"  Style="{StaticResource TopButton}" Margin="0" Click="SeekMinus5_Click"/>
+                    <Button Content="-1s"  Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SeekMinus1_Click"/>
 
-                <!-- ★ここがPlay/Pause：他と同じStyle/同じHeight/同じMinWidthに統一 -->
-                <Button x:Name="PlayPauseButton"
-                        Grid.Column="2"
-                        Style="{StaticResource TopButton}"
-                        Margin="0,0,8,0"
-                        Click="PlayPause_Click"
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="16"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"/>
+                    <!-- ★ Play/Pause (MDL2 icon) -->
+                    <Button Style="{StaticResource AccentButton}" Margin="6,0,0,0" Click="PlayPause_Click">
+                        <TextBlock Text="{Binding PlayPauseGlyph}"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </Button>
 
-                <Button Grid.Column="3" Content="+1s" Style="{StaticResource TopButton}" Margin="0,0,8,0" Click="SeekPlus1_Click"/>
-                <Button Grid.Column="4" Content="+5s" Style="{StaticResource TopButton}" Click="SeekPlus5_Click"/>
+                    <Button Content="+1s"  Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SeekPlus1_Click"/>
+                    <Button Content="+5s"  Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SeekPlus5_Click"/>
+                </UniformGrid>
 
-                <TextBlock Grid.Column="6"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource H2}"
-                           Text="{Binding PositionText}"
-                           Margin="0,0,6,0"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+                    <Button Content="Stop" Style="{StaticResource TopButton}" Margin="0" Click="Stop_Click"/>
+                    <TextBlock Text="{Binding PlaybackTimeText}" Style="{StaticResource H2}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Text=" / " Style="{StaticResource H2}" Margin="6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding DurationTimeText}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+                </StackPanel>
 
-                <TextBlock Grid.Column="6"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource Small}"
-                           Text="{Binding DurationText}"
-                           Margin="70,0,0,0"/>
-            </Grid>
+                <!-- === Clip Range === -->
+                <TextBlock Text="Clip Range" Style="{StaticResource Small}" Margin="0,0,0,6"/>
+
+                <UniformGrid Columns="4">
+                    <Button Content="Clip START" Style="{StaticResource TopButton}" Margin="0" Click="ClipStart_Click"/>
+                    <Button Content="Clip END"   Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="ClipEnd_Click"/>
+                    <Button Content="Save Team A" Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SaveA_Click"/>
+                    <Button Content="Save Team B" Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SaveB_Click"/>
+                </UniformGrid>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Small}" Margin="0,10,0,0"/>
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>
