@@ -34,15 +34,17 @@
             <!-- === Seek / Play / Time === -->
             <StackPanel Grid.Row="4" Orientation="Vertical">
 
+                <!-- Seek row -->
                 <UniformGrid Columns="5" Margin="0,0,0,10">
                     <Button Content="-5s"  Style="{StaticResource TopButton}" Margin="0" Click="SeekMinus5_Click"/>
                     <Button Content="-1s"  Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SeekMinus1_Click"/>
 
-                    <!-- ★ Play/Pause (MDL2 icon) -->
-                    <Button Style="{StaticResource AccentButton}" Margin="6,0,0,0" Click="PlayPause_Click">
+                    <!-- ★ Play/Pause : TopButtonと同一サイズ + 確実表示 -->
+                    <Button Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="PlayPause_Click">
                         <TextBlock Text="{Binding PlayPauseGlyph}"
-                                   FontFamily="Segoe MDL2 Assets"
+                                   FontFamily="Segoe UI"
                                    FontSize="16"
+                                   FontWeight="SemiBold"
                                    VerticalAlignment="Center"
                                    HorizontalAlignment="Center"/>
                     </Button>
@@ -51,8 +53,10 @@
                     <Button Content="+5s"  Style="{StaticResource TopButton}" Margin="6,0,0,0" Click="SeekPlus5_Click"/>
                 </UniformGrid>
 
+                <!-- Stop + Time -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
                     <Button Content="Stop" Style="{StaticResource TopButton}" Margin="0" Click="Stop_Click"/>
+
                     <TextBlock Text="{Binding PlaybackTimeText}" Style="{StaticResource H2}" Margin="12,0,0,0" VerticalAlignment="Center"/>
                     <TextBlock Text=" / " Style="{StaticResource H2}" Margin="6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding DurationTimeText}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
