@@ -3,297 +3,371 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:helpers="clr-namespace:PlayCutWin.Helpers"
+        xmlns:local="clr-namespace:PlayCutWin"
         mc:Ignorable="d"
         Title="Play Cut"
-        Width="1200" Height="720"
-        Background="#111">
+        Width="1280" Height="780"
+        Background="#121212"
+        Foreground="#EAEAEA"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <!-- Base -->
+        <SolidColorBrush x:Key="PanelBg" Color="#1B1B1B"/>
+        <SolidColorBrush x:Key="PanelBorder" Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="Accent" Color="#2D6CDF"/>
+        <SolidColorBrush x:Key="BtnBg" Color="#242424"/>
+        <SolidColorBrush x:Key="BtnBorder" Color="#333333"/>
+
+        <Style TargetType="Border" x:Key="Panel">
+            <Setter Property="Background" Value="{StaticResource PanelBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style TargetType="Button" x:Key="DarkButton">
+            <Setter Property="Background" Value="{StaticResource BtnBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="MinWidth" Value="72"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush" Value="#4A4A4A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#1F1F1F"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ToggleButton" x:Key="TagToggle">
+            <Setter Property="Background" Value="{StaticResource BtnBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="6,6,0,0"/>
+            <Setter Property="MinWidth" Value="90"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                <Setter Property="Background" Value="#1A2233"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush" Value="#4A4A4A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#202020"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#202020"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style TargetType="Slider">
+            <Setter Property="Margin" Value="0,8,0,8"/>
+        </Style>
+    </Window.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="12" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="3*"/>
+            <RowDefinition Height="2*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="2*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- =========================
-             Top-Left : Video
-        ========================== -->
-        <Border Grid.Row="0" Grid.Column="0" CornerRadius="12" Background="#1B1B1B" Padding="12">
+        <!-- =======================
+             Top-Left: VIDEO
+             ======================= -->
+        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,10,10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0">
-                    <TextBlock Text="Video (16:9)"
-                               Foreground="#EAEAEA"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               DockPanel.Dock="Left"/>
-
-                    <Button Content="Load Video"
-                            DockPanel.Dock="Right"
-                            Padding="14,6"
-                            Margin="8,0,0,0"
-                            Command="{Binding LoadVideoCommand}"/>
+                <DockPanel Margin="0,0,0,10">
+                    <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                        <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
+                        <TextBox Width="160" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Team B" VerticalAlignment="Center" Margin="8,0,8,0" Opacity="0.85"/>
+                        <TextBox Width="160" Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
                 </DockPanel>
 
-                <Grid Grid.Row="0" Margin="0,28,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Team A" Foreground="#BFBFBF" FontSize="12" />
-                        <TextBox Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
-                                 Height="28"
-                                 Margin="0,4,0,0"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Team B" Foreground="#BFBFBF" FontSize="12" />
-                        <TextBox Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
-                                 Height="28"
-                                 Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Grid>
-
-                <!-- Video surface (placeholder) -->
-                <Border Grid.Row="2"
-                        CornerRadius="10"
-                        Background="#101010"
-                        BorderBrush="#2A2A2A"
-                        BorderThickness="1">
+                <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
-                        <!-- 実際の再生UIはあなたの MediaElement/PlayerControl をここに置く想定 -->
-                        <TextBlock Text="Load video from the button →"
-                                   Foreground="#8A8A8A"
+                        <!-- ★ここが Actions 落ちてた原因（Player が無い）を必ず作る -->
+                        <MediaElement x:Name="Player"
+                                      LoadedBehavior="Manual"
+                                      UnloadedBehavior="Manual"
+                                      Stretch="Uniform"
+                                      MediaOpened="Player_MediaOpened"
+                                      MediaFailed="Player_MediaFailed"/>
+                        <TextBlock x:Name="VideoHint"
+                                   Text="Load video from the button →"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
+                                   Opacity="0.55"
                                    FontSize="16"/>
                     </Grid>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- =========================
-             Top-Right : Clips
-        ========================== -->
-        <Border Grid.Row="0" Grid.Column="2" CornerRadius="12" Background="#1B1B1B" Padding="12">
+        <!-- =======================
+             Top-Right: CLIPS
+             ======================= -->
+        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Panel}" Margin="0,0,0,10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <DockPanel Grid.Row="0">
-                    <TextBlock Text="Clips (Total 0)"
-                               Foreground="#EAEAEA"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               DockPanel.Dock="Left"/>
-
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <ComboBox Width="140"
-                                  SelectedItem="{Binding SelectedClipFilter}"
-                                  ItemsSource="{Binding ClipFilters}"
-                                  Margin="0,0,8,0"/>
-                        <Button Content="Import CSV" Margin="0,0,6,0" Command="{Binding ImportCsvCommand}"/>
-                        <Button Content="Export CSV" Margin="0,0,6,0" Command="{Binding ExportCsvCommand}"/>
-                        <Button Content="Export All" Command="{Binding ExportAllCommand}"/>
-                    </StackPanel>
-                </DockPanel>
-
-                <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Team A Clips (0)" Foreground="#BFBFBF" FontSize="12"/>
-                        <ListBox ItemsSource="{Binding TeamAClips}" Margin="0,6,0,0"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Team B Clips (0)" Foreground="#BFBFBF" FontSize="12"/>
-                        <ListBox ItemsSource="{Binding TeamBClips}" Margin="0,6,0,0"/>
-                    </StackPanel>
-                </Grid>
-
-                <TextBlock Grid.Row="3"
-                           Text="{Binding TagStatsText, FallbackValue=Tag Stats: No clips yet.}"
-                           Foreground="#8A8A8A"
-                           Margin="0,10,0,0"/>
-            </Grid>
-        </Border>
-
-        <!-- =========================
-             Bottom-Left : Controls
-        ========================== -->
-        <Border Grid.Row="2" Grid.Column="0" CornerRadius="12" Background="#1B1B1B" Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <TextBlock Text="Controls" Foreground="#EAEAEA" FontSize="16" FontWeight="SemiBold"/>
-
-                <TextBlock Grid.Row="2" Text="Playback Speed" Foreground="#BFBFBF" FontSize="12"/>
-                <UniformGrid Grid.Row="4" Rows="1" Columns="4" Margin="0,6,0,0">
-                    <Button Content="0.25x" Command="{Binding SetSpeedCommand}" CommandParameter="0.25"/>
-                    <Button Content="0.5x"  Command="{Binding SetSpeedCommand}" CommandParameter="0.5"/>
-                    <Button Content="1x"    Command="{Binding SetSpeedCommand}" CommandParameter="1.0"/>
-                    <Button Content="2x"    Command="{Binding SetSpeedCommand}" CommandParameter="2.0"/>
-                </UniformGrid>
-
-                <UniformGrid Grid.Row="6" Rows="1" Columns="5">
-                    <Button Content="-5s" Command="{Binding SeekCommand}" CommandParameter="-5"/>
-                    <Button Content="-1s" Command="{Binding SeekCommand}" CommandParameter="-1"/>
-                    <Button Content="Play" Command="{Binding TogglePlayCommand}"/>
-                    <Button Content="+1s" Command="{Binding SeekCommand}" CommandParameter="1"/>
-                    <Button Content="+5s" Command="{Binding SeekCommand}" CommandParameter="5"/>
-                </UniformGrid>
-
-                <TextBlock Grid.Row="8" Text="Clip Range" Foreground="#BFBFBF" FontSize="12"/>
-
-                <Grid Grid.Row="9" Margin="0,6,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="20"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Button Grid.Column="0" Content="Clip START" Padding="14,6"
-                            Command="{Binding MarkClipStartCommand}"/>
-                    <Button Grid.Column="2" Content="Clip END" Padding="14,6"
-                            Command="{Binding MarkClipEndCommand}"/>
-
-                    <!-- ★ BooleanBox を使う箇所（ここが今落ちてた） -->
-                    <Button Grid.Column="4" Content="Save Team A" Padding="14,6"
-                            Command="{Binding SaveClipCommand}"
-                            CommandParameter="{helpers:BooleanBox True}"/>
-                    <Button Grid.Column="6" Content="Save Team B" Padding="14,6"
-                            Command="{Binding SaveClipCommand}"
-                            CommandParameter="{helpers:BooleanBox False}"/>
-
-                    <TextBlock Grid.Column="7"
-                               Text="{Binding StatusText, FallbackValue=Ready}"
-                               Foreground="#8A8A8A"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Center"/>
-                </Grid>
-            </Grid>
-        </Border>
-
-        <!-- =========================
-             Bottom-Right : Tags
-        ========================== -->
-        <Border Grid.Row="2" Grid.Column="2" CornerRadius="12" Background="#1B1B1B" Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="8"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="8"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <DockPanel>
-                    <TextBlock Text="Tags" Foreground="#EAEAEA" FontSize="16" FontWeight="SemiBold"/>
-                    <Button Content="Preferences..."
-                            DockPanel.Dock="Right"
-                            Command="{Binding OpenPreferencesCommand}"/>
+                    <TextBlock Text="{Binding ClipsHeader}" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                        <ComboBox Width="140"
+                                  ItemsSource="{Binding ClipFilters}"
+                                  SelectedItem="{Binding SelectedClipFilter}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click"/>
+                    </StackPanel>
                 </DockPanel>
 
-                <TextBlock Grid.Row="2" Text="Offense Tags" Foreground="#BFBFBF" FontSize="12"/>
-                <ItemsControl Grid.Row="4" ItemsSource="{Binding OffenseTags}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="3"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <ToggleButton Content="{Binding}"
-                                          Margin="4"
-                                          Command="{Binding DataContext.ToggleTagCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                          CommandParameter="{Binding}"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Opacity="0.75" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"/>
 
-                <TextBlock Grid.Row="6" Text="Defense Tags" Foreground="#BFBFBF" FontSize="12"/>
-                <ItemsControl Grid.Row="8" ItemsSource="{Binding DefenseTags}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="3"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <ToggleButton Content="{Binding}"
-                                          Margin="4"
-                                          Command="{Binding DataContext.ToggleTagCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                          CommandParameter="{Binding}"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <TextBlock Grid.Row="10" Text="Custom Tag" Foreground="#BFBFBF" FontSize="12"/>
-                <Grid Grid.Row="11" Margin="0,6,0,0">
+                <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBox Grid.Column="0"
-                             Height="28"
-                             Text="{Binding CustomTagText, UpdateSourceTrigger=PropertyChanged}"
-                             VerticalContentAlignment="Center"/>
+                    <Border Grid.Column="0" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <ListView Grid.Row="1" ItemsSource="{Binding TeamAClips}">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="220"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </Grid>
+                    </Border>
 
-                    <Button Grid.Column="2" Content="Add" Padding="14,6"
-                            Command="{Binding AddCustomTagCommand}"/>
-                    <Button Grid.Column="4" Content="Clear" Padding="14,6"
-                            Command="{Binding ClearCustomTagCommand}"/>
+                    <Border Grid.Column="2" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <ListView Grid.Row="1" ItemsSource="{Binding TeamBClips}">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="220"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </Grid>
+                    </Border>
                 </Grid>
+            </Grid>
+        </Border>
+
+        <!-- =======================
+             Bottom-Left: CONTROLS
+             ======================= -->
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,10,0">
+            <StackPanel>
+                <TextBlock Text="Controls" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Load a video to show the timeline slider here." Opacity="0.6"/>
+                <Slider x:Name="TimelineSlider"
+                        Minimum="0"
+                        Maximum="{Binding DurationSeconds}"
+                        Value="{Binding CurrentSeconds, Mode=TwoWay}"
+                        PreviewMouseDown="TimelineSlider_PreviewMouseDown"
+                        PreviewMouseUp="TimelineSlider_PreviewMouseUp"/>
+
+                <DockPanel Margin="0,0,0,6">
+                    <TextBlock Text="Playback Speed" Opacity="0.85" DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding TimeDisplay}" DockPanel.Dock="Right" Opacity="0.75" VerticalAlignment="Center"/>
+                </DockPanel>
+
+                <WrapPanel>
+                    <Button Style="{StaticResource DarkButton}" Content="0.25x" Click="Speed025_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="0.5x" Click="Speed05_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="1x" Click="Speed1_Click" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"/>
+                    <Button Style="{StaticResource DarkButton}" Content="2x" Click="Speed2_Click"/>
+                </WrapPanel>
+
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseLabel}" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="PlayPause_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="+5s" Click="SeekPlus5_Click"/>
+                </WrapPanel>
+
+                <TextBlock Text="Clip Range" FontWeight="SemiBold" Margin="0,14,0,4"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <Button Style="{StaticResource DarkButton}" Content="Clip START" Click="ClipStart_Click"/>
+                        <TextBlock Text="{Binding ClipStartText}" Opacity="0.75" Margin="6,0,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <Button Style="{StaticResource DarkButton}" Content="Clip END" Click="ClipEnd_Click"/>
+                        <TextBlock Text="{Binding ClipEndText}" Opacity="0.75" Margin="6,0,0,0"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Save Team A" Click="SaveTeamA_Click"/>
+                    <Button Grid.Column="3" Style="{StaticResource DarkButton}" Content="Save Team B" Click="SaveTeamB_Click"/>
+                </Grid>
+
+                <TextBlock Text="{Binding StatusText}" Opacity="0.75" Margin="0,10,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- =======================
+             Bottom-Right: TAGS
+             ======================= -->
+        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Panel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel>
+                    <TextBlock Text="Tags" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <Button Style="{StaticResource DarkButton}" Content="Preferences…" DockPanel.Dock="Right" IsEnabled="False"/>
+                </DockPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Offense Tags" Opacity="0.85" Margin="0,8,0,0"/>
+                        <ItemsControl ItemsSource="{Binding OffenseTags}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ToggleButton Style="{StaticResource TagToggle}"
+                                                  Content="{Binding Name}"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Defense Tags" Opacity="0.85" Margin="0,12,0,0"/>
+                        <ItemsControl ItemsSource="{Binding DefenseTags}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ToggleButton Style="{StaticResource TagToggle}"
+                                                  Content="{Binding Name}"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Custom Tag" Opacity="0.85" Margin="0,14,0,0"/>
+                        <DockPanel Margin="0,6,0,0">
+                            <TextBox x:Name="CustomTagBox" DockPanel.Dock="Left" Width="260" Text="{Binding CustomTagInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddCustomTag_Click"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Clear" Click="ClearTags_Click"/>
+                        </DockPanel>
+
+                        <TextBlock Text="Current Tags" Opacity="0.85" Margin="0,14,0,0"/>
+                        <TextBlock Text="{Binding CurrentTagsText}" Opacity="0.8" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Border>
     </Grid>
