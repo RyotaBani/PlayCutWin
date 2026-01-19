@@ -1,18 +1,20 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace PlayCutWin
 {
     /// <summary>
-    /// App 全体の状態（Viewが参照する） + Playerへ命令を投げる（イベント）
-    /// いまは「View側が期待している古いAPI名」を全部揃えてビルドを安定させる。
+    /// Viewが参照する「アプリ状態」 + Playerへ命令を投げる「イベント」 + 互換メソッド群
+    /// まずは「ビルドを通す」ことを最優先に、Viewが期待する名前を全部ここに揃える。
     /// </summary>
     public sealed class AppState : INotifyPropertyChanged
     {
-        // ===== TagsView が期待している：AppState.TagEntry =====
+        // ===== TagsViewが参照している想定：AppState.TagEntry =====
         public sealed class TagEntry
         {
             public string Name { get; set; } = "";
@@ -28,9 +30,9 @@ namespace PlayCutWin
             Tags = new ObservableCollection<TagEntry>();
             SelectedTags = new ObservableCollection<string>();
 
-            // 初期値（Mac版に寄せるならここを後で整える）
             TeamAName = "Home / Our Team";
             TeamBName = "Away / Opponent";
+
             StatusMessage = "Ready";
             PlaybackSpeed = 1.0;
         }
@@ -40,19 +42,19 @@ namespace PlayCutWin
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-        // ===== State =====
+        // ===== Core State =====
         private string _teamAName = "";
         public string TeamAName
         {
             get => _teamAName;
-            set { _teamAName = value; OnPropertyChanged(); }
+            set { _teamAName = value ?? ""; OnPropertyChanged(); }
         }
 
         private string _teamBName = "";
         public string TeamBName
         {
             get => _teamBName;
-            set { _teamBName = value; OnPropertyChanged(); }
+            set { _teamBName = value ?? ""; OnPropertyChanged(); }
         }
 
         private string _videoPath = "";
@@ -64,39 +66,41 @@ namespace PlayCutWin
                 _videoPath = value ?? "";
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasVideo));
+                OnPropertyChanged(nameof(VideoHeaderText));
             }
         }
 
         public bool HasVideo => !string.IsNullOrWhiteSpace(VideoPath) && File.Exists(VideoPath);
 
+        // Mac版にある「Video (16:9)」表記をWindows側も揃える用（無くても動くがUI合わせに便利）
+        public string VideoHeaderText => "Video (16:9)";
+
         private bool _isPlaying;
         public bool IsPlaying
         {
             get => _isPlaying;
-            set
-            {
-                _isPlaying = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PlayPauseGlyph));
-            }
+            set { _isPlaying = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlayPauseGlyph)); }
         }
 
-        // ▶ / ⏸ の見え分け（PlayerControlsボタンのContentに使える）
+        // ▶ / ⏸
         public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
 
         private double _playbackSeconds;
         public double PlaybackSeconds
         {
             get => _playbackSeconds;
-            set { _playbackSeconds = value; OnPropertyChanged(); }
+            set { _playbackSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlaybackTimeText)); }
         }
 
         private double _durationSeconds;
         public double DurationSeconds
         {
             get => _durationSeconds;
-            set { _durationSeconds = value; OnPropertyChanged(); }
+            set { _durationSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(DurationTimeText)); }
         }
+
+        public string PlaybackTimeText => FormatTime(PlaybackSeconds);
+        public string DurationTimeText => FormatTime(DurationSeconds);
 
         private double _playbackSpeed = 1.0;
         public double PlaybackSpeed
@@ -109,48 +113,74 @@ namespace PlayCutWin
         public string StatusMessage
         {
             get => _statusMessage;
-            set { _statusMessage = value; OnPropertyChanged(); }
+            set { _statusMessage = value ?? ""; OnPropertyChanged(); }
         }
+
+        // ===== Clip Range (DashboardViewが参照しているやつ) =====
+        private double? _clipStart;
+        public double? ClipStart
+        {
+            get => _clipStart;
+            set { _clipStart = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipStartText)); }
+        }
+
+        private double? _clipEnd;
+        public double? ClipEnd
+        {
+            get => _clipEnd;
+            set { _clipEnd = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipEndText)); }
+        }
+
+        public string ClipStartText => ClipStart.HasValue ? FormatTime(ClipStart.Value) : "--:--";
+        public string ClipEndText => ClipEnd.HasValue ? FormatTime(ClipEnd.Value) : "--:--";
+
+        // DashboardViewが期待：PlaybackDuration（TimeSpan or double）
+        // ここでは double秒を返す（表示用は DurationSeconds/DurationTimeText を使う）
+        public double PlaybackDuration => DurationSeconds;
 
         // ===== Tags =====
         public ObservableCollection<TagEntry> Tags { get; }
         public ObservableCollection<string> SelectedTags { get; }
 
-        // ===== Playerへ命令を投げるイベント（PlayerView側が購読して実処理する） =====
+        // ===== Clips（まずは“保存されたことにする”プレースホルダ） =====
+        public sealed class ClipItem
+        {
+            public string Team { get; set; } = "A";     // "A" or "B"
+            public double Start { get; set; }
+            public double End { get; set; }
+            public ObservableCollection<string> Tags { get; set; } = new ObservableCollection<string>();
+            public string Note { get; set; } = "";
+        }
+
+        public ObservableCollection<ClipItem> Clips { get; } = new ObservableCollection<ClipItem>();
+
+        // ===== Playerへ命令を投げるイベント（PlayerView側が購読して実処理） =====
         public event EventHandler? RequestPlayPause;
         public event EventHandler? RequestStop;
-        public event EventHandler<double>? RequestSeekRelative; // +秒 / -秒
-        public event EventHandler<double>? RequestRate;         // 速度
+        public event EventHandler<double>? RequestSeekRelative;
+        public event EventHandler<double>? RequestRate;
 
         // ============================================================
-        // 互換API（View側が期待している名前を「そのまま」用意する）
+        // 互換メソッド群：Views/*.xaml.cs が呼んでる名前を全部ここで受ける
         // ============================================================
 
-        // DashboardView が呼ぶ想定：動画登録
+        // DashboardView：動画を読み込んだら呼ぶ想定
         public void AddImportedVideo(string path)
         {
             VideoPath = path ?? "";
             PlaybackSeconds = 0;
             DurationSeconds = 0;
             IsPlaying = false;
+            ClipStart = null;
+            ClipEnd = null;
+
             StatusMessage = HasVideo ? "Media opened" : "No video loaded";
         }
 
-        // PlayerControlsView が呼んでる想定（スクショのエラー群）
-        public void SendPlayPause()
-        {
-            RequestPlayPause?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void SendStop()
-        {
-            RequestStop?.Invoke(this, EventArgs.Empty);
-        }
-
-        public void SendSeekRelative(double deltaSeconds)
-        {
-            RequestSeekRelative?.Invoke(this, deltaSeconds);
-        }
+        // PlayerControlsView：再生/停止/シーク/速度
+        public void SendPlayPause() => RequestPlayPause?.Invoke(this, EventArgs.Empty);
+        public void SendStop() => RequestStop?.Invoke(this, EventArgs.Empty);
+        public void SendSeekRelative(double deltaSeconds) => RequestSeekRelative?.Invoke(this, deltaSeconds);
 
         public void SendRate(double rate)
         {
@@ -158,13 +188,72 @@ namespace PlayCutWin
             RequestRate?.Invoke(this, rate);
         }
 
-        // TagsView が呼ぶ想定
+        // DashboardView：Clip START / END（今の再生位置でセット）
+        public void SetClipStart()
+        {
+            ClipStart = PlaybackSeconds;
+            StatusMessage = $"Clip START: {ClipStartText}";
+        }
+
+        public void SetClipEnd()
+        {
+            ClipEnd = PlaybackSeconds;
+            StatusMessage = $"Clip END: {ClipEndText}";
+        }
+
+        public void ResetClipRange()
+        {
+            ClipStart = null;
+            ClipEnd = null;
+            StatusMessage = "Clip range reset";
+        }
+
+        // DashboardView：SaveClip（まずはクリップ一覧に追加するだけ）
+        public void SaveClip(string team)
+        {
+            // teamが空ならAに寄せる
+            var t = string.IsNullOrWhiteSpace(team) ? "A" : team.Trim().ToUpperInvariant();
+            if (t != "A" && t != "B") t = "A";
+
+            if (!ClipStart.HasValue || !ClipEnd.HasValue)
+            {
+                StatusMessage = "Clip START/END is not set";
+                return;
+            }
+
+            var s = ClipStart.Value;
+            var e = ClipEnd.Value;
+            if (e < s)
+            {
+                // 入れ替え
+                var tmp = s; s = e; e = tmp;
+            }
+
+            var clip = new ClipItem
+            {
+                Team = t,
+                Start = s,
+                End = e,
+                Tags = new ObservableCollection<string>(SelectedTags.ToList())
+            };
+
+            Clips.Add(clip);
+            StatusMessage = $"Saved clip ({t}) {FormatTime(s)} - {FormatTime(e)}";
+        }
+
+        // TagsView：タグを選択に追加（ここが “TagEntry→string” 変換エラーの解決ポイント）
+        // TagsViewが TagEntry を渡してくるならこのオーバーロードで受ける。
+        public void AddTagToSelected(TagEntry entry)
+        {
+            if (entry == null) return;
+            AddTagToSelected(entry.Name);
+        }
+
         public void AddTagToSelected(string tagName)
         {
             if (string.IsNullOrWhiteSpace(tagName)) return;
             if (!SelectedTags.Contains(tagName))
                 SelectedTags.Add(tagName);
-
             StatusMessage = $"Tag selected: {tagName}";
         }
 
@@ -172,7 +261,6 @@ namespace PlayCutWin
         {
             if (SelectedTags.Contains(tagName))
                 SelectedTags.Remove(tagName);
-
             StatusMessage = $"Tag removed: {tagName}";
         }
 
@@ -182,15 +270,21 @@ namespace PlayCutWin
             StatusMessage = "Tags cleared";
         }
 
-        // ExportsView が呼ぶ想定（いまは“ビルド安定”優先でプレースホルダ）
-        public void ImportCsvFromDialog()
-        {
-            StatusMessage = "Import CSV: (todo)";
-        }
+        // CSV（まずはビルド用のダミー。後で本実装）
+        public void ImportCsvFromDialog() => StatusMessage = "Import CSV: (todo)";
+        public void ExportCsvToDialog() => StatusMessage = "Export CSV: (todo)";
 
-        public void ExportCsvToDialog()
+        // ============================================================
+        // Helpers
+        // ============================================================
+        private static string FormatTime(double seconds)
         {
-            StatusMessage = "Export CSV: (todo)";
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0) seconds = 0;
+            var ts = TimeSpan.FromSeconds(seconds);
+            // 00:00 形式（時間が長い場合は 1:02:03 にしたければ後で拡張）
+            return ts.Hours > 0
+                ? $"{ts.Hours}:{ts.Minutes:00}:{ts.Seconds:00}"
+                : $"{ts.Minutes:00}:{ts.Seconds:00}";
         }
     }
 }
