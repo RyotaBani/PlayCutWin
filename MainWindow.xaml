@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:PlayCutWin"
         mc:Ignorable="d"
         Title="Play Cut"
-        Width="1280" Height="780"
+        MinWidth="1200" MinHeight="760" WindowState="Maximized"
         Background="#121212"
         Foreground="#EAEAEA"
         WindowStartupLocation="CenterScreen">
