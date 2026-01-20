@@ -1,8 +1,5 @@
 using Microsoft.Win32;
 using System;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -12,55 +9,58 @@ namespace PlayCutWin
 {
     public partial class MainWindow : Window
     {
-        // Playback speed (default: 1x)
-        private double _playbackSpeed = 1.0;
-
         private readonly DispatcherTimer _timer;
-        private bool _isDraggingTimeline = false;
+        private bool _isDraggingSlider;
+        private bool _isPlaying;
 
-        private double _clipStart = 0.0;
-        private double _clipEnd = 0.0;
+        private double _currentSpeed = 1.0; // ★デフォルト 1x
 
         public MainWindow()
         {
             InitializeComponent();
 
-            // Timer for updating UI while playing
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-            _timer.Tick += (_, __) => Tick();
-            _timer.Start();
+            // ★起動時に 1x 選択状態
+            UpdateSpeedButtons();
 
-            StatusText.Text = "Ready";
+            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _timer.Tick += (_, __) =>
+            {
+                if (Player.Source == null) return;
+                if (_isDraggingSlider) return;
+                if (!Player.NaturalDuration.HasTimeSpan) return;
 
-            // Default playback speed: 1x (UI highlight)
-            SetSpeed(1.0, applyToPlayer: false);
+                TimelineSlider.Maximum = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                TimelineSlider.Value = Player.Position.TotalSeconds;
+            };
         }
 
-        // ================= Video Load =================
+        // ========================= Video Load =========================
         private void LoadVideo_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
-                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.avi;*.wmv|All Files|*.*"
+                Title = "Select a video",
+                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.wmv;*.avi|All Files|*.*"
             };
 
             if (dlg.ShowDialog() != true) return;
 
             try
             {
+                Player.Stop();
+                Player.Source = new Uri(dlg.FileName);
+
+                // ヒントは読み込み開始で一旦隠す
                 VideoHint.Visibility = Visibility.Collapsed;
 
-                Player.Stop();
-                Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
+                // 再生速度を反映（Loaded 前でも OK）
+                Player.SpeedRatio = _currentSpeed;
 
-                // apply current selected speed
-                Player.SpeedRatio = _playbackSpeed;
+                Player.Play();   // いったん再生して MediaOpened を発火させる
+                _isPlaying = true;
+                PlayPauseButton.Content = "Pause";
 
-                // show first frame
-                Player.Play();
-                Player.Pause();
-
-                StatusText.Text = "Loaded";
+                StatusText.Text = $"Loaded: {System.IO.Path.GetFileName(dlg.FileName)}";
             }
             catch (Exception ex)
             {
@@ -71,18 +71,23 @@ namespace PlayCutWin
 
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
         {
-            if (Player.NaturalDuration.HasTimeSpan)
-            {
-                var dur = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                TimelineSlider.Maximum = dur;
-                TimelineSlider.Value = 0;
+            if (!Player.NaturalDuration.HasTimeSpan) return;
 
-                // re-apply speed on open
-                Player.SpeedRatio = _playbackSpeed;
-                UpdateSpeedButtons();
+            TimelineSlider.Minimum = 0;
+            TimelineSlider.Maximum = Player.NaturalDuration.TimeSpan.TotalSeconds;
 
-                StatusText.Text = "Ready";
-            }
+            // 読み込めたのでヒントは消す
+            VideoHint.Visibility = Visibility.Collapsed;
+
+            _timer.Start();
+        }
+
+        private void Player_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            _isPlaying = false;
+            PlayPauseButton.Content = "Play";
+            // 終端に来たら止める（必要なら先頭へ戻す）
+            // Player.Position = TimeSpan.Zero;
         }
 
         private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
@@ -91,162 +96,113 @@ namespace PlayCutWin
             VideoHint.Visibility = Visibility.Visible;
         }
 
-        // ================= Playback =================
-        private void PlayPause_Click(object sender, RoutedEventArgs e)
+        // ========================= Timeline =========================
+        private void TimelineSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (Player.Source == null) return;
-
-            // MediaElement doesn't expose IsPlaying; we infer from Position updates.
-            // If it is effectively paused, play; otherwise pause.
-            // Simple approach: toggle based on a tag.
-            if ((string?)Player.Tag != "Playing")
-            {
-                Player.Play();
-                Player.Tag = "Playing";
-                StatusText.Text = "Playing";
-            }
-            else
-            {
-                Player.Pause();
-                Player.Tag = "Paused";
-                StatusText.Text = "Paused";
-            }
-        }
-
-        private void Tick()
-        {
-            if (Player.Source == null) return;
-            if (_isDraggingTimeline) return;
-
-            // Update slider while playing/paused
-            TimelineSlider.Value = Player.Position.TotalSeconds;
-        }
-
-        // ================= Timeline =================
-        private void TimelineSlider_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            _isDraggingTimeline = true;
-        }
-
-        private void TimelineSlider_PreviewMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            _isDraggingTimeline = false;
+            if (_isDraggingSlider) return;
             if (Player.Source == null) return;
 
             Player.Position = TimeSpan.FromSeconds(TimelineSlider.Value);
         }
 
-        private void TimelineSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        // もしドラッグ開始/終了を追加したいなら（必要ならXAMLにPreview系イベントを足す）
+        // private void TimelineSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e) => _isDraggingSlider = true;
+        // private void TimelineSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e) { _isDraggingSlider = false; Player.Position = TimeSpan.FromSeconds(TimelineSlider.Value); }
+
+        // ========================= Playback =========================
+        private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
-            if (_isDraggingTimeline) return;
-            // when not dragging, value is driven by Tick()
+            if (Player.Source == null) return;
+
+            if (_isPlaying)
+            {
+                Player.Pause();
+                _isPlaying = false;
+                PlayPauseButton.Content = "Play";
+            }
+            else
+            {
+                Player.Play();
+                _isPlaying = true;
+                PlayPauseButton.Content = "Pause";
+            }
         }
 
-        // ================= Speed =================
+        private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
+        private void SeekMinus1_Click(object sender, RoutedEventArgs e) => SeekBy(-1);
+        private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(+1);
+        private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(+5);
+
+        private void SeekBy(int seconds)
+        {
+            if (Player.Source == null) return;
+
+            var newPos = Player.Position.TotalSeconds + seconds;
+            if (newPos < 0) newPos = 0;
+
+            Player.Position = TimeSpan.FromSeconds(newPos);
+            TimelineSlider.Value = newPos;
+        }
+
+        // ========================= Speed =========================
         private void Speed025_Click(object sender, RoutedEventArgs e) => SetSpeed(0.25);
         private void Speed05_Click(object sender, RoutedEventArgs e) => SetSpeed(0.5);
         private void Speed1_Click(object sender, RoutedEventArgs e) => SetSpeed(1.0);
         private void Speed2_Click(object sender, RoutedEventArgs e) => SetSpeed(2.0);
 
-        private void SetSpeed(double speed, bool applyToPlayer = true)
+        private void SetSpeed(double speed)
         {
-            _playbackSpeed = speed;
+            _currentSpeed = speed;
+            if (Player != null) Player.SpeedRatio = _currentSpeed;
             UpdateSpeedButtons();
-
-            if (applyToPlayer && Player.Source != null)
-            {
-                Player.SpeedRatio = speed;
-            }
-
-            StatusText.Text = $"Speed: {speed:0.##}x";
+            StatusText.Text = $"Speed: {speed}x";
         }
 
         private void UpdateSpeedButtons()
         {
-            // Brushes are defined in MainWindow.xaml resources
-            var accent = (Brush)FindResource("Accent");
-            var normalBg = (Brush)FindResource("ButtonBg");
-            var normalBorder = (Brush)FindResource("ButtonBorder");
-            var text = (Brush)FindResource("TextPrimary");
+            // 見た目の選択状態（1xがデフォルトでONになる）
+            var normalBg = Brushes.DimGray;
+            var selectedBg = Brushes.DodgerBlue;
 
-            ApplySpeedButton(Speed025Button, Math.Abs(_playbackSpeed - 0.25) < 0.0001);
-            ApplySpeedButton(Speed05Button, Math.Abs(_playbackSpeed - 0.5) < 0.0001);
-            ApplySpeedButton(Speed1Button, Math.Abs(_playbackSpeed - 1.0) < 0.0001);
-            ApplySpeedButton(Speed2Button, Math.Abs(_playbackSpeed - 2.0) < 0.0001);
+            Speed025Button.Background = Math.Abs(_currentSpeed - 0.25) < 0.001 ? selectedBg : normalBg;
+            Speed05Button.Background  = Math.Abs(_currentSpeed - 0.5)  < 0.001 ? selectedBg : normalBg;
+            Speed1Button.Background   = Math.Abs(_currentSpeed - 1.0)  < 0.001 ? selectedBg : normalBg;
+            Speed2Button.Background   = Math.Abs(_currentSpeed - 2.0)  < 0.001 ? selectedBg : normalBg;
 
-            void ApplySpeedButton(Button? btn, bool selected)
-            {
-                if (btn == null) return;
-                btn.Background = selected ? accent : normalBg;
-                btn.BorderBrush = selected ? accent : normalBorder;
-                btn.Foreground = text;
-            }
+            Speed025Button.Foreground = Brushes.White;
+            Speed05Button.Foreground  = Brushes.White;
+            Speed1Button.Foreground   = Brushes.White;
+            Speed2Button.Foreground   = Brushes.White;
         }
 
-        // ================= Seek =================
-        private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
-        private void SeekMinus1_Click(object sender, RoutedEventArgs e) => SeekBy(-1);
-        private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(1);
-        private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(5);
-
-        private void SeekBy(double seconds)
-        {
-            if (Player.Source == null) return;
-            var t = Player.Position.TotalSeconds + seconds;
-            if (t < 0) t = 0;
-            if (Player.NaturalDuration.HasTimeSpan)
-            {
-                var max = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                if (t > max) t = max;
-            }
-            Player.Position = TimeSpan.FromSeconds(t);
-            TimelineSlider.Value = t;
-        }
-
-        // ================= Clip Range =================
+        // ========================= Clip / Tags (次の処理の入口) =========================
         private void ClipStart_Click(object sender, RoutedEventArgs e)
         {
             if (Player.Source == null) return;
-            _clipStart = Player.Position.TotalSeconds;
-            UpdateClipRangeText();
+            StatusText.Text = $"Clip START: {Player.Position:mm\\:ss}";
         }
 
         private void ClipEnd_Click(object sender, RoutedEventArgs e)
         {
             if (Player.Source == null) return;
-            _clipEnd = Player.Position.TotalSeconds;
-            UpdateClipRangeText();
-        }
-
-        private void UpdateClipRangeText()
-        {
-            if (_clipEnd < _clipStart) _clipEnd = _clipStart;
-            ClipRangeText.Text = $"START: {_clipStart:0.00}   END: {_clipEnd:0.00}";
+            StatusText.Text = $"Clip END: {Player.Position:mm\\:ss}";
         }
 
         private void SaveTeamA_Click(object sender, RoutedEventArgs e)
         {
-            StatusText.Text = "Saved Team A (stub)";
+            StatusText.Text = "Saved to Team A (stub)";
         }
 
         private void SaveTeamB_Click(object sender, RoutedEventArgs e)
         {
-            StatusText.Text = "Saved Team B (stub)";
+            StatusText.Text = "Saved to Team B (stub)";
         }
-
-        // ================= CSV/Export/Tags (stubs) =================
-        private void ImportCsv_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Import CSV (stub)";
-        private void ExportCsv_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Export CSV (stub)";
-        private void ExportAll_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Export All (stub)";
-
-        private void Preferences_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Preferences (stub)";
 
         private void Tag_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button b)
             {
-                CurrentTagsText.Text = b.Content?.ToString() ?? "(tag)";
-                StatusText.Text = $"Tag: {CurrentTagsText.Text}";
+                CurrentTagsText.Text = b.Content?.ToString() ?? "(No tags selected)";
             }
         }
 
@@ -255,14 +211,33 @@ namespace PlayCutWin
             var t = CustomTagTextBox.Text?.Trim();
             if (string.IsNullOrEmpty(t)) return;
             CurrentTagsText.Text = t;
-            StatusText.Text = $"Custom Tag: {t}";
+            CustomTagTextBox.Clear();
         }
 
         private void ClearCustomTag_Click(object sender, RoutedEventArgs e)
         {
-            CustomTagTextBox.Text = "";
             CurrentTagsText.Text = "(No tags selected)";
-            StatusText.Text = "Cleared";
+            CustomTagTextBox.Clear();
+        }
+
+        private void Preferences_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Preferences (stub)", "Play Cut");
+        }
+
+        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Import CSV (stub)", "Play Cut");
+        }
+
+        private void ExportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Export CSV (stub)", "Play Cut");
+        }
+
+        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Export All (stub)", "Play Cut");
         }
     }
 }
