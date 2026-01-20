@@ -11,6 +11,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace PlayCutWin
@@ -536,10 +537,6 @@ namespace PlayCutWin
 
         // Segoe MDL2 Assets glyphs
         // Play:  E768   Pause: E769
-        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
-
-        // Segoe MDL2 Assets glyphs
-        // Play:  E768, Pause: E769
         public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
 
         public double DurationSeconds { get => _durationSeconds; set { _durationSeconds = value; OnPropertyChanged(); } }
