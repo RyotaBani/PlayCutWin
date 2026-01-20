@@ -20,12 +20,20 @@ namespace PlayCutWin
         private readonly DispatcherTimer _timer;
         private bool _isDraggingTimeline = false;
 
+        // Speed button visuals
+        private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
+        private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
+        private double _currentSpeed = 1.0;
+
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
         public MainWindow()
         {
             InitializeComponent();
             DataContext = VM;
+
+            // UIの初期状態：Speed は 1x を選択状態にしておく（動画未ロードでも表示だけは合わせる）
+            HighlightSpeedButtons(_currentSpeed);
 
             _timer = new DispatcherTimer
             {
@@ -60,7 +68,8 @@ namespace PlayCutWin
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
-                Player.SpeedRatio = 1.0;
+                // ロードしたら Speed は 1x に戻す（Mac版の挙動に合わせる）
+                SetSpeed(1.0);
                 Player.Play();
                 Player.Pause();
 
@@ -89,22 +98,6 @@ namespace PlayCutWin
             VM.StatusText = "Media failed.";
             MessageBox.Show(e.ErrorException?.Message ?? "Unknown media error", "Media Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-
-	    private void Player_MediaEnded(object sender, RoutedEventArgs e)
-	    {
-	        // Reset to "paused" state when playback reaches the end.
-	        VM.IsPlaying = false;
-	        try
-	        {
-	            Player.Stop();
-	        }
-	        catch
-	        {
-	            // ignore
-	        }
-	        VM.CurrentSeconds = 0;
-	        VM.StatusText = "Ended";
-	    }
 
         private void Tick()
         {
@@ -167,9 +160,41 @@ namespace PlayCutWin
 
         private void SetSpeed(double speed)
         {
-            if (Player.Source == null) return;
-            Player.SpeedRatio = speed;
+            _currentSpeed = speed;
+            HighlightSpeedButtons(speed);
+
+            // 動画未ロードでも選択表示は変える
+            if (Player?.Source != null)
+            {
+                Player.SpeedRatio = speed;
+            }
+
             VM.StatusText = $"Speed: {speed:0.##}x";
+        }
+
+        private void HighlightSpeedButtons(double speed)
+        {
+            // reset
+            if (Speed025Button != null) Speed025Button.Background = SpeedNormalBrush;
+            if (Speed05Button  != null) Speed05Button.Background  = SpeedNormalBrush;
+            if (Speed1Button   != null) Speed1Button.Background   = SpeedNormalBrush;
+            if (Speed2Button   != null) Speed2Button.Background   = SpeedNormalBrush;
+
+            // select
+            var selected = speed switch
+            {
+                0.25 => Speed025Button,
+                0.5  => Speed05Button,
+                1.0  => Speed1Button,
+                2.0  => Speed2Button,
+                _    => null
+            };
+
+            if (selected != null)
+            {
+                selected.Background = SpeedSelectedBrush;
+                selected.BorderBrush = SpeedSelectedBrush;
+            }
         }
 
         private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
@@ -196,23 +221,6 @@ namespace PlayCutWin
 
         private void SaveTeamA_Click(object sender, RoutedEventArgs e) => SaveClip("A");
         private void SaveTeamB_Click(object sender, RoutedEventArgs e) => SaveClip("B");
-
-        // Next step: double-click a clip row to jump (seek) and play from the clip start.
-        private void ClipList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is not ListView lv) return;
-            if (lv.SelectedItem is not ClipRow clip) return;
-            if (Player.Source == null) return;
-
-            SeekTo(clip.Start);
-            Player.Play();
-            VM.IsPlaying = true;
-            VM.StatusText = $"Jumped to clip: {clip.Start:0.00}s - {clip.End:0.00}s";
-
-            // Also reflect the clip range in the UI (optional but handy).
-            VM.ClipStartSeconds = clip.Start;
-            VM.ClipEndSeconds = clip.End;
-        }
 
         private void SaveClip(string team)
         {
@@ -242,6 +250,22 @@ namespace PlayCutWin
 
             VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
             VM.UpdateHeadersAndCurrentTagsText();
+        }
+
+        // ----------------------------
+        // Clips (next step)
+        // ----------------------------
+        // リストのクリップをダブルクリック → そのStartへジャンプして再生
+        private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not ListView lv) return;
+            if (lv.SelectedItem is not ClipRow row) return;
+            if (Player?.Source == null) return;
+
+            Player.Position = TimeSpan.FromSeconds(row.Start);
+            Player.Play();
+            VM.IsPlaying = true;
+            VM.StatusText = $"Jumped to {FormatTime(row.Start)}";
         }
 
         // ----------------------------
@@ -499,10 +523,24 @@ namespace PlayCutWin
         public bool IsPlaying
         {
             get => _isPlaying;
-            set { _isPlaying = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlayPauseLabel)); }
+            set
+            {
+                _isPlaying = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlayPauseLabel));
+                OnPropertyChanged(nameof(PlayPauseIcon));
+            }
         }
 
         public string PlayPauseLabel => IsPlaying ? "Pause" : "Play";
+
+        // Segoe MDL2 Assets glyphs
+        // Play:  E768   Pause: E769
+        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
+
+        // Segoe MDL2 Assets glyphs
+        // Play:  E768, Pause: E769
+        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
 
         public double DurationSeconds { get => _durationSeconds; set { _durationSeconds = value; OnPropertyChanged(); } }
         public double CurrentSeconds { get => _currentSeconds; set { _currentSeconds = value; OnPropertyChanged(); } }

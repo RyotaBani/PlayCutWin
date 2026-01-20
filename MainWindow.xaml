@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:PlayCutWin"
         mc:Ignorable="d"
         Title="Play Cut"
-        Width="1280" Height="780"
+        Width="1400" Height="860"
+        MinWidth="1200" MinHeight="740"
         Background="#121212"
         Foreground="#EAEAEA"
         WindowStartupLocation="CenterScreen">
@@ -119,22 +120,6 @@
         <Style TargetType="Slider">
             <Setter Property="Margin" Value="0,8,0,8"/>
         </Style>
-
-	        <!-- Play/Pause glyphs (Segoe MDL2 Assets is present on Windows 10/11) -->
-	        <Style x:Key="PlayPauseGlyph" TargetType="TextBlock">
-	            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-	            <Setter Property="FontSize" Value="18"/>
-	            <Setter Property="HorizontalAlignment" Value="Center"/>
-	            <Setter Property="VerticalAlignment" Value="Center"/>
-	            <!-- Default: show Play icon -->
-	            <Setter Property="Text" Value="&#xE768;"/>
-	            <Style.Triggers>
-	                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-	                    <!-- When playing, show Pause icon -->
-	                    <Setter Property="Text" Value="&#xE769;"/>
-	                </DataTrigger>
-	            </Style.Triggers>
-	        </Style>
     </Window.Resources>
 
     <Grid Margin="12">
@@ -143,8 +128,9 @@
             <RowDefinition Height="2*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="3*"/>
-            <ColumnDefinition Width="2*"/>
+                <!-- Mac版に近い見え方：左右をほぼ 1:1 にして右側（Clips/ボタン）が切れないようにする -->
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- =======================
@@ -227,7 +213,7 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
-	                            <ListView x:Name="TeamAClipsList" Grid.Row="1" ItemsSource="{Binding TeamAClips}" MouseDoubleClick="ClipList_MouseDoubleClick">
+                            <ListView x:Name="TeamAClipsList" Grid.Row="1" ItemsSource="{Binding TeamAClips}" MouseDoubleClick="ClipList_DoubleClick">
                                 <ListView.View>
                                     <GridView>
                                         <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
@@ -246,7 +232,7 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
-	                            <ListView x:Name="TeamBClipsList" Grid.Row="1" ItemsSource="{Binding TeamBClips}" MouseDoubleClick="ClipList_MouseDoubleClick">
+                            <ListView x:Name="TeamBClipsList" Grid.Row="1" ItemsSource="{Binding TeamBClips}" MouseDoubleClick="ClipList_DoubleClick">
                                 <ListView.View>
                                     <GridView>
                                         <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
@@ -282,18 +268,20 @@
                 </DockPanel>
 
                 <WrapPanel>
-                    <Button Style="{StaticResource DarkButton}" Content="0.25x" Click="Speed025_Click"/>
-                    <Button Style="{StaticResource DarkButton}" Content="0.5x" Click="Speed05_Click"/>
-                    <Button Style="{StaticResource DarkButton}" Content="1x" Click="Speed1_Click" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"/>
-                    <Button Style="{StaticResource DarkButton}" Content="2x" Click="Speed2_Click"/>
+                    <Button x:Name="Speed025Button" Style="{StaticResource DarkButton}" Content="0.25x" Click="Speed025_Click"/>
+                    <Button x:Name="Speed05Button"  Style="{StaticResource DarkButton}" Content="0.5x"  Click="Speed05_Click"/>
+                    <Button x:Name="Speed1Button"   Style="{StaticResource DarkButton}" Content="1x"    Click="Speed1_Click"/>
+                    <Button x:Name="Speed2Button"   Style="{StaticResource DarkButton}" Content="2x"    Click="Speed2_Click"/>
                 </WrapPanel>
 
                 <WrapPanel Margin="0,8,0,0">
                     <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
-	                    <Button Style="{StaticResource DarkButton}" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="PlayPause_Click" MinWidth="54">
-	                        <TextBlock Style="{StaticResource PlayPauseGlyph}" />
-	                    </Button>
+                    <!-- Play/Pause は文字ではなくアイコン（Segoe MDL2 Assets） -->
+                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseIcon}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="18"
+                            Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                            Click="PlayPause_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="+5s" Click="SeekPlus5_Click"/>
                 </WrapPanel>
