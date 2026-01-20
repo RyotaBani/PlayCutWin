@@ -1,45 +1,48 @@
 using System;
-using System.Threading;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace PlayCutWin
 {
     public partial class App : Application
     {
-        private Mutex? _singleInstanceMutex;
-
-        private void Application_Startup(object sender, StartupEventArgs e)
+        public App()
         {
-            // --- Single instance guard ---
-            // If the user launches the EXE twice, Windows runs 2 processes and you'll see 2 windows.
-            bool createdNew;
-            _singleInstanceMutex = new Mutex(initiallyOwned: true, name: "PlayCutWin.SingleInstance", createdNew: out createdNew);
+            // WPF UIスレッド例外を捕まえて表示
+            this.DispatcherUnhandledException += OnDispatcherUnhandledException;
 
-            if (!createdNew)
-            {
-                MessageBox.Show("Play Cut はすでに起動しています。", "Play Cut");
-                Shutdown();
-                return;
-            }
-
-            var main = new MainWindow();
-            MainWindow = main;
-            main.Show();
+            // UIスレッド以外の未処理例外（保険）
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         }
 
-        protected override void OnExit(ExitEventArgs e)
+        private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            MessageBox.Show(
+                e.Exception.ToString(),
+                "Unhandled Exception (UI Thread)",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+            e.Handled = true;
+            Shutdown(-1);
+        }
+
+        private void OnUnhandledException(object? sender, UnhandledExceptionEventArgs e)
         {
             try
             {
-                _singleInstanceMutex?.ReleaseMutex();
-                _singleInstanceMutex?.Dispose();
+                var ex = e.ExceptionObject as Exception;
+                MessageBox.Show(
+                    ex?.ToString() ?? "Unknown exception",
+                    "Unhandled Exception",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
             }
-            catch
+            finally
             {
-                // ignore
+                Shutdown(-1);
             }
-
-            base.OnExit(e);
         }
     }
 }
