@@ -10,8 +10,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace PlayCutWin
@@ -21,20 +19,12 @@ namespace PlayCutWin
         private readonly DispatcherTimer _timer;
         private bool _isDraggingTimeline = false;
 
-        // Speed button visuals
-        private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
-        private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
-        private double _currentSpeed = 1.0;
-
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
         public MainWindow()
         {
             InitializeComponent();
             DataContext = VM;
-
-            // UIの初期状態：Speed は 1x を選択状態にしておく（動画未ロードでも表示だけは合わせる）
-            HighlightSpeedButtons(_currentSpeed);
 
             _timer = new DispatcherTimer
             {
@@ -69,8 +59,7 @@ namespace PlayCutWin
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
-                // ロードしたら Speed は 1x に戻す（Mac版の挙動に合わせる）
-                SetSpeed(1.0);
+                Player.SpeedRatio = 1.0;
                 Player.Play();
                 Player.Pause();
 
@@ -161,41 +150,9 @@ namespace PlayCutWin
 
         private void SetSpeed(double speed)
         {
-            _currentSpeed = speed;
-            HighlightSpeedButtons(speed);
-
-            // 動画未ロードでも選択表示は変える
-            if (Player?.Source != null)
-            {
-                Player.SpeedRatio = speed;
-            }
-
+            if (Player.Source == null) return;
+            Player.SpeedRatio = speed;
             VM.StatusText = $"Speed: {speed:0.##}x";
-        }
-
-        private void HighlightSpeedButtons(double speed)
-        {
-            // reset
-            if (Speed025Button != null) Speed025Button.Background = SpeedNormalBrush;
-            if (Speed05Button  != null) Speed05Button.Background  = SpeedNormalBrush;
-            if (Speed1Button   != null) Speed1Button.Background   = SpeedNormalBrush;
-            if (Speed2Button   != null) Speed2Button.Background   = SpeedNormalBrush;
-
-            // select
-            var selected = speed switch
-            {
-                0.25 => Speed025Button,
-                0.5  => Speed05Button,
-                1.0  => Speed1Button,
-                2.0  => Speed2Button,
-                _    => null
-            };
-
-            if (selected != null)
-            {
-                selected.Background = SpeedSelectedBrush;
-                selected.BorderBrush = SpeedSelectedBrush;
-            }
         }
 
         private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
@@ -254,19 +211,43 @@ namespace PlayCutWin
         }
 
         // ----------------------------
-        // Clips (next step)
+        // Clip jump (double click)
         // ----------------------------
-        // リストのクリップをダブルクリック → そのStartへジャンプして再生
-        private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
+        private void TeamAClipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (sender is not ListView lv) return;
-            if (lv.SelectedItem is not ClipRow row) return;
-            if (Player?.Source == null) return;
+            if (VM.SelectedTeamAClip is ClipRow clip)
+            {
+                JumpToClip(clip);
+            }
+        }
 
-            Player.Position = TimeSpan.FromSeconds(row.Start);
-            Player.Play();
-            VM.IsPlaying = true;
-            VM.StatusText = $"Jumped to {FormatTime(row.Start)}";
+        private void TeamBClipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (VM.SelectedTeamBClip is ClipRow clip)
+            {
+                JumpToClip(clip);
+            }
+        }
+
+        private void JumpToClip(ClipRow clip)
+        {
+            if (Player.Source == null) return;
+
+            // 表示も合わせておく（次の保存時に便利）
+            VM.ClipStartSeconds = clip.Start;
+            VM.ClipEndSeconds = clip.End;
+            VM.StatusText = $"Jump: {FormatTime(clip.Start)}";
+
+            try
+            {
+                Player.Position = TimeSpan.FromSeconds(Math.Max(0, clip.Start));
+                Player.Play();
+                VM.IsPlaying = true;
+            }
+            catch
+            {
+                // まれに読み込み直後などで Position が失敗することがあるため握りつぶす
+            }
         }
 
         // ----------------------------
@@ -524,20 +505,10 @@ namespace PlayCutWin
         public bool IsPlaying
         {
             get => _isPlaying;
-            set
-            {
-                _isPlaying = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PlayPauseLabel));
-                OnPropertyChanged(nameof(PlayPauseIcon));
-            }
+            set { _isPlaying = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlayPauseLabel)); }
         }
 
         public string PlayPauseLabel => IsPlaying ? "Pause" : "Play";
-
-        // Segoe MDL2 Assets glyphs
-        // Play:  E768   Pause: E769
-        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
 
         public double DurationSeconds { get => _durationSeconds; set { _durationSeconds = value; OnPropertyChanged(); } }
         public double CurrentSeconds { get => _currentSeconds; set { _currentSeconds = value; OnPropertyChanged(); } }
