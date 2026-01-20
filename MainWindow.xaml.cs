@@ -1,366 +1,627 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace PlayCutWin
 {
     public partial class MainWindow : Window
     {
-        private readonly MainWindowViewModel _vm;
+        private readonly DispatcherTimer _timer;
+        private bool _isDraggingTimeline = false;
+
+        // Speed button visuals
+        private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
+        private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
+        private double _currentSpeed = 1.0;
+
+        public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
         public MainWindow()
         {
             InitializeComponent();
-            _vm = new MainWindowViewModel(this);
-            DataContext = _vm;
+            DataContext = VM;
+
+            // UIの初期状態：Speed は 1x を選択状態にしておく（動画未ロードでも表示だけは合わせる）
+            HighlightSpeedButtons(_currentSpeed);
+
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(120)
+            };
+            _timer.Tick += (_, __) => Tick();
+            _timer.Start();
+
+            VM.StatusText = "Ready";
+        }
+
+        // ----------------------------
+        // Video
+        // ----------------------------
+        private void LoadVideo_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Select video",
+                Filter = "Video Files (*.mp4;*.mov;*.m4v)|*.mp4;*.mov;*.m4v|All Files (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                VM.LoadedVideoPath = dlg.FileName;
+                VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
+                VM.StatusText = "Loading video…";
+
+                VideoHint.Visibility = Visibility.Collapsed;
+
+                Player.Stop();
+                Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
+                // ロードしたら Speed は 1x に戻す（Mac版の挙動に合わせる）
+                SetSpeed(1.0);
+                Player.Play();
+                Player.Pause();
+
+                VM.IsPlaying = false;
+                VM.StatusText = "Video loaded.";
+            }
+            catch (Exception ex)
+            {
+                VM.StatusText = $"Load failed: {ex.Message}";
+                MessageBox.Show(ex.Message, "Load Video Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
         {
-            VideoHint.Visibility = Visibility.Collapsed;
-            _vm.OnMediaOpened();
+            if (Player.NaturalDuration.HasTimeSpan)
+            {
+                VM.DurationSeconds = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                TimelineSlider.Maximum = VM.DurationSeconds;
+                VM.StatusText = "Ready";
+            }
         }
 
-        private void Player_MediaEnded(object sender, RoutedEventArgs e)
+        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            _vm.OnMediaEnded();
+            VM.StatusText = "Media failed.";
+            MessageBox.Show(e.ErrorException?.Message ?? "Unknown media error", "Media Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
-        private void Timeline_PreviewMouseDown(object sender, MouseButtonEventArgs e) => _vm.IsDraggingTimeline = true;
-        private void Timeline_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void Tick()
         {
-            _vm.IsDraggingTimeline = false;
-            _vm.SeekTo(_vm.TimelineValue);
+            if (Player.Source == null) return;
+            if (!Player.NaturalDuration.HasTimeSpan) return;
+
+            if (!_isDraggingTimeline)
+            {
+                VM.CurrentSeconds = Player.Position.TotalSeconds;
+            }
+
+            VM.TimeDisplay = $"{FormatTime(Player.Position.TotalSeconds)} / {FormatTime(VM.DurationSeconds)}";
         }
 
-        private void TeamAClips_MouseDoubleClick(object sender, MouseButtonEventArgs e) => _vm.JumpToSelectedClip(isTeamA: true);
-        private void TeamBClips_MouseDoubleClick(object sender, MouseButtonEventArgs e) => _vm.JumpToSelectedClip(isTeamA: false);
+        private void TimelineSlider_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _isDraggingTimeline = true;
+        }
+
+        private void TimelineSlider_PreviewMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _isDraggingTimeline = false;
+            SeekTo(VM.CurrentSeconds);
+        }
+
+        private void SeekTo(double seconds)
+        {
+            if (Player.Source == null) return;
+
+            seconds = Math.Max(0, Math.Min(seconds, VM.DurationSeconds));
+            Player.Position = TimeSpan.FromSeconds(seconds);
+        }
+
+        private void SeekBy(double deltaSeconds)
+        {
+            if (Player.Source == null) return;
+            SeekTo(Player.Position.TotalSeconds + deltaSeconds);
+        }
+
+        private void PlayPause_Click(object sender, RoutedEventArgs e)
+        {
+            if (Player.Source == null) return;
+
+            if (VM.IsPlaying)
+            {
+                Player.Pause();
+                VM.IsPlaying = false;
+            }
+            else
+            {
+                Player.Play();
+                VM.IsPlaying = true;
+            }
+        }
+
+        private void Speed025_Click(object sender, RoutedEventArgs e) => SetSpeed(0.25);
+        private void Speed05_Click(object sender, RoutedEventArgs e) => SetSpeed(0.5);
+        private void Speed1_Click(object sender, RoutedEventArgs e) => SetSpeed(1.0);
+        private void Speed2_Click(object sender, RoutedEventArgs e) => SetSpeed(2.0);
+
+        private void SetSpeed(double speed)
+        {
+            _currentSpeed = speed;
+            HighlightSpeedButtons(speed);
+
+            // 動画未ロードでも選択表示は変える
+            if (Player?.Source != null)
+            {
+                Player.SpeedRatio = speed;
+            }
+
+            VM.StatusText = $"Speed: {speed:0.##}x";
+        }
+
+        private void HighlightSpeedButtons(double speed)
+        {
+            // reset
+            if (Speed025Button != null) Speed025Button.Background = SpeedNormalBrush;
+            if (Speed05Button  != null) Speed05Button.Background  = SpeedNormalBrush;
+            if (Speed1Button   != null) Speed1Button.Background   = SpeedNormalBrush;
+            if (Speed2Button   != null) Speed2Button.Background   = SpeedNormalBrush;
+
+            // select
+            var selected = speed switch
+            {
+                0.25 => Speed025Button,
+                0.5  => Speed05Button,
+                1.0  => Speed1Button,
+                2.0  => Speed2Button,
+                _    => null
+            };
+
+            if (selected != null)
+            {
+                selected.Background = SpeedSelectedBrush;
+                selected.BorderBrush = SpeedSelectedBrush;
+            }
+        }
+
+        private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
+        private void SeekMinus1_Click(object sender, RoutedEventArgs e) => SeekBy(-1);
+        private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(+1);
+        private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(+5);
+
+        // ----------------------------
+        // Clip
+        // ----------------------------
+        private void ClipStart_Click(object sender, RoutedEventArgs e)
+        {
+            if (Player.Source == null) return;
+            VM.ClipStartSeconds = Player.Position.TotalSeconds;
+            VM.StatusText = $"Clip START = {FormatTime(VM.ClipStartSeconds)}";
+        }
+
+        private void ClipEnd_Click(object sender, RoutedEventArgs e)
+        {
+            if (Player.Source == null) return;
+            VM.ClipEndSeconds = Player.Position.TotalSeconds;
+            VM.StatusText = $"Clip END = {FormatTime(VM.ClipEndSeconds)}";
+        }
+
+        private void SaveTeamA_Click(object sender, RoutedEventArgs e) => SaveClip("A");
+        private void SaveTeamB_Click(object sender, RoutedEventArgs e) => SaveClip("B");
+
+        private void SaveClip(string team)
+        {
+            if (Player.Source == null) return;
+
+            var start = VM.ClipStartSeconds;
+            var end = VM.ClipEndSeconds;
+
+            if (end <= start)
+            {
+                VM.StatusText = "Clip range invalid (END must be after START).";
+                return;
+            }
+
+            var tags = VM.GetSelectedTags();
+            var item = new ClipRow
+            {
+                Team = team,
+                Start = start,
+                End = end,
+                Tags = tags.ToList()
+            };
+
+            VM.AllClips.Add(item);
+            if (team == "A") VM.TeamAClips.Add(item);
+            else VM.TeamBClips.Add(item);
+
+            VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
+            VM.UpdateHeadersAndCurrentTagsText();
+        }
+
+        // ----------------------------
+        // Clips (next step)
+        // ----------------------------
+        // リストのクリップをダブルクリック → そのStartへジャンプして再生
+        private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not ListView lv) return;
+            if (lv.SelectedItem is not ClipRow row) return;
+            if (Player?.Source == null) return;
+
+            Player.Position = TimeSpan.FromSeconds(row.Start);
+            Player.Play();
+            VM.IsPlaying = true;
+            VM.StatusText = $"Jumped to {FormatTime(row.Start)}";
+        }
+
+        // ----------------------------
+        // Tags
+        // ----------------------------
+        private void AddCustomTag_Click(object sender, RoutedEventArgs e)
+        {
+            var t = (VM.CustomTagInput ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(t)) return;
+
+            // custom tagは offense側に追加（Macに寄せて「増やせる」挙動）
+            if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
+            {
+                VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
+            }
+            else
+            {
+                var existing = VM.OffenseTags.First(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase));
+                existing.IsSelected = true;
+            }
+
+            VM.CustomTagInput = "";
+            VM.UpdateHeadersAndCurrentTagsText();
+        }
+
+        private void ClearTags_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var t in VM.OffenseTags) t.IsSelected = false;
+            foreach (var t in VM.DefenseTags) t.IsSelected = false;
+            VM.CustomTagInput = "";
+            VM.UpdateHeadersAndCurrentTagsText();
+        }
+
+        // ----------------------------
+        // CSV
+        // ----------------------------
+        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        {
+            ExportCsvInternal(VM.AllClips.ToList());
+        }
+
+        private void ExportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            // フィルタ反映版（表示上の想定に合わせる）
+            var list = VM.GetFilteredClips().ToList();
+            ExportCsvInternal(list);
+        }
+
+        private void ExportCsvInternal(List<ClipRow> clips)
+        {
+            if (clips.Count == 0)
+            {
+                VM.StatusText = "No clips to export.";
+                return;
+            }
+
+            var dlg = new SaveFileDialog
+            {
+                Title = "Export CSV",
+                Filter = "CSV (*.csv)|*.csv",
+                FileName = "play_by_play.csv"
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("team,start,end,tags");
+                foreach (var c in clips)
+                {
+                    var tags = string.Join("|", c.Tags ?? new List<string>());
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)}");
+                }
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
+            }
+            catch (Exception ex)
+            {
+                VM.StatusText = "Export failed.";
+                MessageBox.Show(ex.Message, "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Import CSV",
+                Filter = "CSV (*.csv)|*.csv|All Files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                var lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8).ToList();
+                if (lines.Count <= 1) return;
+
+                // header skip
+                foreach (var line in lines.Skip(1))
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var parts = SplitCsv(line);
+                    if (parts.Count < 4) continue;
+
+                    var team = parts[0].Trim();
+                    if (team != "A" && team != "B") continue;
+
+                    if (!double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var start)) continue;
+                    if (!double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var end)) continue;
+
+                    var tags = (parts[3] ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+
+                    var item = new ClipRow { Team = team, Start = start, End = end, Tags = tags };
+                    VM.AllClips.Add(item);
+                    if (team == "A") VM.TeamAClips.Add(item);
+                    else VM.TeamBClips.Add(item);
+                }
+
+                VM.StatusText = $"Imported: {Path.GetFileName(dlg.FileName)}";
+                VM.UpdateHeadersAndCurrentTagsText();
+            }
+            catch (Exception ex)
+            {
+                VM.StatusText = "Import failed.";
+                MessageBox.Show(ex.Message, "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static string EscapeCsv(string s)
+        {
+            if (s.Contains(",") || s.Contains("\"") || s.Contains("\n"))
+            {
+                return "\"" + s.Replace("\"", "\"\"") + "\"";
+            }
+            return s;
+        }
+
+        private static List<string> SplitCsv(string line)
+        {
+            var result = new List<string>();
+            var sb = new StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '\"')
+                {
+                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '\"')
+                    {
+                        sb.Append('\"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = !inQuotes;
+                    }
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    result.Add(sb.ToString());
+                    sb.Clear();
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            result.Add(sb.ToString());
+            return result;
+        }
+
+        private static string FormatTime(double seconds)
+        {
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "--:--";
+            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
+            return ts.ToString(@"m\:ss");
+        }
     }
 
+    // ============================
+    // ViewModel / Models (self-contained)
+    // ============================
     public class MainWindowViewModel : INotifyPropertyChanged
     {
-        private readonly MainWindow _view;
-        private readonly DispatcherTimer _timer;
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        // ====== UI / State ======
-        public ObservableCollection<ClipItem> TeamAClips { get; } = new();
-        public ObservableCollection<ClipItem> TeamBClips { get; } = new();
-
-        private ClipItem _selectedTeamAClip;
-        public ClipItem SelectedTeamAClip
-        {
-            get => _selectedTeamAClip;
-            set { _selectedTeamAClip = value; OnPropertyChanged(); }
-        }
-
-        private ClipItem _selectedTeamBClip;
-        public ClipItem SelectedTeamBClip
-        {
-            get => _selectedTeamBClip;
-            set { _selectedTeamBClip = value; OnPropertyChanged(); }
-        }
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private string _teamAName = "Home / Our Team";
-        public string TeamAName
-        {
-            get => _teamAName;
-            set { _teamAName = value; OnPropertyChanged(); }
-        }
-
         private string _teamBName = "Away / Opponent";
-        public string TeamBName
-        {
-            get => _teamBName;
-            set { _teamBName = value; OnPropertyChanged(); }
-        }
+        private string _loadedVideoName = "";
+        private string _loadedVideoPath = "";
+        private string _statusText = "";
+        private bool _isPlaying = false;
 
-        public ObservableCollection<string> ClipFilters { get; } = new() { "All Clips" };
+        private double _durationSeconds = 0;
+        private double _currentSeconds = 0;
+
+        private double _clipStartSeconds = 0;
+        private double _clipEndSeconds = 0;
+
+        private string _timeDisplay = "--:-- / --:--";
+        private string _customTagInput = "";
+        private string _currentTagsText = "(No tags selected)";
+        private string _clipsHeader = "Clips (Total 0)";
+
+        public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
         private string _selectedClipFilter = "All Clips";
         public string SelectedClipFilter
         {
             get => _selectedClipFilter;
-            set { _selectedClipFilter = value; OnPropertyChanged(); }
+            set { _selectedClipFilter = value; OnPropertyChanged(); UpdateHeadersAndCurrentTagsText(); }
         }
 
-        private double _timelineMax = 1;
-        public double TimelineMax
-        {
-            get => _timelineMax;
-            set { _timelineMax = value <= 0 ? 1 : value; OnPropertyChanged(); }
-        }
+        public ObservableCollection<ClipRow> AllClips { get; } = new ObservableCollection<ClipRow>();
+        public ObservableCollection<ClipRow> TeamAClips { get; } = new ObservableCollection<ClipRow>();
+        public ObservableCollection<ClipRow> TeamBClips { get; } = new ObservableCollection<ClipRow>();
 
-        private double _timelineValue;
-        public double TimelineValue
-        {
-            get => _timelineValue;
-            set { _timelineValue = value; OnPropertyChanged(); OnPropertyChanged(nameof(TimelineLabel)); }
-        }
-
-        public bool IsDraggingTimeline { get; set; }
-
-        private bool _isPlaying;
-        public string PlayPauseGlyph => _isPlaying ? "\uE769" : "\uE768"; // Pause / Play
-
-        private double _playbackSpeed = 1.0;
-
-        // Clip range
-        private double? _clipStartSec;
-        private double? _clipEndSec;
-
-        public string TimelineLabel
-        {
-            get
+        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
+            new[]
             {
-                var cur = TimeSpan.FromSeconds(Math.Max(0, TimelineValue));
-                var max = TimeSpan.FromSeconds(Math.Max(0, TimelineMax));
-                return $"Playback Speed: {_playbackSpeed:0.##} / {cur:mm\\:ss} / {max:mm\\:ss}";
+                "Transition","Set","PnR","BLOB","SLOB","vs M/M","vs Zone","2nd Attack","3rd Attack more"
+            }.Select(x => new TagToggleModel { Name = x })
+        );
+
+        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>(
+            new[]
+            {
+                "M/M","Zone","Rebound","Steal"
+            }.Select(x => new TagToggleModel { Name = x })
+        );
+
+        public MainWindowViewModel()
+        {
+            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+
+            AllClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            TeamAClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            TeamBClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+
+            UpdateHeadersAndCurrentTagsText();
+        }
+
+        public string TeamAName { get => _teamAName; set { _teamAName = value; OnPropertyChanged(); } }
+        public string TeamBName { get => _teamBName; set { _teamBName = value; OnPropertyChanged(); } }
+
+        public string LoadedVideoName { get => _loadedVideoName; set { _loadedVideoName = value; OnPropertyChanged(); } }
+        public string LoadedVideoPath { get => _loadedVideoPath; set { _loadedVideoPath = value; OnPropertyChanged(); } }
+
+        public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
+
+        public bool IsPlaying
+        {
+            get => _isPlaying;
+            set
+            {
+                _isPlaying = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlayPauseLabel));
+                OnPropertyChanged(nameof(PlayPauseIcon));
             }
         }
 
-        // ====== Commands ======
-        public ICommand LoadVideoCommand { get; }
-        public ICommand TogglePlayCommand { get; }
-        public ICommand SeekCommand { get; }
-        public ICommand SetSpeedCommand { get; }
+        public string PlayPauseLabel => IsPlaying ? "Pause" : "Play";
 
-        public ICommand SetClipStartCommand { get; }
-        public ICommand SetClipEndCommand { get; }
-        public ICommand SaveTeamACommand { get; }
-        public ICommand SaveTeamBCommand { get; }
+        // Segoe MDL2 Assets glyphs
+        // Play:  E768   Pause: E769
+        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
 
-        // placeholders (compile-safe)
-        public ICommand ImportCsvCommand { get; }
-        public ICommand ExportCsvCommand { get; }
-        public ICommand ExportAllCommand { get; }
-        public ICommand PreferencesCommand { get; }
+        public double DurationSeconds { get => _durationSeconds; set { _durationSeconds = value; OnPropertyChanged(); } }
+        public double CurrentSeconds { get => _currentSeconds; set { _currentSeconds = value; OnPropertyChanged(); } }
 
-        public MainWindowViewModel(MainWindow view)
+        public double ClipStartSeconds { get => _clipStartSeconds; set { _clipStartSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipStartText)); } }
+        public double ClipEndSeconds { get => _clipEndSeconds; set { _clipEndSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipEndText)); } }
+
+        public string ClipStartText => $"START: {FormatTime(ClipStartSeconds)}";
+        public string ClipEndText => $"END: {FormatTime(ClipEndSeconds)}";
+
+        public string TimeDisplay { get => _timeDisplay; set { _timeDisplay = value; OnPropertyChanged(); } }
+
+        public string CustomTagInput { get => _customTagInput; set { _customTagInput = value; OnPropertyChanged(); } }
+
+        public string CurrentTagsText { get => _currentTagsText; set { _currentTagsText = value; OnPropertyChanged(); } }
+
+        public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
+
+        public IEnumerable<string> GetSelectedTags()
         {
-            _view = view;
-
-            LoadVideoCommand = new SimpleCommand(_ => LoadVideo());
-            TogglePlayCommand = new SimpleCommand(_ => TogglePlayPause());
-            SeekCommand = new SimpleCommand(p => SeekBy(Convert.ToDouble(p)));
-            SetSpeedCommand = new SimpleCommand(p => SetSpeed(Convert.ToDouble(p)));
-
-            SetClipStartCommand = new SimpleCommand(_ => SetClipStart());
-            SetClipEndCommand = new SimpleCommand(_ => SetClipEnd());
-            SaveTeamACommand = new SimpleCommand(_ => SaveClip(isTeamA: true));
-            SaveTeamBCommand = new SimpleCommand(_ => SaveClip(isTeamA: false));
-
-            ImportCsvCommand = new SimpleCommand(_ => MessageBox.Show("Import CSV: next"));
-            ExportCsvCommand = new SimpleCommand(_ => MessageBox.Show("Export CSV: next"));
-            ExportAllCommand = new SimpleCommand(_ => MessageBox.Show("Export All: next"));
-            PreferencesCommand = new SimpleCommand(_ => MessageBox.Show("Preferences: next"));
-
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-            _timer.Tick += (_, __) => SyncTimelineFromPlayer();
-            _timer.Start();
-
-            // ✅ 起動直後のデフォルト速度 1x（RadioButton is checked でも来るが保険）
-            _playbackSpeed = 1.0;
-            ApplySpeed();
+            return OffenseTags.Where(x => x.IsSelected).Select(x => x.Name)
+                .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
         }
 
-        public void OnMediaOpened()
+        public IEnumerable<ClipRow> GetFilteredClips()
         {
-            if (_view.Player.NaturalDuration.HasTimeSpan)
+            return SelectedClipFilter switch
             {
-                TimelineMax = _view.Player.NaturalDuration.TimeSpan.TotalSeconds;
-            }
-            else
-            {
-                TimelineMax = 1;
-            }
-
-            TimelineValue = 0;
-            _isPlaying = false;
-            OnPropertyChanged(nameof(PlayPauseGlyph));
-            ApplySpeed();
-        }
-
-        public void OnMediaEnded()
-        {
-            _isPlaying = false;
-            OnPropertyChanged(nameof(PlayPauseGlyph));
-        }
-
-        private void SyncTimelineFromPlayer()
-        {
-            if (IsDraggingTimeline) return;
-            if (_view.Player.Source == null) return;
-
-            try
-            {
-                TimelineValue = _view.Player.Position.TotalSeconds;
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-        private void LoadVideo()
-        {
-            var ofd = new OpenFileDialog
-            {
-                Filter = "Video Files|*.mp4;*.mov;*.m4v;*.wmv;*.avi|All Files|*.*"
+                "Team A" => TeamAClips,
+                "Team B" => TeamBClips,
+                _ => AllClips
             };
-
-            if (ofd.ShowDialog() != true) return;
-
-            _view.Player.Source = new Uri(ofd.FileName);
-            _view.Player.Position = TimeSpan.Zero;
-
-            _isPlaying = false;
-            OnPropertyChanged(nameof(PlayPauseGlyph));
-
-            // 自動再生しない（Mac版の挙動に寄せるなら、ここは好みで変更OK）
-            _view.Player.Stop();
-
-            ApplySpeed();
         }
 
-        private void TogglePlayPause()
+        public void UpdateHeadersAndCurrentTagsText()
         {
-            if (_view.Player.Source == null) return;
+            ClipsHeader = $"Clips (Total {AllClips.Count})";
 
-            if (_isPlaying)
-            {
-                _view.Player.Pause();
-                _isPlaying = false;
-            }
-            else
-            {
-                _view.Player.Play();
-                _isPlaying = true;
-            }
-
-            OnPropertyChanged(nameof(PlayPauseGlyph));
+            var tags = GetSelectedTags().ToList();
+            CurrentTagsText = tags.Count == 0 ? "(No tags selected)" : string.Join(", ", tags);
         }
 
-        private void SeekBy(double seconds)
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+        private static string FormatTime(double seconds)
         {
-            if (_view.Player.Source == null) return;
-
-            var next = _view.Player.Position.TotalSeconds + seconds;
-            SeekTo(next);
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "--:--";
+            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
+            return ts.ToString(@"m\:ss");
         }
+    }
 
-        public void SeekTo(double seconds)
-        {
-            if (_view.Player.Source == null) return;
+    public class TagToggleModel : INotifyPropertyChanged
+    {
+        public event PropertyChangedEventHandler? PropertyChanged;
 
-            if (seconds < 0) seconds = 0;
-            if (seconds > TimelineMax) seconds = TimelineMax;
+        private string _name = "";
+        private bool _isSelected = false;
 
-            _view.Player.Position = TimeSpan.FromSeconds(seconds);
-            TimelineValue = seconds;
-        }
+        public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
+        public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
 
-        private void SetSpeed(double speed)
-        {
-            _playbackSpeed = speed;
-            ApplySpeed();
-            OnPropertyChanged(nameof(TimelineLabel));
-        }
-
-        private void ApplySpeed()
-        {
-            try
-            {
-                _view.Player.SpeedRatio = _playbackSpeed;
-            }
-            catch
-            {
-                // some formats may not support SpeedRatio
-            }
-        }
-
-        private void SetClipStart()
-        {
-            if (_view.Player.Source == null) return;
-            _clipStartSec = _view.Player.Position.TotalSeconds;
-        }
-
-        private void SetClipEnd()
-        {
-            if (_view.Player.Source == null) return;
-            _clipEndSec = _view.Player.Position.TotalSeconds;
-        }
-
-        private void SaveClip(bool isTeamA)
-        {
-            if (_view.Player.Source == null) return;
-            if (_clipStartSec == null || _clipEndSec == null) return;
-
-            var s = Math.Min(_clipStartSec.Value, _clipEndSec.Value);
-            var e = Math.Max(_clipStartSec.Value, _clipEndSec.Value);
-
-            var item = new ClipItem
-            {
-                StartSec = s,
-                EndSec = e,
-                TagsLabel = "" // 次で Current Tags と連動させる
-            };
-
-            if (isTeamA) TeamAClips.Add(item);
-            else TeamBClips.Add(item);
-        }
-
-        // ✅ 次の処理：リストダブルクリックで Start にジャンプして再生
-        public void JumpToSelectedClip(bool isTeamA)
-        {
-            var clip = isTeamA ? SelectedTeamAClip : SelectedTeamBClip;
-            if (clip == null) return;
-
-            SeekTo(clip.StartSec);
-            if (_view.Player.Source != null)
-            {
-                _view.Player.Play();
-                _isPlaying = true;
-                OnPropertyChanged(nameof(PlayPauseGlyph));
-            }
-        }
-
-        private void OnPropertyChanged([CallerMemberName] string name = null)
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    public class ClipItem
+    public class ClipRow
     {
-        public double StartSec { get; set; }
-        public double EndSec { get; set; }
-        public string TagsLabel { get; set; } = "";
+        public string Team { get; set; } = "A";
+        public double Start { get; set; }
+        public double End { get; set; }
+        public List<string> Tags { get; set; } = new List<string>();
 
-        public string StartLabel => TimeSpan.FromSeconds(StartSec).ToString(@"mm\:ss");
-        public string EndLabel => TimeSpan.FromSeconds(EndSec).ToString(@"mm\:ss");
-    }
+        public string StartText => FormatTime(Start);
+        public string EndText => FormatTime(End);
+        public string TagsText => Tags == null || Tags.Count == 0 ? "" : string.Join(", ", Tags);
 
-    // 既存の RelayCommand と衝突しないように別名で用意
-    public sealed class SimpleCommand : ICommand
-    {
-        private readonly Action<object> _execute;
-        private readonly Func<object, bool> _canExecute;
-
-        public event EventHandler CanExecuteChanged;
-
-        public SimpleCommand(Action<object> execute, Func<object, bool> canExecute = null)
+        private static string FormatTime(double seconds)
         {
-            _execute = execute;
-            _canExecute = canExecute;
+            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
+            return ts.ToString(@"m\:ss");
         }
-
-        public bool CanExecute(object parameter) => _canExecute?.Invoke(parameter) ?? true;
-        public void Execute(object parameter) => _execute(parameter);
-        public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }
