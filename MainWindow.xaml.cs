@@ -8,7 +8,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Diagnostics;
 using System.Windows;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -306,6 +308,166 @@ namespace PlayCutWin
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
             ExportCsvInternal(VM.AllClips.ToList());
+        }
+
+        // ----------------------------
+        // Export clip videos (ffmpeg)
+        // ----------------------------
+        private async void ExportClips_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(VM.LoadedVideoPath) || !File.Exists(VM.LoadedVideoPath))
+            {
+                MessageBox.Show("動画が読み込まれていません。先に Load Video を実行してください。", "Play Cut", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var clips = VM.AllClips.ToList();
+            if (clips.Count == 0)
+            {
+                MessageBox.Show("クリップがありません。IN/OUT でクリップを追加してから実行してください。", "Play Cut", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Choose export root folder (SaveFileDialog hack: pick a file, we use its directory)
+            var sfd = new SaveFileDialog
+            {
+                Title = "Export folder を選択（任意のファイル名でOK）",
+                FileName = "export_here.txt",
+                Filter = "Text (*.txt)|*.txt"
+            };
+            if (sfd.ShowDialog() != true) return;
+
+            var chosenDir = Path.GetDirectoryName(sfd.FileName);
+            if (string.IsNullOrWhiteSpace(chosenDir)) return;
+
+            // Ensure ffmpeg exists
+            var ffmpegPath = ResolveFfmpegPath();
+            if (ffmpegPath == null)
+            {
+                MessageBox.Show(
+                    "動画クリップの書き出しには ffmpeg が必要です。\n\nWindows に ffmpeg をインストールして PATH を通した後、もう一度実行してください。",
+                    "ffmpeg が見つかりません",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            // Build output structure
+            var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
+            var root = Path.Combine(chosenDir, $"{SanitizeFileName(baseName)}_PlayCutExport_{DateTime.Now:yyyyMMdd_HHmmss}");
+            var allDir = Path.Combine(root, "_AllClips");
+            Directory.CreateDirectory(allDir);
+
+            try
+            {
+                StatusText.Text = "Export Clips: preparing...";
+
+                // Export once per clip to _AllClips, then copy into tag folders
+                int index = 1;
+                foreach (var c in clips)
+                {
+                    var start = Math.Max(0, c.Start);
+                    var end = Math.Max(start, c.End);
+                    var outFile = Path.Combine(allDir, $"{index:000}_{c.Team}_{FormatTime(start)}_{FormatTime(end)}.mp4");
+
+                    StatusText.Text = $"Export Clips: {index}/{clips.Count} ...";
+                    await Task.Run(() => RunFfmpegCut(ffmpegPath, VM.LoadedVideoPath, start, end, outFile));
+
+                    // Copy into tag folders
+                    var tags = (c.Tags ?? "").Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(t => t.Trim())
+                        .Where(t => !string.IsNullOrWhiteSpace(t))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (tags.Count == 0)
+                    {
+                        var noTagDir = Path.Combine(root, "NoTag");
+                        Directory.CreateDirectory(noTagDir);
+                        File.Copy(outFile, Path.Combine(noTagDir, Path.GetFileName(outFile)), overwrite: true);
+                    }
+                    else
+                    {
+                        foreach (var tag in tags)
+                        {
+                            var tagDir = Path.Combine(root, SanitizeFileName(tag));
+                            Directory.CreateDirectory(tagDir);
+                            File.Copy(outFile, Path.Combine(tagDir, Path.GetFileName(outFile)), overwrite: true);
+                        }
+                    }
+
+                    index++;
+                }
+
+                StatusText.Text = "Export Clips: done";
+                MessageBox.Show($"書き出し完了！\n\n{root}", "Play Cut", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Export Clips: failed";
+                MessageBox.Show($"書き出しに失敗しました。\n\n{ex.Message}", "Play Cut", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static string? ResolveFfmpegPath()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = "-version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var p = Process.Start(psi);
+                if (p == null) return null;
+                p.WaitForExit(1500);
+                return p.ExitCode == 0 ? "ffmpeg" : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static void RunFfmpegCut(string ffmpegPath, string inputPath, double startSec, double endSec, string outputPath)
+        {
+            // Re-encode for reliability (copy-cut can fail on non-keyframe boundaries)
+            var dur = Math.Max(0.01, endSec - startSec);
+            var args = $"-y -ss {startSec.ToString(System.Globalization.CultureInfo.InvariantCulture)} -t {dur.ToString(System.Globalization.CultureInfo.InvariantCulture)} -i \"{inputPath}\" -c:v libx264 -preset veryfast -crf 22 -c:a aac -b:a 128k \"{outputPath}\"";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = args,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p == null) throw new Exception("ffmpeg を起動できませんでした。");
+            p.WaitForExit();
+            if (p.ExitCode != 0)
+            {
+                var err = p.StandardError.ReadToEnd();
+                throw new Exception("ffmpeg error: " + (string.IsNullOrWhiteSpace(err) ? $"ExitCode={p.ExitCode}" : err));
+            }
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            foreach (var ch in Path.GetInvalidFileNameChars()) name = name.Replace(ch, '_');
+            return name.Trim();
+        }
+
+        private static string FormatTime(double seconds)
+        {
+            var t = TimeSpan.FromSeconds(seconds);
+            return $"{(int)t.TotalMinutes:00}m{t.Seconds:00}s";
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)

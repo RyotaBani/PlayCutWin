@@ -193,6 +193,7 @@
                         <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export Clips" Click="ExportClips_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click"/>
                     </StackPanel>
                 </DockPanel>
