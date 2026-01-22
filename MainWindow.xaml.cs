@@ -323,203 +323,148 @@ namespace PlayCutWin
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
-{
-    try
-    {
-        if (_vm.TeamAClips.Count == 0 && _vm.TeamBClips.Count == 0)
         {
-            MessageBox.Show("No clips to export.", "Export CSV", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            // フィルタ反映版（表示上の想定に合わせる）
+            var list = VM.GetFilteredClips().ToList();
+            ExportCsvInternal(list);
         }
 
-        var sfd = new Microsoft.Win32.SaveFileDialog
+        private void ExportCsvInternal(List<ClipRow> clips)
         {
-            Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
-            FileName = string.IsNullOrWhiteSpace(_vm.LoadedVideoName)
-                ? "play_by_play.csv"
-                : $"{Path.GetFileNameWithoutExtension(_vm.LoadedVideoName)}_play_by_play.csv"
-        };
-
-        if (sfd.ShowDialog() != true) return;
-
-        ExportCsvInternal(sfd.FileName);
-
-        MessageBox.Show("CSV exported!", "Export CSV", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-    catch (Exception ex)
-    {
-        MessageBox.Show(ex.Message, "Export CSV Error", MessageBoxButton.OK, MessageBoxImage.Error);
-    }
-}
-
-        private void ExportCsvInternal(string path)
-{
-    var videoName = string.IsNullOrWhiteSpace(_vm.LoadedVideoName) ? "" : _vm.LoadedVideoName;
-
-    // Combine + sort by Start time (stable)
-    var all = new List<(string TeamLabel, ClipRow Clip)>();
-    foreach (var c in _vm.TeamAClips) all.Add(("Home", c));
-    foreach (var c in _vm.TeamBClips) all.Add(("Away", c));
-    all.Sort((a, b) => a.Clip.Start.CompareTo(b.Clip.Start));
-
-    using var sw = new StreamWriter(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-
-    sw.WriteLine("VideoName,No,Team,Start,End,Duration,Tags");
-
-    for (int i = 0; i < all.Count; i++)
-    {
-        var (teamLabel, clip) = all[i];
-
-        var startText = FormatTimeCompact(clip.Start);
-        var endText = FormatTimeCompact(clip.End);
-        var durationText = FormatTimeCompact(Math.Max(0, clip.End - clip.Start));
-
-        var tagsText = (clip.Tags == null || clip.Tags.Count == 0)
-            ? ""
-            : string.Join("; ", clip.Tags);
-
-        var row = string.Join(",",
-            CsvEscape(videoName),
-            (i + 1).ToString(),
-            CsvEscape(teamLabel),
-            CsvEscape(startText),
-            CsvEscape(endText),
-            CsvEscape(durationText),
-            CsvEscape(tagsText)
-        );
-
-        sw.WriteLine(row);
-    }
-}
-
-        private void ImportCsv_Click(object sender, RoutedEventArgs e)
-{
-    try
-    {
-        var ofd = new OpenFileDialog
-        {
-            Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*"
-        };
-
-        if (ofd.ShowDialog() != true) return;
-
-        var importedA = new List<ClipRow>();
-        var importedB = new List<ClipRow>();
-
-        using (var parser = new Microsoft.VisualBasic.FileIO.TextFieldParser(ofd.FileName))
-        {
-            parser.SetDelimiters(",");
-            parser.HasFieldsEnclosedInQuotes = true;
-            parser.TrimWhiteSpace = false;
-
-            var header = parser.ReadFields();
-            if (header == null || header.Length == 0)
+            if (clips.Count == 0)
             {
-                MessageBox.Show("CSV header not found.", "Import CSV", MessageBoxButton.OK, MessageBoxImage.Warning);
+                VM.StatusText = "No clips to export.";
                 return;
             }
 
-            var col = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < header.Length; i++)
+            var dlg = new SaveFileDialog
             {
-                var key = (header[i] ?? "").Trim();
-                if (!string.IsNullOrWhiteSpace(key) && !col.ContainsKey(key))
-                    col[key] = i;
-            }
+                Title = "Export CSV",
+                Filter = "CSV (*.csv)|*.csv",
+                FileName = "play_by_play.csv"
+            };
 
-            bool isMac = col.ContainsKey("Team") && col.ContainsKey("Start") && col.ContainsKey("End"); // VideoName/No/Duration/Tags are optional
-            bool isSimple = col.ContainsKey("team") && col.ContainsKey("start") && col.ContainsKey("end");
+            if (dlg.ShowDialog() != true) return;
 
-            if (!isMac && !isSimple)
+            try
             {
-                MessageBox.Show("Unknown CSV format.\nRequired columns: (Team, Start, End) or (team, start, end).", "Import CSV",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            while (!parser.EndOfData)
-            {
-                string[]? f = null;
-                try { f = parser.ReadFields(); }
-                catch { continue; }
-
-                if (f == null || f.Length == 0) continue;
-
-                string Get(string name)
+                var sb = new StringBuilder();
+                sb.AppendLine("team,start,end,tags");
+                foreach (var c in clips)
                 {
-                    if (!col.TryGetValue(name, out var idx)) return "";
-                    if (idx < 0 || idx >= f.Length) return "";
-                    return f[idx] ?? "";
+                    var tags = string.Join("|", c.Tags ?? new List<string>());
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)}");
+                }
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
+            }
+            catch (Exception ex)
+            {
+                VM.StatusText = "Export failed.";
+                MessageBox.Show(ex.Message, "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+                private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = "Import CSV"
+            };
+
+            if (ofd.ShowDialog() != true) return;
+
+            try
+            {
+                var lines = File.ReadAllLines(ofd.FileName);
+                if (lines.Length < 2)
+                {
+                    MessageBox.Show("CSV is empty.");
+                    return;
                 }
 
-                var teamRaw = isMac ? Get("Team") : Get("team");
-                var startRaw = isMac ? Get("Start") : Get("start");
-                var endRaw = isMac ? Get("End") : Get("end");
+                var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
+                var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
 
-                var tagsRaw =
-                    col.ContainsKey("Tags") ? Get("Tags") :
-                    col.ContainsKey("tags") ? Get("tags") :
-                    "";
+                bool isMacLike = headerLower.Contains("videoname") || headerLower.Contains("duration") || headerLower.Contains("no");
 
-                var durationRaw =
-                    col.ContainsKey("Duration") ? Get("Duration") :
-                    col.ContainsKey("duration") ? Get("duration") :
-                    "";
+                int teamIdx = headerLower.IndexOf("team");
+                int startIdx = headerLower.IndexOf("start");
+                int endIdx = headerLower.IndexOf("end");
+                int durationIdx = headerLower.IndexOf("duration");
+                int tagsIdx = headerLower.IndexOf("tags");
 
-                var startSec = ParseTimeFlexible(startRaw);
-                var endSec = ParseTimeFlexible(endRaw);
-
-                if (endSec <= startSec && !string.IsNullOrWhiteSpace(durationRaw))
+                if (teamIdx < 0 || startIdx < 0)
                 {
-                    var dur = ParseTimeFlexible(durationRaw);
-                    if (dur > 0) endSec = startSec + dur;
+                    MessageBox.Show("CSV format not recognized. Need at least 'Team' and 'Start' columns.");
+                    return;
                 }
 
-                if (endSec <= startSec) continue;
-
-                var tags = new List<string>();
-                if (!string.IsNullOrWhiteSpace(tagsRaw))
+                // Clear existing clips? (recommended)
+                if (VM.Clips.Any())
                 {
-                    foreach (var t in tagsRaw.Split(new[] { ';', '|', ',' }, StringSplitOptions.RemoveEmptyEntries))
+                    var res = MessageBox.Show(
+                        "Existing clips will be cleared before import. Continue?",
+                        "Import CSV",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (res != MessageBoxResult.Yes) return;
+
+                    VM.Clips.Clear();
+                }
+
+                int imported = 0;
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(lines[i])) continue;
+                    var cols = SplitCsv(lines[i]);
+                    if (cols.Count <= startIdx || cols.Count <= teamIdx) continue;
+
+                    string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
+                    string team = NormalizeTeamToAB(teamRaw);
+
+                    // Start / End / Duration
+                    double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
+                    double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
+
+                    if (endSec <= 0)
                     {
-                        var tt = t.Trim();
-                        if (!string.IsNullOrWhiteSpace(tt)) tags.Add(tt);
+                        if (durationIdx >= 0)
+                        {
+                            var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
+                            if (dur > 0) endSec = startSec + dur;
+                        }
                     }
+
+                    if (endSec <= startSec)
+                    {
+                        // If End is missing or invalid, skip
+                        continue;
+                    }
+
+                    string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
+                    var tags = ParseTags(tagsRaw);
+
+                    VM.Clips.Add(new ClipRow
+                    {
+                        Team = team,
+                        Start = startSec,
+                        End = endSec,
+                        Tags = tags
+                    });
+                    imported++;
                 }
 
-                var tl = (teamRaw ?? "").Trim().ToLowerInvariant();
-                var isAway =
-                    tl == "b" || tl == "teamb" ||
-                    tl.Contains("away") ||
-                    tl.Contains("opponent");
-
-                var clip = new ClipRow
-                {
-                    Start = startSec,
-                    End = endSec,
-                    Tags = tags
-                };
-
-                if (isAway) importedB.Add(clip);
-                else importedA.Add(clip);
+                VM.UpdateHeadersAndCurrentTagsText();
+                StatusText.Text = $"Imported {imported} clips.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Import failed: " + ex.Message);
             }
         }
-
-        // apply (clear and replace)
-        _vm.TeamAClips.Clear();
-        _vm.TeamBClips.Clear();
-
-        foreach (var c in importedA) _vm.TeamAClips.Add(c);
-        foreach (var c in importedB) _vm.TeamBClips.Add(c);
-
-        MessageBox.Show($"Imported clips: Team A={importedA.Count}, Team B={importedB.Count}", "Import CSV",
-            MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-    catch (Exception ex)
-    {
-        MessageBox.Show(ex.Message, "Import CSV Error", MessageBoxButton.OK, MessageBoxImage.Error);
-    }
-}
 
         // ----------------------------
         // Video export (ffmpeg)
@@ -743,6 +688,84 @@ namespace PlayCutWin
             result.Add(sb.ToString());
             return result;
         }
+
+        private static string GetSafe(IReadOnlyList<string> cols, int index)
+        {
+            if (index < 0 || index >= cols.Count) return string.Empty;
+            return cols[index] ?? string.Empty;
+        }
+
+        private static string NormalizeTeamToAB(string team)
+        {
+            var t = (team ?? string.Empty).Trim();
+            if (t.Length == 0) return "A";
+
+            var lower = t.ToLowerInvariant();
+            if (lower == "a" || lower == "team a") return "A";
+            if (lower == "b" || lower == "team b") return "B";
+
+            if (lower.Contains("home") || lower.Contains("our")) return "A";
+            if (lower.Contains("away") || lower.Contains("opponent")) return "B";
+
+            // Fallback: any string that contains 'b' but not 'a'
+            if (lower.Contains("b") && !lower.Contains("a")) return "B";
+            return "A";
+        }
+
+        private static double ParseTimeToSeconds(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return 0;
+            s = s.Trim();
+
+            // Numeric seconds
+            if (double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var secNum))
+                return secNum;
+            if (double.TryParse(s, out secNum))
+                return secNum;
+
+            // Formats: mm:ss, mm:ss.fff, hh:mm:ss, hh:mm:ss.fff
+            var parts = s.Split(':');
+            try
+            {
+                if (parts.Length == 2)
+                {
+                    int minutes = int.Parse(parts[0]);
+                    double seconds = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    return minutes * 60 + seconds;
+                }
+                if (parts.Length == 3)
+                {
+                    int hours = int.Parse(parts[0]);
+                    int minutes = int.Parse(parts[1]);
+                    double seconds = double.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
+                    return hours * 3600 + minutes * 60 + seconds;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+            return 0;
+        }
+
+        private static List<string> ParseTags(string tagsRaw)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
+
+            string raw = tagsRaw.Trim();
+
+            char[] seps = new[] { ';', '|'};
+            var tokens = raw.Split(seps, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var t in tokens)
+            {
+                var tag = t.Trim();
+                if (tag.Length == 0) continue;
+                result.Add(tag);
+            }
+            return result;
+        }
+
 
         private static string FormatTime(double seconds)
         {
