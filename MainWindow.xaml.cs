@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -375,6 +376,11 @@ namespace PlayCutWin
 
             try
             {
+                // Replace current lists with the imported CSV
+                VM.AllClips.Clear();
+                VM.TeamAClips.Clear();
+                VM.TeamBClips.Clear();
+
                 var lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8).ToList();
                 if (lines.Count <= 1) return;
 
