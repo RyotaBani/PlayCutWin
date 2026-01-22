@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -365,7 +366,8 @@ namespace PlayCutWin
             }
         }
 
-                private void ImportCsv_Click(object sender, RoutedEventArgs e)
+                
+        private void ImportCsv_Click(object sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog
             {
@@ -380,29 +382,32 @@ namespace PlayCutWin
                 var lines = File.ReadAllLines(ofd.FileName);
                 if (lines.Length < 2)
                 {
-                    MessageBox.Show("CSV is empty.");
+                    MessageBox.Show("CSV is empty.", "Import CSV", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
-                var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
+                // --- header解析（列名揺れ吸収：空白除去＋小文字化） ---
+                var headerRaw = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
+                var headerKey = headerRaw.Select(NormalizeHeaderKey).ToList();
 
-                bool isMacLike = headerLower.Contains("videoname") || headerLower.Contains("duration") || headerLower.Contains("no");
-
-                int teamIdx = headerLower.IndexOf("team");
-                int startIdx = headerLower.IndexOf("start");
-                int endIdx = headerLower.IndexOf("end");
-                int durationIdx = headerLower.IndexOf("duration");
-                int tagsIdx = headerLower.IndexOf("tags");
+                int teamIdx     = FindColumnIndex(headerKey, "team", "team(home/away)", "team(homeaway)", "team(home-away)");
+                int startIdx    = FindColumnIndex(headerKey, "start", "starttime", "start_time");
+                int endIdx      = FindColumnIndex(headerKey, "end", "endtime", "end_time");
+                int durationIdx = FindColumnIndex(headerKey, "duration", "dur");
+                int tagsIdx     = FindColumnIndex(headerKey, "tags", "tag");
 
                 if (teamIdx < 0 || startIdx < 0)
                 {
-                    MessageBox.Show("CSV format not recognized. Need at least 'Team' and 'Start' columns.");
+                    MessageBox.Show(
+                        "CSV format not recognized. Need at least 'Team' and 'Start' columns.",
+                        "Import CSV",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return;
                 }
 
                 // Clear existing clips? (recommended)
-                if (VM.Clips.Any())
+                if (VM.AllClips.Any() || VM.TeamAClips.Any() || VM.TeamBClips.Any())
                 {
                     var res = MessageBox.Show(
                         "Existing clips will be cleared before import. Continue?",
@@ -412,62 +417,68 @@ namespace PlayCutWin
 
                     if (res != MessageBoxResult.Yes) return;
 
-                    VM.Clips.Clear();
+                    VM.AllClips.Clear();
+                    VM.TeamAClips.Clear();
+                    VM.TeamBClips.Clear();
                 }
 
                 int imported = 0;
                 for (int i = 1; i < lines.Length; i++)
                 {
                     if (string.IsNullOrWhiteSpace(lines[i])) continue;
-                    var cols = SplitCsv(lines[i]);
-                    if (cols.Count <= startIdx || cols.Count <= teamIdx) continue;
 
-                    string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
-                    string team = NormalizeTeamToAB(teamRaw);
+                    var cols = SplitCsv(lines[i]);
+                    if (cols.Count <= Math.Max(teamIdx, startIdx)) continue;
+
+                    string teamRaw = GetSafe(cols, teamIdx).Trim();
+                    string team = NormalizeTeamToAB(teamRaw); // Home->A / Away->B
 
                     // Start / End / Duration
                     double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
-                    double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
+                    if (startSec <= 0) continue;
 
-                    if (endSec <= 0)
+                    double endSec = 0;
+                    if (endIdx >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, endIdx));
+
+                    // Endが空ならDurationで補完（Mac版CSV）
+                    if (endSec <= 0 && durationIdx >= 0)
                     {
-                        if (durationIdx >= 0)
-                        {
-                            var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
-                            if (dur > 0) endSec = startSec + dur;
-                        }
+                        var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
+                        if (dur > 0) endSec = startSec + dur;
                     }
 
-                    if (endSec <= startSec)
-                    {
-                        // If End is missing or invalid, skip
-                        continue;
-                    }
+                    if (endSec <= startSec) continue;
 
                     string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
-                    var tags = ParseTags(tagsRaw);
+                    var tags = ParseTagsFlexible(tagsRaw);
 
-                    VM.Clips.Add(new ClipRow
+                    var row = new ClipRow
                     {
                         Team = team,
                         Start = startSec,
                         End = endSec,
                         Tags = tags
-                    });
+                    };
+
+                    VM.AllClips.Add(row);
+                    if (team == "A") VM.TeamAClips.Add(row);
+                    else VM.TeamBClips.Add(row);
+
                     imported++;
                 }
 
                 VM.UpdateHeadersAndCurrentTagsText();
-                StatusText.Text = $"Imported {imported} clips.";
+                VM.StatusText = $"Imported {imported} clips.";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Import failed: " + ex.Message);
+                MessageBox.Show("Import failed: " + ex.Message, "Import CSV", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         // ----------------------------
         // Video export (ffmpeg)
+
         // ----------------------------
         private void ExportClipsInternal(List<ClipRow> clips)
         {
@@ -746,6 +757,47 @@ namespace PlayCutWin
                 // ignore
             }
             return 0;
+        }
+
+
+        private static string NormalizeHeaderKey(string s)
+        {
+            var t = (s ?? string.Empty).Trim().ToLowerInvariant();
+            t = Regex.Replace(t, @"\s+", "");
+            return t;
+        }
+
+        private static int FindColumnIndex(List<string> headerKey, params string[] keys)
+        {
+            foreach (var k in keys)
+            {
+                var kk = NormalizeHeaderKey(k);
+                var idx = headerKey.IndexOf(kk);
+                if (idx >= 0) return idx;
+            }
+            return -1;
+        }
+
+        private static List<string> ParseTagsFlexible(string tagsRaw)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
+
+            var raw = tagsRaw.Trim();
+
+            // Treat "///" as a separator too
+            raw = raw.Replace("///", "|");
+
+            // Unify separators ; | ,
+            raw = raw.Replace(';', '|').Replace(',', '|');
+
+            foreach (var t in raw.Split('|', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var tag = t.Trim();
+                if (tag.Length == 0) continue;
+                result.Add(tag);
+            }
+            return result;
         }
 
         private static List<string> ParseTags(string tagsRaw)
