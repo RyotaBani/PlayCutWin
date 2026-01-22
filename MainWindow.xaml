@@ -199,134 +199,124 @@
 
                 <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Opacity="0.75" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"/>
 
-                                <Grid Grid.Row="2">
-                    <!-- Filtered display:
-                         - All Clips  : show Team A + Team B (side-by-side)
-                         - Team A     : show only Team A (full width)
-                         - Team B     : show only Team B (full width)
-                    -->
+                <Grid Grid.Row="2">
+    <Grid.Resources>
+        <!-- Visibility helpers (string filter) -->
+        <Style x:Key="ShowWhenAllClips_Grid" TargetType="Grid">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="All Clips">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
-                    <!-- ===== All Clips (A + B) ===== -->
-                    <Grid>
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="All Clips">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
+        <Style x:Key="ShowWhenTeamA_Border" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team A">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="10"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+        <Style x:Key="ShowWhenTeamB_Border" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team B">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Grid.Resources>
 
-                        <Border Grid.Column="0" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                <ListView x:Name="TeamAClipsList" Grid.Row="1" ItemsSource="{Binding TeamAClips}" MouseDoubleClick="ClipList_DoubleClick">
-                                    <ListView.View>
-                                        <GridView>
-                                            <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                            <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                            <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="220"/>
-                                        </GridView>
-                                    </ListView.View>
-                                </ListView>
-                            </Grid>
-                        </Border>
+    <!-- === All Clips (A + B side-by-side) === -->
+    <Grid Style="{StaticResource ShowWhenAllClips_Grid}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="10"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="2" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                <ListView x:Name="TeamBClipsList" Grid.Row="1" ItemsSource="{Binding TeamBClips}" MouseDoubleClick="ClipList_DoubleClick">
-                                    <ListView.View>
-                                        <GridView>
-                                            <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                            <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                            <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="220"/>
-                                        </GridView>
-                                    </ListView.View>
-                                </ListView>
-                            </Grid>
-                        </Border>
-                    </Grid>
+        <Border Grid.Column="0" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <ListView x:Name="TeamAClipsList" Grid.Row="1" ItemsSource="{Binding TeamAClips}" MouseDoubleClick="ClipList_DoubleClick">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                            <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                            <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="220"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Grid>
+        </Border>
 
-                    <!-- ===== Team A only ===== -->
-                    <Border Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team A">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+        <Border Grid.Column="2" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <ListView x:Name="TeamBClipsList" Grid.Row="1" ItemsSource="{Binding TeamBClips}" MouseDoubleClick="ClipList_DoubleClick">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                            <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                            <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="220"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Grid>
+        </Border>
+    </Grid>
 
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <ListView ItemsSource="{Binding TeamAClips}" MouseDoubleClick="ClipList_DoubleClick">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="520"/>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
-                        </Grid>
-                    </Border>
+    <!-- === Team A only (full width) === -->
+    <Border Style="{StaticResource ShowWhenTeamA_Border}" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <ListView x:Name="TeamAClipsList_Solo" Grid.Row="1" ItemsSource="{Binding TeamAClips}" MouseDoubleClick="ClipList_DoubleClick">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="90"/>
+                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="90"/>
+                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Grid>
+    </Border>
 
-                    <!-- ===== Team B only ===== -->
-                    <Border Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team B">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <ListView ItemsSource="{Binding TeamBClips}" MouseDoubleClick="ClipList_DoubleClick">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="520"/>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
-                        </Grid>
-                    </Border>
-                </Grid>
-                </Grid>
+    <!-- === Team B only (full width) === -->
+    <Border Style="{StaticResource ShowWhenTeamB_Border}" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <ListView x:Name="TeamBClipsList_Solo" Grid.Row="1" ItemsSource="{Binding TeamBClips}" MouseDoubleClick="ClipList_DoubleClick">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="90"/>
+                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="90"/>
+                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Grid>
+    </Border>
+</Grid>
             </Grid>
         </Border>
 
