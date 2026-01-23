@@ -260,15 +260,25 @@ namespace PlayCutWin
         // Clips (next step)
         // ----------------------------
         // リストのクリップをダブルクリック → そのStartへジャンプして再生
+        
+        // ----------------------------
+        // Clips (next step)
+        // ----------------------------
+        // リストのクリップをダブルクリック → そのStartへジャンプして再生（落ちない安全版）
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is not ListView lv) return;
             if (lv.SelectedItem is not ClipRow row) return;
             if (Player?.Source == null) return;
 
-            // MediaElement is unstable: pause -> delayed seek -> play
-            Player.Pause();
-            VM.IsPlaying = false;
+            // MediaElement が例外を投げずに落ちる（ネイティブクラッシュ）ケースがあるので、
+            // Pause → Dispatcherで1拍置く → Seek → Play の順で “触るタイミング” をずらして安定化する。
+            try
+            {
+                Player.Pause();
+                VM.IsPlaying = false;
+            }
+            catch { /* ignore */ }
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -280,6 +290,7 @@ namespace PlayCutWin
                     var target = row.Start;
                     if (double.IsNaN(target) || double.IsInfinity(target)) return;
 
+                    // Clamp to [0, duration)
                     target = Math.Max(0, target);
                     target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
 
@@ -290,38 +301,9 @@ namespace PlayCutWin
                 }
                 catch
                 {
-                    // swallow to avoid hard crash
+                    // ここで絶対に落とさない（UIも荒らさない）
                 }
             }), DispatcherPriority.Background);
-            }
-
-            try
-            {
-                double target = row.Start;
-                if (double.IsNaN(target) || double.IsInfinity(target)) return;
-
-                // Clamp to [0, duration)
-                target = Math.Max(0, target);
-                target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
-
-                // Safer sequence for MediaElement
-                var wasPlaying = VM.IsPlaying;
-                Player.Pause();
-                SeekTo(target);
-                if (wasPlaying) Player.Play();
-
-                VM.IsPlaying = wasPlaying;
-                VM.StatusText = $"Jumped to {FormatTime(target)}";
-            }
-            catch (Exception ex)
-            {
-                VM.StatusText = "Jump failed.";
-                MessageBox.Show(
-                    $"Failed to jump to clip start.\n\n{ex.Message}",
-                    "Jump Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
         }
 
 
