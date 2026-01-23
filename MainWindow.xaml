@@ -108,49 +108,95 @@
             <Setter Property="Margin" Value="0,0,8,0"/>
         </Style>
 
+        
         <Style TargetType="ComboBox">
-    <Setter Property="Background" Value="#202020"/>
-    <Setter Property="Foreground" Value="#EAEAEA"/>
-    <Setter Property="BorderBrush" Value="#333333"/>
-    <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="Padding" Value="6,4"/>
-    <Setter Property="Margin" Value="0,0,8,0"/>
-    <Setter Property="MinHeight" Value="30"/>
-    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-    <Setter Property="ItemContainerStyle">
-        <Setter.Value>
-            <Style TargetType="ComboBoxItem">
-                <Setter Property="Foreground" Value="#EAEAEA"/>
-                <Setter Property="Background" Value="#202020"/>
-                <Setter Property="Padding" Value="8,6"/>
-                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                <Style.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True">
-                        <Setter Property="Background" Value="#2A2A2A"/>
-                    </Trigger>
-                    <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="#1A2233"/>
-                        <Setter Property="Foreground" Value="#FFFFFF"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
-        </Setter.Value>
-    </Setter>
-    <!-- Popupの背景が白くならないようにする -->
-    <Setter Property="Resources">
-        <Setter.Value>
-            <ResourceDictionary>
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#202020"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#EAEAEA"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#2D6CDF"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFF"/>
-            </ResourceDictionary>
-        </Setter.Value>
-    </Setter>
-</Style>
+            <Setter Property="Background" Value="#202020"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"/>
 
-<!-- Dark ListView (GridView対応：テンプレートは壊さない) -->
-<Style TargetType="ListView" x:Key="DarkListView">
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"/>
+
+                            <ToggleButton x:Name="ToggleButton"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch">
+                                <Grid>
+                                    <Path Fill="#EAEAEA" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                                </Grid>
+                            </ToggleButton>
+
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="#202020" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="2">
+                                    <ScrollViewer Margin="0" SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#4A4A4A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="#EAEAEA"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Padding" Value="10,6"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="#2A2A2A"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#1A2233"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark ListView (GridView対応：テンプレートは壊さない) -->
+        <Style TargetType="ListView" x:Key="DarkListView">
     <Setter Property="Background" Value="#141414"/>
     <Setter Property="Foreground" Value="#EAEAEA"/>
     <Setter Property="BorderBrush" Value="#333333"/>
@@ -274,31 +320,33 @@
 
                 <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Opacity="0.75" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"/>
 
-                <Border Grid.Row="2" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                <Grid Grid.Row="2">
+                    <Border Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                            <TextBlock Text="{Binding ClipsSubHeader}" FontWeight="SemiBold" DockPanel.Dock="Left"/>
-                            <TextBlock Text="(sorted by Start)" Opacity="0.6" DockPanel.Dock="Right"/>
-                        </DockPanel>
+                            <TextBlock Text="Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                        <!-- All Clips を 1リスト表示（フィルタもここに連動） -->
-                        <ListView x:Name="ClipsList" Grid.Row="1" ItemsSource="{Binding ClipsView}" MouseDoubleClick="ClipList_DoubleClick" Style="{StaticResource DarkListView}">
-                            <ListView.View>
-                                <GridView>
-                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
-                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="320"/>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
-                    </Grid>
-                </Border>
+                            <ListView x:Name="ClipsList"
+                                      Grid.Row="1"
+                                      ItemsSource="{Binding ClipsView}"
+                                      MouseDoubleClick="ClipList_DoubleClick"
+                                      Style="{StaticResource DarkListView}">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
+                                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
 

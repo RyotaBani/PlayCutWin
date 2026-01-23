@@ -10,9 +10,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Data;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -327,10 +327,11 @@ namespace PlayCutWin
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
         {
             // フィルタ反映版（表示上の想定に合わせる）
-            var list = VM.GetFilteredClipsSorted().ToList();
+            var list = VM.GetFilteredClips().ToList();
             ExportCsvInternal(list);
         }
 
+        
         private void ExportCsvInternal(List<ClipRow> clips)
         {
             if (clips.Count == 0)
@@ -350,25 +351,24 @@ namespace PlayCutWin
 
             try
             {
-                var sb = new StringBuilder();
-                // CSV v1 (Mac互換を強化)
+                // CSV v1 (Mac版互換)
                 // VideoName / Team(Home/Away) / Start / End / Duration / Tags
+                var sb = new StringBuilder();
                 sb.AppendLine("VideoName,Team(Home/Away),Start,End,Duration,Tags");
 
-                var videoName = string.IsNullOrWhiteSpace(VM.LoadedVideoName)
-                    ? ""
-                    : VM.LoadedVideoName;
+                string videoName = VM.LoadedVideoName ?? string.Empty;
 
                 foreach (var c in clips)
                 {
-                    var tags = string.Join(";", c.Tags ?? new List<string>());
-                    var teamOut = (c.Team == "B") ? "Away" : "Home"; // Home->A / Away->B
+                    var teamHomeAway = (c.Team == "B") ? "Away" : "Home";
                     var start = c.Start.ToString("0.###", CultureInfo.InvariantCulture);
                     var end = c.End.ToString("0.###", CultureInfo.InvariantCulture);
                     var dur = Math.Max(0, c.End - c.Start).ToString("0.###", CultureInfo.InvariantCulture);
+                    var tags = string.Join(";", c.Tags ?? new List<string>());
 
-                    sb.AppendLine($"{EscapeCsv(videoName)},{teamOut},{start},{end},{dur},{EscapeCsv(tags)}");
+                    sb.AppendLine($"{EscapeCsv(videoName)},{teamHomeAway},{start},{end},{dur},{EscapeCsv(tags)}");
                 }
+
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
             }
@@ -379,7 +379,6 @@ namespace PlayCutWin
             }
         }
 
-                
         private void ImportCsv_Click(object sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog
@@ -865,14 +864,6 @@ namespace PlayCutWin
         private string _customTagInput = "";
         private string _currentTagsText = "(No tags selected)";
         private string _clipsHeader = "Clips (Total 0)";
-        private string _clipsSubHeader = "All Clips";
-
-        private ICollectionView? _clipsView;
-        public ICollectionView? ClipsView
-        {
-            get => _clipsView;
-            private set { _clipsView = value; OnPropertyChanged(); }
-        }
 
         public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
@@ -880,18 +871,16 @@ namespace PlayCutWin
         public string SelectedClipFilter
         {
             get => _selectedClipFilter;
-            set
-            {
-                _selectedClipFilter = value;
-                OnPropertyChanged();
-                UpdateClipsView();
-                UpdateHeadersAndCurrentTagsText();
-            }
+            set { _selectedClipFilter = value; OnPropertyChanged(); RefreshClipsView(); UpdateHeadersAndCurrentTagsText(); }
         }
 
         public ObservableCollection<ClipRow> AllClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamAClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new ObservableCollection<ClipRow>();
+
+        // View for the single "All Clips" list (filters + sort)
+        public ICollectionView ClipsView { get; }
+
 
         public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
             new[]
@@ -909,14 +898,27 @@ namespace PlayCutWin
 
         public MainWindowViewModel()
         {
+            // Build a live view over AllClips so the UI can show a single list with filter + sort
+            ClipsView = CollectionViewSource.GetDefaultView(AllClips);
+            ClipsView.SortDescriptions.Clear();
+            ClipsView.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
+            ClipsView.Filter = o =>
+            {
+                if (o is not ClipRow c) return false;
+                return SelectedClipFilter switch
+                {
+                    "Team A" => c.Team == "A",
+                    "Team B" => c.Team == "B",
+                    _ => true
+                };
+            };
+
             foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
-            AllClips.CollectionChanged += (_, __) => { UpdateClipsView(); UpdateHeadersAndCurrentTagsText(); };
-            TeamAClips.CollectionChanged += (_, __) => { UpdateClipsView(); UpdateHeadersAndCurrentTagsText(); };
-            TeamBClips.CollectionChanged += (_, __) => { UpdateClipsView(); UpdateHeadersAndCurrentTagsText(); };
-
-            UpdateClipsView();
+            AllClips.CollectionChanged += (_, __) => { RefreshClipsView(); UpdateHeadersAndCurrentTagsText(); };
+            TeamAClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            TeamBClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
             UpdateHeadersAndCurrentTagsText();
         }
@@ -964,8 +966,6 @@ namespace PlayCutWin
 
         public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
 
-        public string ClipsSubHeader { get => _clipsSubHeader; set { _clipsSubHeader = value; OnPropertyChanged(); } }
-
         public IEnumerable<string> GetSelectedTags()
         {
             return OffenseTags.Where(x => x.IsSelected).Select(x => x.Name)
@@ -982,68 +982,9 @@ namespace PlayCutWin
             };
         }
 
-        public IEnumerable<ClipRow> GetFilteredClipsSorted()
+        public void RefreshClipsView()
         {
-            return GetFilteredClips().OrderBy(c => c.Start);
-        }
-
-        private void UpdateClipsView()
-        {
-            // All Clips は Start 昇順で 1リスト表示
-            var src = SelectedClipFilter switch
-            {
-                "Team A" => (IEnumerable<ClipRow>)TeamAClips,
-                "Team B" => (IEnumerable<ClipRow>)TeamBClips,
-                _ => (IEnumerable<ClipRow>)AllClips
-            };
-
-            ClipsSubHeader = SelectedClipFilter;
-
-            var view = CollectionViewSource.GetDefaultView(src);
-            view.SortDescriptions.Clear();
-            view.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
-            view.Refresh();
-
-            ClipsView = view;
-        }
-
-        public IEnumerable<ClipRow> GetFilteredClipsSorted()
-            => GetFilteredClips().OrderBy(c => c.Start).ThenBy(c => c.End);
-
-        private void UpdateClipsView()
-        {
-            // 1つのテーブルで切り替える（All Clipsは時系列1リスト）
-            var source = SelectedClipFilter switch
-            {
-                "Team A" => (IEnumerable<ClipRow>)TeamAClips,
-                "Team B" => (IEnumerable<ClipRow>)TeamBClips,
-                _ => AllClips
-            };
-
-            ClipsSubHeader = SelectedClipFilter;
-            var view = CollectionViewSource.GetDefaultView(source);
-            view.SortDescriptions.Clear();
-            view.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
-            view.SortDescriptions.Add(new SortDescription(nameof(ClipRow.End), ListSortDirection.Ascending));
-            view.Refresh();
-            ClipsView = view;
-        }
-
-        public IEnumerable<ClipRow> GetFilteredClipsSorted()
-            => GetFilteredClips().OrderBy(c => c.Start);
-
-        private void UpdateClipsView()
-        {
-            IEnumerable source = GetFilteredClips();
-            ClipsSubHeader = SelectedClipFilter;
-
-            var view = CollectionViewSource.GetDefaultView(source);
-            if (view is ListCollectionView lcv)
-            {
-                lcv.SortDescriptions.Clear();
-                lcv.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
-            }
-            ClipsView = view;
+            ClipsView?.Refresh();
         }
 
         public void UpdateHeadersAndCurrentTagsText()
