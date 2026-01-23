@@ -36,9 +36,6 @@ namespace PlayCutWin
             InitializeComponent();
             DataContext = VM;
 
-            // Shortcuts
-            this.PreviewKeyDown += MainWindow_PreviewKeyDown;
-
             // UIの初期状態：Speed は 1x を選択状態にしておく（動画未ロードでも表示だけは合わせる）
             HighlightSpeedButtons(_currentSpeed);
 
@@ -255,9 +252,6 @@ namespace PlayCutWin
             if (team == "A") VM.TeamAClips.Add(item);
             else VM.TeamBClips.Add(item);
 
-            VM.PushUndo(item);
-            VM.RefreshClipsView();
-
             VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
             VM.UpdateHeadersAndCurrentTagsText();
         }
@@ -278,50 +272,51 @@ namespace PlayCutWin
             VM.StatusText = $"Jumped to {FormatTime(row.Start)}";
         }
 
-        
-        // ----------------------------
-        // Shortcuts (Ctrl+Z Undo, Delete Remove)
-        // ----------------------------
-        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+
+        // Selection changed (from any clips list)
+        private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Ctrl+Z : Undo last saved clip
-            if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            if (sender is not ListView lv) return;
+            if (lv.SelectedItem is ClipRow row)
             {
-                if (VM.UndoLastClip(out var removed))
-                {
-                    VM.StatusText = $"Undo: removed Team {removed!.Team} clip ({FormatTime(removed.Start)} - {FormatTime(removed.End)})";
-                }
-                else
-                {
-                    VM.StatusText = "Undo: nothing to undo.";
-                }
-                e.Handled = true;
-                return;
+                // ensure single selection across lists
+                if (lv.Name != "TeamAList" && TeamAList != null) TeamAList.SelectedItem = null;
+                if (lv.Name != "TeamBList" && TeamBList != null) TeamBList.SelectedItem = null;
+                if (lv.Name != "TeamAOnlyList" && TeamAOnlyList != null) TeamAOnlyList.SelectedItem = null;
+                if (lv.Name != "TeamBOnlyList" && TeamBOnlyList != null) TeamBOnlyList.SelectedItem = null;
+
+                VM.SelectedClip = row;
+            }
+            else
+            {
+                // if user cleared selection
+                VM.SelectedClip = null;
             }
         }
 
-        // ----------------------------
-        // Delete selected clip (button)
-        // ----------------------------
         private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         {
             var row = VM.SelectedClip;
-            if (row == null) return;
+            if (row == null)
+            {
+                VM.StatusText = "No clip selected.";
+                return;
+            }
 
-            var res = MessageBox.Show(
-                $"Delete selected clip?\n\nTeam {row.Team}  {FormatTime(row.Start)} - {FormatTime(row.End)}\n{row.TagsText}",
-                "Delete Clip",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
+            var res = MessageBox.Show("Delete selected clip?", "Delete Clip", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (res != MessageBoxResult.Yes) return;
 
-            VM.RemoveClip(row);
+            // remove from all lists (shared references)
+            VM.AllClips.Remove(row);
+            VM.TeamAClips.Remove(row);
+            VM.TeamBClips.Remove(row);
+
             VM.SelectedClip = null;
-            VM.StatusText = "Deleted selected clip.";
+            VM.UpdateHeadersAndCurrentTagsText();
+            VM.StatusText = "Deleted 1 clip.";
         }
 
-// ----------------------------
+        // ----------------------------
         // Tags
         // ----------------------------
         private void AddCustomTag_Click(object sender, RoutedEventArgs e)
@@ -481,7 +476,6 @@ namespace PlayCutWin
                     VM.AllClips.Clear();
                     VM.TeamAClips.Clear();
                     VM.TeamBClips.Clear();
-                    VM.ClearUndoHistory();
                 }
 
                 int imported = 0;
@@ -530,7 +524,6 @@ namespace PlayCutWin
                 }
 
                 VM.UpdateHeadersAndCurrentTagsText();
-	                VM.SelectedClip = null;
                 VM.StatusText = $"Imported {imported} clips.";
             }
             catch (Exception ex)
@@ -922,34 +915,24 @@ namespace PlayCutWin
         public string SelectedClipFilter
         {
             get => _selectedClipFilter;
-            set { _selectedClipFilter = value; OnPropertyChanged(); RefreshClipsView(); UpdateHeadersAndCurrentTagsText(); }
+            set { _selectedClipFilter = value; OnPropertyChanged(); UpdateHeadersAndCurrentTagsText(); }
         }
-
-        private ClipRow? _selectedClip;
-        public ClipRow? SelectedClip
-        {
-            get => _selectedClip;
-            set
-            {
-                _selectedClip = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanDeleteClip));
-            }
-        }
-
-        public bool CanDeleteClip => SelectedClip != null;
 
         public ObservableCollection<ClipRow> AllClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamAClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new ObservableCollection<ClipRow>();
 
-        // Undo history (last saved clips)
-        private readonly Stack<ClipRow> _undoStack = new Stack<ClipRow>();
+        public ICollectionView TeamAView { get; }
+        public ICollectionView TeamBView { get; }
 
-        public bool CanUndo => _undoStack.Count > 0;
+        private ClipRow? _selectedClip;
+        public ClipRow? SelectedClip
+        {
+            get => _selectedClip;
+            set { _selectedClip = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasSelectedClip)); }
+        }
 
-        // View for the single "All Clips" list (filters + sort)
-        public ICollectionView ClipsView { get; }
+        public bool HasSelectedClip => SelectedClip != null;
 
 
         public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
@@ -968,25 +951,19 @@ namespace PlayCutWin
 
         public MainWindowViewModel()
         {
-            // Build a live view over AllClips so the UI can show a single list with filter + sort
-            ClipsView = CollectionViewSource.GetDefaultView(AllClips);
-            ClipsView.SortDescriptions.Clear();
-            ClipsView.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
-            ClipsView.Filter = o =>
-            {
-                if (o is not ClipRow c) return false;
-                return SelectedClipFilter switch
-                {
-                    "Team A" => c.Team == "A",
-                    "Team B" => c.Team == "B",
-                    _ => true
-                };
-            };
+            // Sorted views (Mac-like split lists)
+            TeamAView = CollectionViewSource.GetDefaultView(TeamAClips);
+            TeamAView.SortDescriptions.Clear();
+            TeamAView.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
+
+            TeamBView = CollectionViewSource.GetDefaultView(TeamBClips);
+            TeamBView.SortDescriptions.Clear();
+            TeamBView.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
 
             foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
-            AllClips.CollectionChanged += (_, __) => { RefreshClipsView(); UpdateHeadersAndCurrentTagsText(); };
+            AllClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             TeamAClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             TeamBClips.CollectionChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
@@ -1052,59 +1029,6 @@ namespace PlayCutWin
             };
         }
 
-
-        // --- Clip operations (Remove / Undo) ---
-        public void PushUndo(ClipRow row)
-        {
-            if (row == null) return;
-            _undoStack.Push(row);
-            OnPropertyChanged(nameof(CanUndo));
-        }
-
-        public bool UndoLastClip(out ClipRow? removed)
-        {
-            removed = null;
-            while (_undoStack.Count > 0)
-            {
-                var row = _undoStack.Pop();
-                // If it still exists, remove it
-                if (AllClips.Contains(row))
-                {
-                    RemoveClip(row);
-                    removed = row;
-                    OnPropertyChanged(nameof(CanUndo));
-                    return true;
-                }
-            }
-            OnPropertyChanged(nameof(CanUndo));
-            return false;
-        }
-
-        public void ClearUndoHistory()
-        {
-            _undoStack.Clear();
-            OnPropertyChanged(nameof(CanUndo));
-        }
-
-        public void RemoveClip(ClipRow row)
-        {
-            if (row == null) return;
-
-            // Remove from lists
-            AllClips.Remove(row);
-            TeamAClips.Remove(row);
-            TeamBClips.Remove(row);
-
-            RefreshClipsView();
-            UpdateHeadersAndCurrentTagsText();
-        }
-
-        // Make RefreshClipsView public so MainWindow can call it after edits
-        public void RefreshClipsView()
-        {
-            ClipsView?.Refresh();
-        }
-
         public void UpdateHeadersAndCurrentTagsText()
         {
             ClipsHeader = $"Clips (Total {AllClips.Count})";
@@ -1139,16 +1063,30 @@ namespace PlayCutWin
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    public class ClipRow
+    public class ClipRow : INotifyPropertyChanged
     {
-        public string Team { get; set; } = "A";
-        public double Start { get; set; }
-        public double End { get; set; }
-        public List<string> Tags { get; set; } = new List<string>();
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private string _team = "A";
+        private double _start;
+        private double _end;
+        private List<string> _tags = new List<string>();
+        private string _comment = "";
+
+        public string Team { get => _team; set { _team = value; OnPropertyChanged(); } }
+        public double Start { get => _start; set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); } }
+        public double End { get => _end; set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); } }
+        public List<string> Tags { get => _tags; set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); } }
+
+        // Mac-like per-clip note (not exported to CSV by default)
+        public string Comment { get => _comment; set { _comment = value ?? ""; OnPropertyChanged(); } }
 
         public string StartText => FormatTime(Start);
         public string EndText => FormatTime(End);
         public string TagsText => Tags == null || Tags.Count == 0 ? "" : string.Join(", ", Tags);
+
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
         private static string FormatTime(double seconds)
         {
@@ -1157,4 +1095,5 @@ namespace PlayCutWin
             return ts.ToString(@"m\:ss");
         }
     }
+
 }

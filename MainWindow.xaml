@@ -311,10 +311,7 @@
                         <ComboBox Width="140"
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>
-	                        <Button Style="{StaticResource DarkButton}"
-	                                Content="Delete"
-	                                IsEnabled="{Binding CanDeleteClip}"
-	                                Click="DeleteSelectedClip_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteSelectedClip_Click" IsEnabled="{Binding HasSelectedClip}"/>
                         <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
@@ -330,25 +327,157 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                            <ListView x:Name="ClipsList"
-                                      Grid.Row="1"
-                                      ItemsSource="{Binding ClipsView}"
-	                                      SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
-                                      MouseDoubleClick="ClipList_DoubleClick"
-                                      Style="{StaticResource DarkListView}">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
-                                        <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                        <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                        <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
+                            <Grid Grid.Row="1">
+                                <!-- All Clips: Team A / Team B split -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="All Clips">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Team A -->
+                                    <Grid Grid.Column="0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                        <ListView x:Name="TeamAList"
+                                                  Grid.Row="1"
+                                                  ItemsSource="{Binding TeamAView}"
+                                                  SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+                                                  SelectionChanged="ClipList_SelectionChanged"
+                                                  MouseDoubleClick="ClipList_DoubleClick"
+                                                  Style="{StaticResource DarkListView}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="50"/>
+                                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="280"/>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                    </Grid>
+
+                                    <!-- Team B -->
+                                    <Grid Grid.Column="2">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                        <ListView x:Name="TeamBList"
+                                                  Grid.Row="1"
+                                                  ItemsSource="{Binding TeamBView}"
+                                                  SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+                                                  SelectionChanged="ClipList_SelectionChanged"
+                                                  MouseDoubleClick="ClipList_DoubleClick"
+                                                  Style="{StaticResource DarkListView}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="50"/>
+                                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="280"/>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                    </Grid>
+                                </Grid>
+
+                                <!-- Team A only -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team A">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+
+                                    <ListView x:Name="TeamAOnlyList"
+                                              ItemsSource="{Binding TeamAView}"
+                                              SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+                                              SelectionChanged="ClipList_SelectionChanged"
+                                              MouseDoubleClick="ClipList_DoubleClick"
+                                              Style="{StaticResource DarkListView}">
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
+                                                <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                                            </GridView>
+                                        </ListView.View>
+                                    </ListView>
+                                </Grid>
+
+                                <!-- Team B only -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team B">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+
+                                    <ListView x:Name="TeamBOnlyList"
+                                              ItemsSource="{Binding TeamBView}"
+                                              SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+                                              SelectionChanged="ClipList_SelectionChanged"
+                                              MouseDoubleClick="ClipList_DoubleClick"
+                                              Style="{StaticResource DarkListView}">
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
+                                                <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                                            </GridView>
+                                        </ListView.View>
+                                    </ListView>
+                                </Grid>
+                            </Grid>
+
+                            <!-- Selected Clip Note (Mac-like) -->
+                            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                                <TextBlock Text="Clip Note" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                <TextBox Height="56"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         IsEnabled="{Binding HasSelectedClip}"
+                                         Text="{Binding SelectedClip.Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#0F0F0F"
+                                         Foreground="#EAEAEA"
+                                         BorderBrush="#2A2A2A"
+                                         BorderThickness="1"
+                                         Padding="8"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
                 </Grid>
