@@ -120,7 +120,55 @@
         <Style TargetType="Slider">
             <Setter Property="Margin" Value="0,8,0,8"/>
         </Style>
-    </Window.Resources>
+    
+        <!-- ListView (clips) readable on dark theme -->
+        <Style TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="#1B1B1B"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="BorderBrush" Value="#2A2A2A"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style TargetType="ListView">
+            <Setter Property="Background" Value="#161616"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="BorderBrush" Value="#2A2A2A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="2"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+
+        <Style TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#242424"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2D6CDF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+</Window.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -207,21 +255,6 @@
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Setter Property="Grid.Column" Value="0"/>
-                                <Setter Property="Grid.ColumnSpan" Value="1"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team A">
-                                        <Setter Property="Grid.ColumnSpan" Value="3"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team B">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -241,22 +274,6 @@
                     </Border>
 
                     <Border Grid.Column="2" Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Setter Property="Grid.Column" Value="2"/>
-                                <Setter Property="Grid.ColumnSpan" Value="1"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team B">
-                                        <Setter Property="Grid.Column" Value="0"/>
-                                        <Setter Property="Grid.ColumnSpan" Value="3"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team A">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
