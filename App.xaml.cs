@@ -1,10 +1,10 @@
 using System;
-using System.Windows;
-
-using System.Threading.Tasks;
-using System.Text;
 using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Threading;
+
 namespace PlayCutWin
 {
     public partial class App : Application
@@ -13,10 +13,7 @@ namespace PlayCutWin
 
         protected override void OnStartup(StartupEventArgs e)
         {
-            base.OnStartup(e);
-
-            
-            // Global crash guards (show dialog + write log)
+            // Crash guards (show dialog + write log)
             this.DispatcherUnhandledException += (_, ex) =>
             {
                 try { LogCrash(ex.Exception, "DispatcherUnhandledException"); } catch { }
@@ -51,7 +48,10 @@ namespace PlayCutWin
                 try { LogCrash(ex.Exception, "UnobservedTaskException"); } catch { }
                 ex.SetObserved();
             };
-// 二重起動ガード（保険）
+
+            base.OnStartup(e);
+
+            // 二重起動ガード（保険）
             if (_mainWindowShown) return;
             _mainWindowShown = true;
 
@@ -61,7 +61,6 @@ namespace PlayCutWin
             MainWindow = window;
             window.Show();
         }
-    }
 
         private static void LogCrash(Exception? ex, string kind)
         {
@@ -81,7 +80,10 @@ namespace PlayCutWin
                 sb.AppendLine();
                 File.AppendAllText(path, sb.ToString(), Encoding.UTF8);
             }
-            catch { }
+            catch
+            {
+                // ignore
+            }
         }
-
+    }
 }
