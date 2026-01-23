@@ -9,10 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -23,6 +21,7 @@ namespace PlayCutWin
     {
         private readonly DispatcherTimer _timer;
         private bool _isDraggingTimeline = false;
+        private bool _isJumpingClip = false;
 
         // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
@@ -257,98 +256,71 @@ namespace PlayCutWin
         }
 
         // ----------------------------
-        // Clips (next step)
-        // ----------------------------
-        // リストのクリップをダブルクリック → そのStartへジャンプして再生
-        
-        // ----------------------------
-        // Clips (next step)
-        // ----------------------------
-        // リストのクリップをダブルクリック → そのStartへジャンプして再生（落ちない安全版）
-        private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is not ListView lv) return;
-            if (lv.SelectedItem is not ClipRow row) return;
-            if (Player?.Source == null) return;
+// Clips (next step)
+// ----------------------------
+// リストのクリップをダブルクリック → そのStartへジャンプして再生（MediaElement安全版）
+private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
+{
+    if (sender is not ListView lv) return;
+    if (lv.SelectedItem is not ClipRow row) return;
+    if (Player?.Source == null) return;
 
-            // MediaElement が例外を投げずに落ちる（ネイティブクラッシュ）ケースがあるので、
-            // Pause → Dispatcherで1拍置く → Seek → Play の順で “触るタイミング” をずらして安定化する。
+    // Re-entrancy guard (double click can fire twice / fast)
+    if (_isJumpingClip) return;
+    _isJumpingClip = true;
+
+    try
+    {
+        if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0) return;
+
+        double target = row.Start;
+        if (double.IsNaN(target) || double.IsInfinity(target)) return;
+
+        // Clamp to [0, duration)
+        target = Math.Max(0, target);
+        target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
+
+        var wasPlaying = VM.IsPlaying;
+
+        // MediaElement is sometimes unstable: Pause -> delayed Seek -> (optional) Play
+        Player.Pause();
+        VM.IsPlaying = false;
+
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
             try
             {
-                Player.Pause();
-                VM.IsPlaying = false;
-            }
-            catch { /* ignore */ }
-
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                try
+                SeekTo(target);
+                if (wasPlaying)
                 {
-                    if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0)
-                        return;
-
-                    var target = row.Start;
-                    if (double.IsNaN(target) || double.IsInfinity(target)) return;
-
-                    // Clamp to [0, duration)
-                    target = Math.Max(0, target);
-                    target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
-
-                    Player.Position = TimeSpan.FromSeconds(target);
                     Player.Play();
                     VM.IsPlaying = true;
-                    VM.StatusText = $"Jumped to {FormatTime(target)}";
                 }
-                catch
+                else
                 {
-                    // ここで絶対に落とさない（UIも荒らさない）
+                    VM.IsPlaying = false;
                 }
-            }), DispatcherPriority.Background);
-        }
 
-
-        // Selection changed (from any clips list)
-        private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (sender is not ListView lv) return;
-            if (lv.SelectedItem is ClipRow row)
-            {
-                // ensure single selection across lists
-                if (lv.Name != "TeamAList" && TeamAList != null) TeamAList.SelectedItem = null;
-                if (lv.Name != "TeamBList" && TeamBList != null) TeamBList.SelectedItem = null;
-                if (lv.Name != "TeamAOnlyList" && TeamAOnlyList != null) TeamAOnlyList.SelectedItem = null;
-                if (lv.Name != "TeamBOnlyList" && TeamBOnlyList != null) TeamBOnlyList.SelectedItem = null;
-
-                VM.SelectedClip = row;
+                VM.StatusText = $"Jumped to {FormatTime(target)}";
             }
-            else
+            catch
             {
-                // if user cleared selection
-                VM.SelectedClip = null;
+                // swallow to avoid hard crash
+                VM.StatusText = "Jump failed.";
             }
-        }
-
-        private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
-        {
-            var row = VM.SelectedClip;
-            if (row == null)
+            finally
             {
-                VM.StatusText = "No clip selected.";
-                return;
+                _isJumpingClip = false;
             }
-
-            var res = MessageBox.Show("Delete selected clip?", "Delete Clip", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (res != MessageBoxResult.Yes) return;
-
-            // remove from all lists (shared references)
-            VM.AllClips.Remove(row);
-            VM.TeamAClips.Remove(row);
-            VM.TeamBClips.Remove(row);
-
-            VM.SelectedClip = null;
-            VM.UpdateHeadersAndCurrentTagsText();
-            VM.StatusText = "Deleted 1 clip.";
-        }
+        }), DispatcherPriority.Background);
+    }
+    finally
+    {
+        // If BeginInvoke didn't run (rare), release guard here too
+        // (BeginInvoke will set false again in finally)
+        if (!_isJumpingClip) _isJumpingClip = false;
+    }
+}
 
         // ----------------------------
         // Tags
@@ -409,7 +381,6 @@ namespace PlayCutWin
             ExportCsvInternal(list);
         }
 
-        
         private void ExportCsvInternal(List<ClipRow> clips)
         {
             if (clips.Count == 0)
@@ -429,24 +400,13 @@ namespace PlayCutWin
 
             try
             {
-                // CSV v1 (Mac版互換)
-                // VideoName / Team(Home/Away) / Start / End / Duration / Tags
                 var sb = new StringBuilder();
-                sb.AppendLine("VideoName,Team(Home/Away),Start,End,Duration,Tags");
-
-                string videoName = VM.LoadedVideoName ?? string.Empty;
-
+                sb.AppendLine("team,start,end,tags");
                 foreach (var c in clips)
                 {
-                    var teamHomeAway = (c.Team == "B") ? "Away" : "Home";
-                    var start = c.Start.ToString("0.###", CultureInfo.InvariantCulture);
-                    var end = c.End.ToString("0.###", CultureInfo.InvariantCulture);
-                    var dur = Math.Max(0, c.End - c.Start).ToString("0.###", CultureInfo.InvariantCulture);
-                    var tags = string.Join(";", c.Tags ?? new List<string>());
-
-                    sb.AppendLine($"{EscapeCsv(videoName)},{teamHomeAway},{start},{end},{dur},{EscapeCsv(tags)}");
+                    var tags = string.Join("|", c.Tags ?? new List<string>());
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)}");
                 }
-
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
             }
@@ -457,7 +417,7 @@ namespace PlayCutWin
             }
         }
 
-        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+                private void ImportCsv_Click(object sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog
             {
@@ -472,32 +432,29 @@ namespace PlayCutWin
                 var lines = File.ReadAllLines(ofd.FileName);
                 if (lines.Length < 2)
                 {
-                    MessageBox.Show("CSV is empty.", "Import CSV", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("CSV is empty.");
                     return;
                 }
 
-                // --- header解析（列名揺れ吸収：空白除去＋小文字化） ---
-                var headerRaw = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
-                var headerKey = headerRaw.Select(NormalizeHeaderKey).ToList();
+                var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
+                var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
 
-                int teamIdx     = FindColumnIndex(headerKey, "team", "team(home/away)", "team(homeaway)", "team(home-away)");
-                int startIdx    = FindColumnIndex(headerKey, "start", "starttime", "start_time");
-                int endIdx      = FindColumnIndex(headerKey, "end", "endtime", "end_time");
-                int durationIdx = FindColumnIndex(headerKey, "duration", "dur");
-                int tagsIdx     = FindColumnIndex(headerKey, "tags", "tag");
+                bool isMacLike = headerLower.Contains("videoname") || headerLower.Contains("duration") || headerLower.Contains("no");
+
+                int teamIdx = headerLower.IndexOf("team");
+                int startIdx = headerLower.IndexOf("start");
+                int endIdx = headerLower.IndexOf("end");
+                int durationIdx = headerLower.IndexOf("duration");
+                int tagsIdx = headerLower.IndexOf("tags");
 
                 if (teamIdx < 0 || startIdx < 0)
                 {
-                    MessageBox.Show(
-                        "CSV format not recognized. Need at least 'Team' and 'Start' columns.",
-                        "Import CSV",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
+                    MessageBox.Show("CSV format not recognized. Need at least 'Team' and 'Start' columns.");
                     return;
                 }
 
                 // Clear existing clips? (recommended)
-                if (VM.AllClips.Any() || VM.TeamAClips.Any() || VM.TeamBClips.Any())
+                if (VM.Clips.Any())
                 {
                     var res = MessageBox.Show(
                         "Existing clips will be cleared before import. Continue?",
@@ -507,68 +464,62 @@ namespace PlayCutWin
 
                     if (res != MessageBoxResult.Yes) return;
 
-                    VM.AllClips.Clear();
-                    VM.TeamAClips.Clear();
-                    VM.TeamBClips.Clear();
+                    VM.Clips.Clear();
                 }
 
                 int imported = 0;
                 for (int i = 1; i < lines.Length; i++)
                 {
                     if (string.IsNullOrWhiteSpace(lines[i])) continue;
-
                     var cols = SplitCsv(lines[i]);
-                    if (cols.Count <= Math.Max(teamIdx, startIdx)) continue;
+                    if (cols.Count <= startIdx || cols.Count <= teamIdx) continue;
 
-                    string teamRaw = GetSafe(cols, teamIdx).Trim();
-                    string team = NormalizeTeamToAB(teamRaw); // Home->A / Away->B
+                    string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
+                    string team = NormalizeTeamToAB(teamRaw);
 
                     // Start / End / Duration
                     double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
-                    if (startSec <= 0) continue;
+                    double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
 
-                    double endSec = 0;
-                    if (endIdx >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, endIdx));
-
-                    // Endが空ならDurationで補完（Mac版CSV）
-                    if (endSec <= 0 && durationIdx >= 0)
+                    if (endSec <= 0)
                     {
-                        var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
-                        if (dur > 0) endSec = startSec + dur;
+                        if (durationIdx >= 0)
+                        {
+                            var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
+                            if (dur > 0) endSec = startSec + dur;
+                        }
                     }
 
-                    if (endSec <= startSec) continue;
+                    if (endSec <= startSec)
+                    {
+                        // If End is missing or invalid, skip
+                        continue;
+                    }
 
                     string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
-                    var tags = ParseTagsFlexible(tagsRaw);
+                    var tags = ParseTags(tagsRaw);
 
-                    var row = new ClipRow
+                    VM.Clips.Add(new ClipRow
                     {
                         Team = team,
                         Start = startSec,
                         End = endSec,
                         Tags = tags
-                    };
-
-                    VM.AllClips.Add(row);
-                    if (team == "A") VM.TeamAClips.Add(row);
-                    else VM.TeamBClips.Add(row);
-
+                    });
                     imported++;
                 }
 
                 VM.UpdateHeadersAndCurrentTagsText();
-                VM.StatusText = $"Imported {imported} clips.";
+                StatusText.Text = $"Imported {imported} clips.";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Import failed: " + ex.Message, "Import CSV", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Import failed: " + ex.Message);
             }
         }
 
         // ----------------------------
         // Video export (ffmpeg)
-
         // ----------------------------
         private void ExportClipsInternal(List<ClipRow> clips)
         {
@@ -849,47 +800,6 @@ namespace PlayCutWin
             return 0;
         }
 
-
-        private static string NormalizeHeaderKey(string s)
-        {
-            var t = (s ?? string.Empty).Trim().ToLowerInvariant();
-            t = Regex.Replace(t, @"\s+", "");
-            return t;
-        }
-
-        private static int FindColumnIndex(List<string> headerKey, params string[] keys)
-        {
-            foreach (var k in keys)
-            {
-                var kk = NormalizeHeaderKey(k);
-                var idx = headerKey.IndexOf(kk);
-                if (idx >= 0) return idx;
-            }
-            return -1;
-        }
-
-        private static List<string> ParseTagsFlexible(string tagsRaw)
-        {
-            var result = new List<string>();
-            if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
-
-            var raw = tagsRaw.Trim();
-
-            // Treat "///" as a separator too
-            raw = raw.Replace("///", "|");
-
-            // Unify separators ; | ,
-            raw = raw.Replace(';', '|').Replace(',', '|');
-
-            foreach (var t in raw.Split('|', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var tag = t.Trim();
-                if (tag.Length == 0) continue;
-                result.Add(tag);
-            }
-            return result;
-        }
-
         private static List<string> ParseTags(string tagsRaw)
         {
             var result = new List<string>();
@@ -956,19 +866,6 @@ namespace PlayCutWin
         public ObservableCollection<ClipRow> TeamAClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new ObservableCollection<ClipRow>();
 
-        public ICollectionView TeamAView { get; }
-        public ICollectionView TeamBView { get; }
-
-        private ClipRow? _selectedClip;
-        public ClipRow? SelectedClip
-        {
-            get => _selectedClip;
-            set { _selectedClip = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasSelectedClip)); }
-        }
-
-        public bool HasSelectedClip => SelectedClip != null;
-
-
         public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
             new[]
             {
@@ -985,15 +882,6 @@ namespace PlayCutWin
 
         public MainWindowViewModel()
         {
-            // Sorted views (Mac-like split lists)
-            TeamAView = CollectionViewSource.GetDefaultView(TeamAClips);
-            TeamAView.SortDescriptions.Clear();
-            TeamAView.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
-
-            TeamBView = CollectionViewSource.GetDefaultView(TeamBClips);
-            TeamBView.SortDescriptions.Clear();
-            TeamBView.SortDescriptions.Add(new SortDescription(nameof(ClipRow.Start), ListSortDirection.Ascending));
-
             foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
@@ -1097,30 +985,16 @@ namespace PlayCutWin
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    public class ClipRow : INotifyPropertyChanged
+    public class ClipRow
     {
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        private string _team = "A";
-        private double _start;
-        private double _end;
-        private List<string> _tags = new List<string>();
-        private string _comment = "";
-
-        public string Team { get => _team; set { _team = value; OnPropertyChanged(); } }
-        public double Start { get => _start; set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); } }
-        public double End { get => _end; set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); } }
-        public List<string> Tags { get => _tags; set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); } }
-
-        // Mac-like per-clip note (not exported to CSV by default)
-        public string Comment { get => _comment; set { _comment = value ?? ""; OnPropertyChanged(); } }
+        public string Team { get; set; } = "A";
+        public double Start { get; set; }
+        public double End { get; set; }
+        public List<string> Tags { get; set; } = new List<string>();
 
         public string StartText => FormatTime(Start);
         public string EndText => FormatTime(End);
         public string TagsText => Tags == null || Tags.Count == 0 ? "" : string.Join(", ", Tags);
-
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
         private static string FormatTime(double seconds)
         {
@@ -1129,5 +1003,4 @@ namespace PlayCutWin
             return ts.ToString(@"m\:ss");
         }
     }
-
 }
