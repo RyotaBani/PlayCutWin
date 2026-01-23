@@ -266,12 +266,33 @@ namespace PlayCutWin
             if (lv.SelectedItem is not ClipRow row) return;
             if (Player?.Source == null) return;
 
-            // MediaElement can be not ready right after load or after import selection.
-            if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0)
+            // MediaElement is unstable: pause -> delayed seek -> play
+            Player.Pause();
+            VM.IsPlaying = false;
+
+            Dispatcher.BeginInvoke(new Action(() =>
             {
-                // Retry once on background priority
-                Dispatcher.BeginInvoke(new Action(() => ClipList_DoubleClick(sender, e)), DispatcherPriority.Background);
-                return;
+                try
+                {
+                    if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0)
+                        return;
+
+                    var target = row.Start;
+                    if (double.IsNaN(target) || double.IsInfinity(target)) return;
+
+                    target = Math.Max(0, target);
+                    target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
+
+                    Player.Position = TimeSpan.FromSeconds(target);
+                    Player.Play();
+                    VM.IsPlaying = true;
+                    VM.StatusText = $"Jumped to {FormatTime(target)}";
+                }
+                catch
+                {
+                    // swallow to avoid hard crash
+                }
+            }), DispatcherPriority.Background);
             }
 
             try
