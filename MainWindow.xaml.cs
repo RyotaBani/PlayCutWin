@@ -36,6 +36,9 @@ namespace PlayCutWin
             InitializeComponent();
             DataContext = VM;
 
+            // Shortcuts
+            this.PreviewKeyDown += MainWindow_PreviewKeyDown;
+
             // UIの初期状態：Speed は 1x を選択状態にしておく（動画未ロードでも表示だけは合わせる）
             HighlightSpeedButtons(_currentSpeed);
 
@@ -252,6 +255,9 @@ namespace PlayCutWin
             if (team == "A") VM.TeamAClips.Add(item);
             else VM.TeamBClips.Add(item);
 
+            VM.PushUndo(item);
+            VM.RefreshClipsView();
+
             VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
             VM.UpdateHeadersAndCurrentTagsText();
         }
@@ -272,7 +278,50 @@ namespace PlayCutWin
             VM.StatusText = $"Jumped to {FormatTime(row.Start)}";
         }
 
+        
         // ----------------------------
+        // Shortcuts (Ctrl+Z Undo, Delete Remove)
+        // ----------------------------
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Ctrl+Z : Undo last saved clip
+            if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                if (VM.UndoLastClip(out var removed))
+                {
+                    VM.StatusText = $"Undo: removed Team {removed!.Team} clip ({FormatTime(removed.Start)} - {FormatTime(removed.End)})";
+                }
+                else
+                {
+                    VM.StatusText = "Undo: nothing to undo.";
+                }
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // ----------------------------
+        // Delete selected clip (button)
+        // ----------------------------
+        private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
+        {
+            var row = VM.SelectedClip;
+            if (row == null) return;
+
+            var res = MessageBox.Show(
+                $"Delete selected clip?\n\nTeam {row.Team}  {FormatTime(row.Start)} - {FormatTime(row.End)}\n{row.TagsText}",
+                "Delete Clip",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (res != MessageBoxResult.Yes) return;
+
+            VM.RemoveClip(row);
+            VM.SelectedClip = null;
+            VM.StatusText = "Deleted selected clip.";
+        }
+
+// ----------------------------
         // Tags
         // ----------------------------
         private void AddCustomTag_Click(object sender, RoutedEventArgs e)
@@ -432,6 +481,7 @@ namespace PlayCutWin
                     VM.AllClips.Clear();
                     VM.TeamAClips.Clear();
                     VM.TeamBClips.Clear();
+                    VM.ClearUndoHistory();
                 }
 
                 int imported = 0;
@@ -480,6 +530,7 @@ namespace PlayCutWin
                 }
 
                 VM.UpdateHeadersAndCurrentTagsText();
+	                VM.SelectedClip = null;
                 VM.StatusText = $"Imported {imported} clips.";
             }
             catch (Exception ex)
@@ -874,9 +925,28 @@ namespace PlayCutWin
             set { _selectedClipFilter = value; OnPropertyChanged(); RefreshClipsView(); UpdateHeadersAndCurrentTagsText(); }
         }
 
+        private ClipRow? _selectedClip;
+        public ClipRow? SelectedClip
+        {
+            get => _selectedClip;
+            set
+            {
+                _selectedClip = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanDeleteClip));
+            }
+        }
+
+        public bool CanDeleteClip => SelectedClip != null;
+
         public ObservableCollection<ClipRow> AllClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamAClips { get; } = new ObservableCollection<ClipRow>();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new ObservableCollection<ClipRow>();
+
+        // Undo history (last saved clips)
+        private readonly Stack<ClipRow> _undoStack = new Stack<ClipRow>();
+
+        public bool CanUndo => _undoStack.Count > 0;
 
         // View for the single "All Clips" list (filters + sort)
         public ICollectionView ClipsView { get; }
@@ -982,6 +1052,54 @@ namespace PlayCutWin
             };
         }
 
+
+        // --- Clip operations (Remove / Undo) ---
+        public void PushUndo(ClipRow row)
+        {
+            if (row == null) return;
+            _undoStack.Push(row);
+            OnPropertyChanged(nameof(CanUndo));
+        }
+
+        public bool UndoLastClip(out ClipRow? removed)
+        {
+            removed = null;
+            while (_undoStack.Count > 0)
+            {
+                var row = _undoStack.Pop();
+                // If it still exists, remove it
+                if (AllClips.Contains(row))
+                {
+                    RemoveClip(row);
+                    removed = row;
+                    OnPropertyChanged(nameof(CanUndo));
+                    return true;
+                }
+            }
+            OnPropertyChanged(nameof(CanUndo));
+            return false;
+        }
+
+        public void ClearUndoHistory()
+        {
+            _undoStack.Clear();
+            OnPropertyChanged(nameof(CanUndo));
+        }
+
+        public void RemoveClip(ClipRow row)
+        {
+            if (row == null) return;
+
+            // Remove from lists
+            AllClips.Remove(row);
+            TeamAClips.Remove(row);
+            TeamBClips.Remove(row);
+
+            RefreshClipsView();
+            UpdateHeadersAndCurrentTagsText();
+        }
+
+        // Make RefreshClipsView public so MainWindow can call it after edits
         public void RefreshClipsView()
         {
             ClipsView?.Refresh();

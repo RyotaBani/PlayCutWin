@@ -311,6 +311,10 @@
                         <ComboBox Width="140"
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>
+	                        <Button Style="{StaticResource DarkButton}"
+	                                Content="Delete"
+	                                IsEnabled="{Binding CanDeleteClip}"
+	                                Click="DeleteSelectedClip_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
@@ -333,6 +337,7 @@
                             <ListView x:Name="ClipsList"
                                       Grid.Row="1"
                                       ItemsSource="{Binding ClipsView}"
+	                                      SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                       MouseDoubleClick="ClipList_DoubleClick"
                                       Style="{StaticResource DarkListView}">
                                 <ListView.View>
