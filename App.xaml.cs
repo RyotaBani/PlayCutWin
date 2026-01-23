@@ -1,10 +1,10 @@
 using System;
 using System.Windows;
-using System.Windows.Threading;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
 
+using System.Threading.Tasks;
+using System.Text;
+using System.IO;
+using System.Windows.Threading;
 namespace PlayCutWin
 {
     public partial class App : Application
@@ -15,6 +15,7 @@ namespace PlayCutWin
         {
             base.OnStartup(e);
 
+            
             // Global crash guards (show dialog + write log)
             this.DispatcherUnhandledException += (_, ex) =>
             {
@@ -50,8 +51,7 @@ namespace PlayCutWin
                 try { LogCrash(ex.Exception, "UnobservedTaskException"); } catch { }
                 ex.SetObserved();
             };
-
-            // 二重起動ガード（保険）
+// 二重起動ガード（保険）
             if (_mainWindowShown) return;
             _mainWindowShown = true;
 
@@ -62,4 +62,26 @@ namespace PlayCutWin
             window.Show();
         }
     }
+
+        private static void LogCrash(Exception? ex, string kind)
+        {
+            try
+            {
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "PlayCutWin");
+                Directory.CreateDirectory(dir);
+
+                var path = Path.Combine(dir, "crash.log");
+                var sb = new StringBuilder();
+                sb.AppendLine("==== " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ====");
+                sb.AppendLine("Kind: " + kind);
+                if (ex != null) sb.AppendLine(ex.ToString());
+                else sb.AppendLine("(null exception object)");
+                sb.AppendLine();
+                File.AppendAllText(path, sb.ToString(), Encoding.UTF8);
+            }
+            catch { }
+        }
+
 }
