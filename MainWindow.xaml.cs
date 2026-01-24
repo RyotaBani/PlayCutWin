@@ -10,13 +10,14 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+
+using LibVLCSharp.Shared;
 
 namespace PlayCutWin
 {
@@ -30,6 +31,10 @@ namespace PlayCutWin
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
         private double _currentSpeed = 1.0;
 
+        // VLC
+        private LibVLC? _libVLC;
+        private MediaPlayer? _mediaPlayer;
+
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
         public MainWindow()
@@ -37,16 +42,49 @@ namespace PlayCutWin
             InitializeComponent();
             DataContext = VM;
 
+            // Init LibVLC (seeking is generally more stable than WPF MediaElement)
+            try
+            {
+                Core.Initialize();
+                _libVLC = new LibVLC();
+                _mediaPlayer = new MediaPlayer(_libVLC);
+                if (VlcView != null) VlcView.MediaPlayer = _mediaPlayer;
+            }
+            catch (Exception ex)
+            {
+                // If VLC init fails, keep app alive and show status.
+                VM.StatusText = "LibVLC init failed: " + ex.Message;
+            }
+
+            // UI initial state: Speed is 1x selected (even before video load)
             HighlightSpeedButtons(_currentSpeed);
 
-            _timer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(120)
-            };
+            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _timer.Tick += (_, __) => Tick();
             _timer.Start();
 
             VM.StatusText = "Ready";
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            try
+            {
+                _timer.Stop();
+            }
+            catch { }
+
+            try
+            {
+                if (_mediaPlayer != null)
+                {
+                    _mediaPlayer.Stop();
+                    _mediaPlayer.Dispose();
+                }
+                _libVLC?.Dispose();
+            }
+            catch { }
         }
 
         // ----------------------------
@@ -64,21 +102,26 @@ namespace PlayCutWin
 
             try
             {
+                if (_libVLC == null || _mediaPlayer == null)
+                {
+                    MessageBox.Show("Video engine is not ready (LibVLC init failed).", "Load Video", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
                 VM.LoadedVideoPath = dlg.FileName;
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
                 if (VideoHint != null) VideoHint.Visibility = Visibility.Collapsed;
 
-                Player.Stop();
-                Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
+                _mediaPlayer.Stop();
 
-                // reset speed to 1x
+                using var media = new Media(_libVLC, new Uri(dlg.FileName));
+                _mediaPlayer.Play(media);
+
+                // Align behavior with Mac版: load -> 1x -> pause at head
                 SetSpeed(1.0);
-
-                // "load then pause" pattern
-                Player.Play();
-                Player.Pause();
+                _mediaPlayer.Pause();
                 VM.IsPlaying = false;
 
                 VM.StatusText = "Video loaded.";
@@ -90,33 +133,29 @@ namespace PlayCutWin
             }
         }
 
-        private void Player_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            if (Player.NaturalDuration.HasTimeSpan)
-            {
-                VM.DurationSeconds = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                if (TimelineSlider != null) TimelineSlider.Maximum = VM.DurationSeconds;
-                VM.StatusText = "Ready";
-            }
-        }
-
-        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-        {
-            VM.StatusText = "Media failed.";
-            MessageBox.Show(e.ErrorException?.Message ?? "Unknown media error", "Media Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-
         private void Tick()
         {
-            if (Player.Source == null) return;
-            if (!Player.NaturalDuration.HasTimeSpan) return;
+            if (_mediaPlayer == null) return;
 
-            if (!_isDraggingTimeline)
+            // Duration
+            var lenMs = _mediaPlayer.Length; // -1 if unknown
+            if (lenMs > 0)
             {
-                VM.CurrentSeconds = Player.Position.TotalSeconds;
+                VM.DurationSeconds = lenMs / 1000.0;
+                if (TimelineSlider != null && TimelineSlider.Maximum != VM.DurationSeconds)
+                {
+                    TimelineSlider.Maximum = VM.DurationSeconds;
+                }
             }
 
-            VM.TimeDisplay = $"{FormatTime(Player.Position.TotalSeconds)} / {FormatTime(VM.DurationSeconds)}";
+            // Current
+            if (!_isDraggingTimeline)
+            {
+                var timeMs = _mediaPlayer.Time;
+                if (timeMs >= 0) VM.CurrentSeconds = timeMs / 1000.0;
+            }
+
+            VM.TimeDisplay = $"{FormatTime(VM.CurrentSeconds)} / {FormatTime(VM.DurationSeconds)}";
         }
 
         private void TimelineSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -132,30 +171,35 @@ namespace PlayCutWin
 
         private void SeekTo(double seconds)
         {
-            if (Player.Source == null) return;
-
-            seconds = Math.Max(0, Math.Min(seconds, VM.DurationSeconds));
-            Player.Position = TimeSpan.FromSeconds(seconds);
+            if (_mediaPlayer == null) return;
+            if (VM.DurationSeconds > 0)
+            {
+                seconds = Math.Max(0, Math.Min(seconds, VM.DurationSeconds));
+            }
+            var ms = (long)Math.Max(0, seconds * 1000.0);
+            _mediaPlayer.Time = ms;
         }
 
         private void SeekBy(double deltaSeconds)
         {
-            if (Player.Source == null) return;
-            SeekTo(Player.Position.TotalSeconds + deltaSeconds);
+            if (_mediaPlayer == null) return;
+            var cur = _mediaPlayer.Time;
+            if (cur < 0) cur = 0;
+            SeekTo(cur / 1000.0 + deltaSeconds);
         }
 
         private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
-            if (Player.Source == null) return;
+            if (_mediaPlayer == null) return;
 
             if (VM.IsPlaying)
             {
-                Player.Pause();
+                _mediaPlayer.Pause();
                 VM.IsPlaying = false;
             }
             else
             {
-                Player.Play();
+                _mediaPlayer.Play();
                 VM.IsPlaying = true;
             }
         }
@@ -170,9 +214,14 @@ namespace PlayCutWin
             _currentSpeed = speed;
             HighlightSpeedButtons(speed);
 
-            if (Player?.Source != null)
+            // Even if video not loaded, button highlight changes
+            if (_mediaPlayer != null)
             {
-                Player.SpeedRatio = speed;
+                try
+                {
+                    _mediaPlayer.SetRate((float)speed);
+                }
+                catch { }
             }
 
             VM.StatusText = $"Speed: {speed:0.##}x";
@@ -180,11 +229,13 @@ namespace PlayCutWin
 
         private void HighlightSpeedButtons(double speed)
         {
+            // reset
             if (Speed025Button != null) Speed025Button.Background = SpeedNormalBrush;
             if (Speed05Button != null) Speed05Button.Background = SpeedNormalBrush;
             if (Speed1Button != null) Speed1Button.Background = SpeedNormalBrush;
             if (Speed2Button != null) Speed2Button.Background = SpeedNormalBrush;
 
+            // select
             var selected = speed switch
             {
                 0.25 => Speed025Button,
@@ -211,15 +262,19 @@ namespace PlayCutWin
         // ----------------------------
         private void ClipStart_Click(object sender, RoutedEventArgs e)
         {
-            if (Player.Source == null) return;
-            VM.ClipStartSeconds = Player.Position.TotalSeconds;
+            if (_mediaPlayer == null) return;
+            var ms = _mediaPlayer.Time;
+            if (ms < 0) return;
+            VM.ClipStartSeconds = ms / 1000.0;
             VM.StatusText = $"Clip START = {FormatTime(VM.ClipStartSeconds)}";
         }
 
         private void ClipEnd_Click(object sender, RoutedEventArgs e)
         {
-            if (Player.Source == null) return;
-            VM.ClipEndSeconds = Player.Position.TotalSeconds;
+            if (_mediaPlayer == null) return;
+            var ms = _mediaPlayer.Time;
+            if (ms < 0) return;
+            VM.ClipEndSeconds = ms / 1000.0;
             VM.StatusText = $"Clip END = {FormatTime(VM.ClipEndSeconds)}";
         }
 
@@ -228,7 +283,7 @@ namespace PlayCutWin
 
         private void SaveClip(string team)
         {
-            if (Player.Source == null) return;
+            if (_mediaPlayer == null) return;
 
             var start = VM.ClipStartSeconds;
             var end = VM.ClipEndSeconds;
@@ -257,86 +312,73 @@ namespace PlayCutWin
         }
 
         // ----------------------------
-        // Clips: DoubleClick Jump (NO PLAY)  ★落ち対策の本体
+        // Clips
         // ----------------------------
-        private async void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
+        // リストのクリップをダブルクリック → そのStartへジャンプ（再生状態は維持）
+        private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is not ListView lv) return;
             if (lv.SelectedItem is not ClipRow row) return;
-            if (Player?.Source == null) return;
-            if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0) return;
+            if (_mediaPlayer == null) return;
 
-            double target = row.Start;
-            if (double.IsNaN(target) || double.IsInfinity(target)) return;
-
-            target = Math.Max(0, target);
-            target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
-
-            // 重要：MediaElement が「Pause直後のPosition変更」で落ちる環境があるので
-            // Pause -> 少し待つ -> Positionセット（再生しない）
             try
             {
-                Player.Pause();
-            }
-            catch { /* ignore */ }
+                var target = row.Start;
+                if (double.IsNaN(target) || double.IsInfinity(target)) return;
 
-            VM.IsPlaying = false;
-
-            // 0.2〜0.5秒で落ちる報告に合わせて、まずは 250ms 待ち
-            await Task.Delay(250);
-
-            // UIスレッドで位置移動
-            try
-            {
-                await Dispatcher.InvokeAsync(() =>
+                // Clamp (if length known)
+                if (VM.DurationSeconds > 0)
                 {
-                    try
-                    {
-                        Player.Position = TimeSpan.FromSeconds(target);
-                    }
-                    catch { /* ignore */ }
-                }, DispatcherPriority.Background);
-            }
-            catch
-            {
-                // ここも飲み込む（ネイティブ例外はここで拾えないことがある）
-            }
+                    target = Math.Max(0, Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05)));
+                }
+                else
+                {
+                    target = Math.Max(0, target);
+                }
 
-            VM.StatusText = $"Jumped to {FormatTime(target)}";
+                var wasPlaying = VM.IsPlaying;
+
+                // Seek (LibVLC is usually stable without extra delays)
+                _mediaPlayer.Pause();
+                VM.IsPlaying = false;
+                SeekTo(target);
+
+                if (wasPlaying)
+                {
+                    _mediaPlayer.Play();
+                    VM.IsPlaying = true;
+                }
+
+                VM.StatusText = $"Jumped to {FormatTime(target)}";
+            }
+            catch (Exception ex)
+            {
+                VM.StatusText = "Jump failed.";
+                MessageBox.Show(
+                    $"Failed to jump to clip start.\n\n{ex.Message}",
+                    "Jump Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         // Selection changed (from any clips list)
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is not ListView lv) return;
-
             if (lv.SelectedItem is ClipRow row)
             {
-                // 他リストの選択を解除（存在するものだけ）
-                ClearOtherSelections(lv);
+                // ensure single selection across lists
+                if (lv.Name != "TeamAList" && TeamAList != null) TeamAList.SelectedItem = null;
+                if (lv.Name != "TeamBList" && TeamBList != null) TeamBList.SelectedItem = null;
+                if (lv.Name != "TeamAOnlyList" && TeamAOnlyList != null) TeamAOnlyList.SelectedItem = null;
+                if (lv.Name != "TeamBOnlyList" && TeamBOnlyList != null) TeamBOnlyList.SelectedItem = null;
+
                 VM.SelectedClip = row;
             }
             else
             {
                 VM.SelectedClip = null;
-            }
-        }
-
-        private void ClearOtherSelections(ListView keep)
-        {
-            // ここはXAML名が揺れても落ちないように、FindNameで拾えるものだけ消す
-            var names = new[]
-            {
-                "TeamAList","TeamBList","TeamAOnlyList","TeamBOnlyList",
-                "TeamAClipsList","TeamBClipsList","ClipsList","AllClipsList"
-            };
-
-            foreach (var n in names)
-            {
-                if (FindName(n) is ListView lv && lv != keep)
-                {
-                    lv.SelectedItem = null;
-                }
             }
         }
 
@@ -369,6 +411,7 @@ namespace PlayCutWin
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
 
+            // custom tagは offense側に追加
             if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
             {
                 VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
@@ -394,6 +437,7 @@ namespace PlayCutWin
         // ----------------------------
         // CSV / Export Clips
         // ----------------------------
+
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
             ExportClipsInternal(VM.AllClips.ToList());
@@ -429,6 +473,8 @@ namespace PlayCutWin
 
             try
             {
+                // CSV v1 (Mac版互換)
+                // VideoName / Team(Home/Away) / Start / End / Duration / Tags
                 var sb = new StringBuilder();
                 sb.AppendLine("VideoName,Team(Home/Away),Start,End,Duration,Tags");
 
@@ -517,7 +563,7 @@ namespace PlayCutWin
                     if (cols.Count <= Math.Max(teamIdx, startIdx)) continue;
 
                     string teamRaw = GetSafe(cols, teamIdx).Trim();
-                    string team = NormalizeTeamToAB(teamRaw);
+                    string team = NormalizeTeamToAB(teamRaw); // Home->A / Away->B
 
                     double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
                     if (startSec <= 0) continue;
@@ -639,7 +685,6 @@ namespace PlayCutWin
         {
             var ss = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
             var t = durationSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-
             return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
         }
 
@@ -714,8 +759,7 @@ namespace PlayCutWin
             var sb = new StringBuilder();
             foreach (var ch in name)
             {
-                if (invalid.Contains(ch)) sb.Append('_');
-                else sb.Append(ch);
+                sb.Append(invalid.Contains(ch) ? '_' : ch);
             }
             return sb.ToString().Trim().Trim('_');
         }
@@ -730,7 +774,7 @@ namespace PlayCutWin
 
         private static string EscapeCsv(string s)
         {
-            if (s.Contains(",") || s.Contains("\"") || s.Contains("\n"))
+            if (s.Contains(",") || s.Contains('"') || s.Contains("\n"))
             {
                 return "\"" + s.Replace("\"", "\"\"") + "\"";
             }
@@ -746,11 +790,11 @@ namespace PlayCutWin
             for (int i = 0; i < line.Length; i++)
             {
                 char c = line[i];
-                if (c == '\"')
+                if (c == '"')
                 {
-                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '\"')
+                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
                     {
-                        sb.Append('\"');
+                        sb.Append('"');
                         i++;
                     }
                     else
@@ -895,8 +939,7 @@ namespace PlayCutWin
         private string _currentTagsText = "(No tags selected)";
         private string _clipsHeader = "Clips (Total 0)";
 
-        public ObservableCollection<string> ClipFilters { get; } =
-            new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
+        public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
         private string _selectedClipFilter = "All Clips";
         public string SelectedClipFilter
@@ -976,7 +1019,10 @@ namespace PlayCutWin
         }
 
         public string PlayPauseLabel => IsPlaying ? "Pause" : "Play";
-        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
+
+        // Segoe MDL2 Assets glyphs
+        // Play:  E768   Pause: E769
+        public string PlayPauseIcon => IsPlaying ? "\\uE769" : "\\uE768";
 
         public double DurationSeconds { get => _durationSeconds; set { _durationSeconds = value; OnPropertyChanged(); } }
         public double CurrentSeconds { get => _currentSeconds; set { _currentSeconds = value; OnPropertyChanged(); } }
@@ -988,8 +1034,11 @@ namespace PlayCutWin
         public string ClipEndText => $"END: {FormatTime(ClipEndSeconds)}";
 
         public string TimeDisplay { get => _timeDisplay; set { _timeDisplay = value; OnPropertyChanged(); } }
+
         public string CustomTagInput { get => _customTagInput; set { _customTagInput = value; OnPropertyChanged(); } }
+
         public string CurrentTagsText { get => _currentTagsText; set { _currentTagsText = value; OnPropertyChanged(); } }
+
         public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
 
         public IEnumerable<string> GetSelectedTags()

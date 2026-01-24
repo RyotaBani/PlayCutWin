@@ -8,4 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- VLC-based player (more stable seek than MediaElement) -->
+    <PackageReference Include="LibVLCSharp" Version="3.9.5.1" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5.1" />
+    <!-- Native VLC binaries for Windows x64 -->
+    <PackageReference Include="LibVLCSharp.NativeAssets.Win64" Version="3.0.20" />
+  </ItemGroup>
+
 </Project>
