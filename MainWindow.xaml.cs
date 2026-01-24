@@ -24,9 +24,6 @@ namespace PlayCutWin
         private readonly DispatcherTimer _timer;
         private bool _isDraggingTimeline = false;
 
-        // ✅ 安全ジャンプ：ダブルクリックでは値を「予約」するだけ（MediaElementは触らない）
-        private double? _pendingJumpSeconds = null;
-
         // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
@@ -34,12 +31,18 @@ namespace PlayCutWin
 
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
+        // ✅ 予約ジャンプ（Tickで実行）
+        private double? _pendingJumpSeconds = null;
+        private bool _jumpInProgress = false;
+
+        // ✅ 「作り直しジャンプ」用にロードした動画の URI を保持
+        private Uri? _loadedVideoUri = null;
+
         public MainWindow()
         {
             InitializeComponent();
             DataContext = VM;
 
-            // UIの初期状態：Speed は 1x を選択状態にしておく（動画未ロードでも表示だけは合わせる）
             HighlightSpeedButtons(_currentSpeed);
 
             _timer = new DispatcherTimer
@@ -71,15 +74,18 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
+                _loadedVideoUri = new Uri(dlg.FileName, UriKind.Absolute);
+
                 if (VideoHint != null) VideoHint.Visibility = Visibility.Collapsed;
 
-                Player.Stop();
-                Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
+                // いったん完全に止める
+                SafeStopPlayer();
 
-                // ロードしたら Speed は 1x に戻す（Mac版の挙動に合わせる）
+                Player.Source = _loadedVideoUri;
+
                 SetSpeed(1.0);
 
-                // いったん play -> pause で MediaElement を安定させる
+                // warm up
                 Player.Play();
                 Player.Pause();
 
@@ -111,39 +117,24 @@ namespace PlayCutWin
 
         private void Tick()
         {
-            if (Player.Source == null) return;
-            if (!Player.NaturalDuration.HasTimeSpan) return;
+            if (Player.Source == null || !Player.NaturalDuration.HasTimeSpan)
+            {
+                // ✅ それでもジャンプ予約はあるかもなので、ロード済みURIがある場合だけ処理する
+                if (_pendingJumpSeconds.HasValue && !_jumpInProgress && _loadedVideoUri != null)
+                {
+                    var target = _pendingJumpSeconds.Value;
+                    _pendingJumpSeconds = null;
+                    StartRecreateJump(target);
+                }
+                return;
+            }
 
-            // ✅ 予約ジャンプを「Tick内」で1回だけ実行（ここが最重要）
-            if (_pendingJumpSeconds.HasValue)
+            // ✅ ジャンプ予約が来たら「作り直しジャンプ」
+            if (_pendingJumpSeconds.HasValue && !_jumpInProgress)
             {
                 var target = _pendingJumpSeconds.Value;
                 _pendingJumpSeconds = null;
-
-                try
-                {
-                    // durationが確定していることが前提（NaturalDuration.HasTimeSpan）
-                    if (VM.DurationSeconds <= 0) return;
-
-                    if (double.IsNaN(target) || double.IsInfinity(target)) return;
-
-                    target = Math.Max(0, target);
-                    target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
-
-                    Player.Pause();
-                    VM.IsPlaying = false;
-
-                    Player.Position = TimeSpan.FromSeconds(target);
-
-                    Player.Play();
-                    VM.IsPlaying = true;
-
-                    VM.StatusText = $"Jumped to {FormatTime(target)}";
-                }
-                catch
-                {
-                    // MediaElement系の不安定クラッシュを回避（ここで例外が出ても落とさない）
-                }
+                StartRecreateJump(target);
             }
 
             if (!_isDraggingTimeline)
@@ -205,7 +196,6 @@ namespace PlayCutWin
             _currentSpeed = speed;
             HighlightSpeedButtons(speed);
 
-            // 動画未ロードでも選択表示は変える
             if (Player?.Source != null)
             {
                 Player.SpeedRatio = speed;
@@ -216,13 +206,11 @@ namespace PlayCutWin
 
         private void HighlightSpeedButtons(double speed)
         {
-            // reset
             if (Speed025Button != null) Speed025Button.Background = SpeedNormalBrush;
             if (Speed05Button != null) Speed05Button.Background = SpeedNormalBrush;
             if (Speed1Button != null) Speed1Button.Background = SpeedNormalBrush;
             if (Speed2Button != null) Speed2Button.Background = SpeedNormalBrush;
 
-            // select
             var selected = speed switch
             {
                 0.25 => Speed025Button,
@@ -297,24 +285,22 @@ namespace PlayCutWin
         // ----------------------------
         // Clips
         // ----------------------------
-        // ✅ ダブルクリック → 予約するだけ（ここでMediaElement触らない）
+        // ✅ ダブルクリック → 予約するだけ（ここでMediaElementを触らない）
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is not ListView lv) return;
             if (lv.SelectedItem is not ClipRow row) return;
-            if (Player?.Source == null) return;
+            if (_loadedVideoUri == null && Player?.Source == null) return;
 
             _pendingJumpSeconds = row.Start;
         }
 
-        // Selection changed (from any clips list)
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is not ListView lv) return;
 
             if (lv.SelectedItem is ClipRow row)
             {
-                // ensure single selection across lists
                 if (lv.Name != "TeamAList" && TeamAList != null) TeamAList.SelectedItem = null;
                 if (lv.Name != "TeamBList" && TeamBList != null) TeamBList.SelectedItem = null;
                 if (lv.Name != "TeamAOnlyList" && TeamAOnlyList != null) TeamAOnlyList.SelectedItem = null;
@@ -349,6 +335,103 @@ namespace PlayCutWin
             VM.StatusText = "Deleted 1 clip.";
         }
 
+        // ✅ ここが本丸：「作り直しジャンプ」
+        // MediaElementのPosition/Seekで落ちる環境があるので、ジャンプ時だけ Source を再セットしてから Position を入れる
+        private void StartRecreateJump(double targetSeconds)
+        {
+            if (_jumpInProgress) return;
+
+            // 再生中に来てもまず止める
+            _jumpInProgress = true;
+
+            var uri = _loadedVideoUri ?? Player.Source;
+            if (uri == null)
+            {
+                _jumpInProgress = false;
+                return;
+            }
+
+            if (double.IsNaN(targetSeconds) || double.IsInfinity(targetSeconds))
+            {
+                _jumpInProgress = false;
+                return;
+            }
+
+            // UIスレッドで安全に
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    VM.StatusText = $"Jumping… {FormatTime(targetSeconds)}";
+
+                    // ① 完全停止 + Source一旦null（内部状態リセット）
+                    SafeStopPlayer();
+                    Player.Source = null;
+
+                    // ② Source再設定（これで内部パイプラインを作り直す）
+                    Player.Source = uri;
+
+                    // ③ MediaOpenedを待たずに無理にPosition触ると落ちる環境があるので、短い遅延で段階実行
+                    DispatcherTimer t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
+                    t1.Tick += (_, __) =>
+                    {
+                        t1.Stop();
+
+                        try
+                        {
+                            // warm up（デコード開始させる）
+                            Player.Play();
+                            Player.Pause();
+
+                            DispatcherTimer t2 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
+                            t2.Tick += (_, __2) =>
+                            {
+                                t2.Stop();
+
+                                try
+                                {
+                                    // duration未確定でも落ちないようにクランプは控えめに
+                                    var safe = Math.Max(0, targetSeconds);
+                                    Player.Position = TimeSpan.FromSeconds(safe);
+
+                                    Player.Play();
+                                    VM.IsPlaying = true;
+                                    VM.StatusText = $"Jumped to {FormatTime(safe)}";
+                                }
+                                catch
+                                {
+                                    // ここで落ちる場合は Position すら危険なので、さらに別方式へ切り替える
+                                    VM.StatusText = "Jump failed (Position unstable).";
+                                }
+                                finally
+                                {
+                                    _jumpInProgress = false;
+                                }
+                            };
+                            t2.Start();
+                        }
+                        catch
+                        {
+                            VM.StatusText = "Jump failed (recreate pipeline).";
+                            _jumpInProgress = false;
+                        }
+                    };
+                    t1.Start();
+                }
+                catch
+                {
+                    _jumpInProgress = false;
+                }
+            }), DispatcherPriority.Background);
+        }
+
+        private void SafeStopPlayer()
+        {
+            try { Player.Pause(); } catch { }
+            try { Player.Stop(); } catch { }
+            try { VM.IsPlaying = false; } catch { }
+        }
+
         // ----------------------------
         // Tags
         // ----------------------------
@@ -357,7 +440,6 @@ namespace PlayCutWin
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
 
-            // custom tagは offense側に追加（Macに寄せて「増やせる」挙動）
             if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
             {
                 VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
@@ -383,16 +465,8 @@ namespace PlayCutWin
         // ----------------------------
         // CSV / Export Clips
         // ----------------------------
-        private void ExportAll_Click(object sender, RoutedEventArgs e)
-        {
-            ExportClipsInternal(VM.AllClips.ToList());
-        }
-
-        // Alias for older XAML wiring.
-        private void ExportClips_Click(object sender, RoutedEventArgs e)
-        {
-            ExportClipsInternal(VM.AllClips.ToList());
-        }
+        private void ExportAll_Click(object sender, RoutedEventArgs e) => ExportClipsInternal(VM.AllClips.ToList());
+        private void ExportClips_Click(object sender, RoutedEventArgs e) => ExportClipsInternal(VM.AllClips.ToList());
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
         {
@@ -419,8 +493,6 @@ namespace PlayCutWin
 
             try
             {
-                // CSV v1 (Mac版互換)
-                // VideoName / Team(Home/Away) / Start / End / Duration / Tags
                 var sb = new StringBuilder();
                 sb.AppendLine("VideoName,Team(Home/Away),Start,End,Duration,Tags");
 
@@ -466,7 +538,6 @@ namespace PlayCutWin
                     return;
                 }
 
-                // header解析（列名揺れ吸収：空白除去＋小文字化）
                 var headerRaw = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
                 var headerKey = headerRaw.Select(NormalizeHeaderKey).ToList();
 
@@ -478,22 +549,15 @@ namespace PlayCutWin
 
                 if (teamIdx < 0 || startIdx < 0)
                 {
-                    MessageBox.Show(
-                        "CSV format not recognized. Need at least 'Team' and 'Start' columns.",
-                        "Import CSV",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
+                    MessageBox.Show("CSV format not recognized. Need at least 'Team' and 'Start' columns.",
+                        "Import CSV", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                // Clear existing clips
                 if (VM.AllClips.Any() || VM.TeamAClips.Any() || VM.TeamBClips.Any())
                 {
-                    var res = MessageBox.Show(
-                        "Existing clips will be cleared before import. Continue?",
-                        "Import CSV",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
+                    var res = MessageBox.Show("Existing clips will be cleared before import. Continue?",
+                        "Import CSV", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
                     if (res != MessageBoxResult.Yes) return;
 
@@ -511,7 +575,7 @@ namespace PlayCutWin
                     if (cols.Count <= Math.Max(teamIdx, startIdx)) continue;
 
                     string teamRaw = GetSafe(cols, teamIdx).Trim();
-                    string team = NormalizeTeamToAB(teamRaw); // Home->A / Away->B
+                    string team = NormalizeTeamToAB(teamRaw);
 
                     double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
                     if (startSec <= 0) continue;
@@ -608,21 +672,13 @@ namespace PlayCutWin
                 var outPath = Path.Combine(sessionDir, file);
                 var duration = Math.Max(0.01, c.End - c.Start);
 
-                var args = BuildFfmpegArgs(
-                    inputPath: VM.LoadedVideoPath,
-                    startSeconds: c.Start,
-                    durationSeconds: duration,
-                    outputPath: outPath);
+                var args = BuildFfmpegArgs(VM.LoadedVideoPath, c.Start, duration, outPath);
 
                 VM.StatusText = $"Exporting {i + 1}/{clips.Count}...";
 
                 var result = RunProcess(ffmpeg, args);
                 if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-                else
-                {
-                    fail++;
-                    Debug.WriteLine(result.stdErr);
-                }
+                else { fail++; Debug.WriteLine(result.stdErr); }
             }
 
             VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
@@ -633,7 +689,6 @@ namespace PlayCutWin
         {
             var ss = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
             var t = durationSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-
             return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
         }
 
@@ -815,9 +870,7 @@ namespace PlayCutWin
                     return hours * 3600 + minutes * 60 + seconds;
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return 0;
         }
 
@@ -845,7 +898,6 @@ namespace PlayCutWin
             if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
 
             var raw = tagsRaw.Trim();
-
             raw = raw.Replace("///", "|");
             raw = raw.Replace(';', '|').Replace(',', '|');
 
@@ -1056,7 +1108,6 @@ namespace PlayCutWin
         public double Start { get => _start; set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); } }
         public double End { get => _end; set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); } }
         public List<string> Tags { get => _tags; set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); } }
-
         public string Comment { get => _comment; set { _comment = value ?? ""; OnPropertyChanged(); } }
 
         public string StartText => FormatTime(Start);
