@@ -17,7 +17,6 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using System.Threading.Tasks;
 
 namespace PlayCutWin
 {
@@ -34,6 +33,8 @@ namespace PlayCutWin
         // ✅ LibVLC
         private LibVLC? _libVLC;
         private MediaPlayer? _mp;
+	        // Keep Media alive while playing (disposing immediately can cause native crash on seek)
+	        private Media? _currentMedia;
 
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
 
@@ -63,8 +64,10 @@ namespace PlayCutWin
 
             try { _timer.Stop(); } catch { }
 
-            try { _mp?.Stop(); } catch { }
-            try { _mp?.Dispose(); } catch { }
+	            try { _mp?.Stop(); } catch { }
+	            try { _currentMedia?.Dispose(); } catch { }
+	            _currentMedia = null;
+	            try { _mp?.Dispose(); } catch { }
             try { _libVLC?.Dispose(); } catch { }
         }
 
@@ -91,10 +94,12 @@ namespace PlayCutWin
 
                 if (VideoHint != null) VideoHint.Visibility = Visibility.Collapsed;
 
-                _mp.Stop();
-
-                using var media = new Media(_libVLC, new Uri(dlg.FileName));
-                _mp.Play(media);
+	                _mp.Stop();
+	                // IMPORTANT: keep Media instance alive while playing.
+	                // Disposing it immediately can crash VLC native layer later (often on seek / jump).
+	                try { _currentMedia?.Dispose(); } catch { }
+	                _currentMedia = new Media(_libVLC, new Uri(dlg.FileName));
+	                _mp.Play(_currentMedia);
 
                 // すぐ止めて待機状態（Mac版の挙動）
                 _mp.Pause();
@@ -284,61 +289,60 @@ namespace PlayCutWin
         // ----------------------------
         // Clips
         // ----------------------------
-        private async void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
+        private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
-            e.Handled = true;
+	            e.Handled = true;
+	            if (sender is not ListView lv) return;
+	            if (lv.SelectedItem is not ClipRow row) return;
+	            if (_mp == null || _currentMedia == null) return;
 
-            try
-            {
-                if (sender is not ListView lv) return;
-                if (lv.SelectedItem is not ClipRow row) return;
+	            // NOTE:
+	            // LibVLC can crash natively if we seek immediately after certain UI events.
+	            // We do a conservative sequence:
+	            //  1) Pause
+	            //  2) wait a short moment on UI thread
+	            //  3) set Time (ms)
+	            //  4) stay paused ("jump" only). User can hit Play.
+	            try
+	            {
+	                _mp.Pause();
+	                VM.IsPlaying = false;
+	            }
+	            catch { }
 
-                if (_mp == null) return;
-                if (_mp.Media == null) return;
+	            var targetSec = row.Start;
+	            if (double.IsNaN(targetSec) || double.IsInfinity(targetSec)) return;
+	            targetSec = Math.Max(0, targetSec);
 
-                // Duration が取れていないタイミングだと native 側が不安定になりがちなので弾く
-                if (VM.DurationSeconds <= 0 || double.IsNaN(VM.DurationSeconds) || double.IsInfinity(VM.DurationSeconds))
-                {
-                    VM.StatusText = "Not ready to jump yet (duration unknown).";
-                    return;
-                }
+	            // Clamp using VLC length if available (ms)
+	            long lenMs = 0;
+	            try { lenMs = _mp.Length; } catch { lenMs = 0; }
+	            var targetMs = (long)Math.Round(targetSec * 1000.0);
+	            if (lenMs > 0)
+	            {
+	                targetMs = Math.Max(0, Math.Min(targetMs, Math.Max(0, lenMs - 50)));
+	            }
 
-                double target = row.Start;
-                if (double.IsNaN(target) || double.IsInfinity(target)) return;
-
-                // Clamp to [0, duration)
-                target = Math.Max(0, target);
-                target = Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05));
-
-                // LibVLCSharp: 連続で Seek + Play を叩くと環境によって落ちることがあるので、
-                // 「一旦 Pause → 少し待つ → Seek → 少し待つ → Play」の順にする。
-                _mp.SetPause(true);
-                VM.IsPlaying = false;
-
-                await Task.Delay(120).ConfigureAwait(true);
-
-                // Seek (ms)
-                _mp.Time = (long)(target * 1000.0);
-
-                await Task.Delay(120).ConfigureAwait(true);
-
-                // ここは「ジャンプ」なので常に再生を開始（Mac版の体感に寄せる）
-                _mp.Play();
-                VM.IsPlaying = true;
-
-                VM.StatusText = $"Jumped to {FormatTime(target)}";
-            }
-            catch (Exception ex)
-            {
-                VM.StatusText = "Jump failed.";
-                MessageBox.Show(
-                    $"Failed to jump to clip start.\n\n{ex.Message}",
-                    "Jump Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
+	            // Delay seek slightly to avoid native crash
+	            var delay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+	            delay.Tick += (_, __) =>
+	            {
+	                delay.Stop();
+	                try
+	                {
+	                    _mp.Time = targetMs;
+	                    // Ensure paused (jump only)
+	                    _mp.Pause();
+	                    VM.IsPlaying = false;
+	                    VM.StatusText = $"Jumped to {FormatTime(targetMs / 1000.0)}";
+	                }
+	                catch
+	                {
+	                    // swallow to avoid crash loop
+	                }
+	            };
+	            delay.Start();
         }
-
 
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -668,196 +672,179 @@ namespace PlayCutWin
         // Video export (ffmpeg) は既存のまま残したいなら、ここに貼ってOK
         // 今回はジャンプ修正が主目的なので省略（必要ならこの下にあなたの既存実装をそのまま貼る）
         // ----------------------------
-        private void ExportClipsInternal(List<ClipRow> clips)
-        {
-            if (clips == null || clips.Count == 0)
-            {
-                MessageBox.Show("No clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+	        private void ExportClipsInternal(List<ClipRow> clips)
+	        {
+	            if (clips == null || clips.Count == 0)
+	            {
+	                MessageBox.Show("No clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
+	                return;
+	            }
 
-            if (string.IsNullOrWhiteSpace(VM.LoadedVideoPath) || !File.Exists(VM.LoadedVideoPath))
-            {
-                MessageBox.Show("Please load a video first.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+	            if (string.IsNullOrWhiteSpace(VM.LoadedVideoPath) || !File.Exists(VM.LoadedVideoPath))
+	            {
+	                MessageBox.Show("Please load a video first.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
+	                return;
+	            }
 
-            // Choose output folder
-            var outFolder = ChooseFolder("Select export folder");
-            if (string.IsNullOrWhiteSpace(outFolder)) return;
+	            // Choose output folder
+	            var outFolder = ChooseFolder("Select export folder");
+	            if (string.IsNullOrWhiteSpace(outFolder)) return;
 
-            // Ensure ffmpeg exists
-            var ffmpeg = ResolveFfmpegPath();
-            if (ffmpeg == null)
-            {
-                MessageBox.Show(
-                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.
+	            // Ensure ffmpeg exists
+	            var ffmpeg = ResolveFfmpegPath();
+	            if (ffmpeg == null)
+	            {
+	                MessageBox.Show(
+	                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
+	                    "Tip: Open cmd and run: ffmpeg -version",
+	                    "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
+	                return;
+	            }
 
-" +
-                    "Tip: Open cmd and run: ffmpeg -version",
-                    "Export Clips",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                return;
-            }
+	            var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
+	            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+	            var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_clips_{stamp}");
+	            Directory.CreateDirectory(sessionDir);
 
-            var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
-            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_clips_{stamp}");
-            Directory.CreateDirectory(sessionDir);
+	            int ok = 0;
+	            int fail = 0;
+	            VM.StatusText = "Exporting clips...";
 
-            int ok = 0;
-            int fail = 0;
+	            for (int i = 0; i < clips.Count; i++)
+	            {
+	                var c = clips[i];
+	                if (c.End <= c.Start) { fail++; continue; }
 
-            VM.StatusText = "Exporting clips...";
+	                var tags = string.Join("-", (c.Tags ?? new List<string>()).Take(5));
+	                var safeTags = SanitizeFileName(tags);
+	                var safeTeam = (c.Team == "B") ? "B" : "A";
+	                var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
+	                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
+	                file += ".mp4";
 
-            for (int i = 0; i < clips.Count; i++)
-            {
-                var c = clips[i];
-                if (c == null) { fail++; continue; }
-                if (c.End <= c.Start) { fail++; continue; }
+	                var outPath = Path.Combine(sessionDir, file);
+	                var duration = Math.Max(0.01, c.End - c.Start);
 
-                var tags = string.Join("-", (c.Tags ?? new List<string>()).Take(5));
-                var safeTags = SanitizeFileName(tags);
-                var safeTeam = (c.Team == "B") ? "B" : "A";
-                var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
-                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
-                file += ".mp4";
+	                var args = BuildFfmpegArgs(
+	                    inputPath: VM.LoadedVideoPath,
+	                    startSeconds: c.Start,
+	                    durationSeconds: duration,
+	                    outputPath: outPath);
 
-                var outPath = Path.Combine(sessionDir, file);
-                var duration = Math.Max(0.01, c.End - c.Start);
+	                VM.StatusText = $"Exporting {i + 1}/{clips.Count}...";
 
-                var args = BuildFfmpegArgs(
-                    inputPath: VM.LoadedVideoPath,
-                    startSeconds: c.Start,
-                    durationSeconds: duration,
-                    outputPath: outPath);
+	                var result = RunProcess(ffmpeg, args);
+	                if (result.exitCode == 0 && File.Exists(outPath)) ok++;
+	                else
+	                {
+	                    fail++;
+	                    Debug.WriteLine(result.stdErr);
+	                }
+	            }
 
-                VM.StatusText = $"Exporting {i + 1}/{clips.Count}...";
+	            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
+	            MessageBox.Show($"Exported {ok} clip(s) to:\n{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
+	        }
 
-                var result = RunProcess(ffmpeg, args);
-                if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-                else
-                {
-                    fail++;
-                    Debug.WriteLine(result.stdErr);
-                }
-            }
+	        private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
+	        {
+	            // Re-encode for reliable accurate cuts.
+	            // -ss before -i is faster; acceptable for analysis clips.
+	            var ss = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
+	            var t = durationSeconds.ToString("0.###", CultureInfo.InvariantCulture);
+	            return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
+	        }
 
-            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-            MessageBox.Show($"Exported {ok} clip(s) to:
-{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+	        private static (int exitCode, string stdOut, string stdErr) RunProcess(string exePath, string args)
+	        {
+	            try
+	            {
+	                var psi = new ProcessStartInfo
+	                {
+	                    FileName = exePath,
+	                    Arguments = args,
+	                    UseShellExecute = false,
+	                    RedirectStandardOutput = true,
+	                    RedirectStandardError = true,
+	                    CreateNoWindow = true
+	                };
 
-        private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
-        {
-            // Re-encode for reliable accurate cuts.
-            // -ss before -i is faster; acceptable for analysis clips.
-            var ss = startSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-            var t = durationSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+	                using var p = Process.Start(psi);
+	                if (p == null) return (-1, "", "Process start failed.");
+	                var stdout = p.StandardOutput.ReadToEnd();
+	                var stderr = p.StandardError.ReadToEnd();
+	                p.WaitForExit();
+	                return (p.ExitCode, stdout, stderr);
+	            }
+	            catch (Exception ex)
+	            {
+	                return (-1, "", ex.ToString());
+	            }
+	        }
 
-            return $"-y -hide_banner -loglevel error -ss {ss} -i "{inputPath}" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k "{outputPath}"";
-        }
+	        private static string? ResolveFfmpegPath()
+	        {
+	            // 1) PATH
+	            var r = RunProcess("ffmpeg", "-version");
+	            if (r.exitCode == 0) return "ffmpeg";
 
-        private static (int exitCode, string stdOut, string stdErr) RunProcess(string exePath, string args)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    Arguments = args,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+	            // 2) Common install locations (optional)
+	            var candidates = new[]
+	            {
+	                @"C:\\ffmpeg\\bin\\ffmpeg.exe",
+	                @"C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+	                @"C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe"
+	            };
+	            foreach (var c in candidates)
+	            {
+	                if (File.Exists(c)) return c;
+	            }
+	            return null;
+	        }
 
-                using var p = Process.Start(psi);
-                if (p == null) return (-1, "", "Process start failed.");
+	        private static string? ChooseFolder(string title)
+	        {
+	            // WPF doesn't ship with a folder picker.
+	            // Use a SaveFileDialog as a lightweight workaround:
+	            // user picks a dummy file name, and we use its directory.
+	            var sfd = new SaveFileDialog
+	            {
+	                Title = title,
+	                FileName = "export_here",
+	                DefaultExt = ".txt",
+	                Filter = "Folder (select location)|*.txt"
+	            };
 
-                var stdout = p.StandardOutput.ReadToEnd();
-                var stderr = p.StandardError.ReadToEnd();
-                p.WaitForExit();
+	            var ok = sfd.ShowDialog();
+	            if (ok == true)
+	            {
+	                var dir = Path.GetDirectoryName(sfd.FileName);
+	                return string.IsNullOrWhiteSpace(dir) ? null : dir;
+	            }
+	            return null;
+	        }
 
-                return (p.ExitCode, stdout, stderr);
-            }
-            catch (Exception ex)
-            {
-                return (-1, "", ex.ToString());
-            }
-        }
+	        private static string SanitizeFileName(string name)
+	        {
+	            if (string.IsNullOrWhiteSpace(name)) return "";
+	            var invalid = Path.GetInvalidFileNameChars();
+	            var sb = new StringBuilder();
+	            foreach (var ch in name)
+	            {
+	                if (invalid.Contains(ch)) sb.Append('_');
+	                else sb.Append(ch);
+	            }
+	            return sb.ToString().Trim().Trim('_');
+	        }
 
-        private static string ResolveFfmpegPath()
-        {
-            // 1) PATH
-            var r = RunProcess("ffmpeg", "-version");
-            if (r.exitCode == 0) return "ffmpeg";
-
-            // 2) Common install locations (optional)
-            var candidates = new[]
-            {
-                @"C:\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
-            };
-
-            foreach (var c in candidates)
-            {
-                if (File.Exists(c)) return c;
-            }
-
-            return null;
-        }
-
-        private static string ChooseFolder(string title)
-        {
-            // WPF doesn't ship with a folder picker.
-            // Use a SaveFileDialog as a lightweight workaround:
-            // user picks a dummy file name, and we use its directory.
-            var sfd = new SaveFileDialog
-            {
-                Title = title,
-                FileName = "export_here",
-                DefaultExt = ".txt",
-                Filter = "Folder (select location)|*.txt"
-            };
-
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-
-            return null;
-        }
-
-        private static string SanitizeFileName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name)) return "";
-
-            var invalid = Path.GetInvalidFileNameChars();
-            var sb = new StringBuilder();
-
-            foreach (var ch in name)
-            {
-                if (invalid.Contains(ch)) sb.Append('_');
-                else sb.Append(ch);
-            }
-
-            return sb.ToString().Trim().Trim('_');
-        }
-
-        private static string FormatTimeForFile(double seconds)
-        {
-            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "0_00";
-
-            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
-            // hh_mm_ss
-            if (ts.Hours > 0) return $"{ts.Hours}_{ts.Minutes:00}_{ts.Seconds:00}";
-            return $"{ts.Minutes}_{ts.Seconds:00}";
-        }
+	        private static string FormatTimeForFile(double seconds)
+	        {
+	            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "0_00";
+	            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+	            // hh_mm_ss
+	            if (ts.Hours > 0) return $"{ts.Hours}_{ts.Minutes:00}_{ts.Seconds:00}";
+	            return $"{ts.Minutes}_{ts.Seconds:00}";
+	        }
     }
 
     // ============================
