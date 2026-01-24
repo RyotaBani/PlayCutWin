@@ -321,45 +321,35 @@ namespace PlayCutWin
             if (lv.SelectedItem is not ClipRow row) return;
             if (_mediaPlayer == null) return;
 
-            try
+            // NOTE:
+            // Some environments crash (native) ~0.2-1s after "Pause -> Seek -> Play".
+            // To prioritize stability, this handler performs a *jump only* (seek) and
+            // keeps playback paused. (You can add "Resume" later once stable.)
+
+            var target = row.Start;
+            if (double.IsNaN(target) || double.IsInfinity(target)) return;
+
+            // Clamp (if length known)
+            if (VM.DurationSeconds > 0)
+                target = Math.Max(0, Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05)));
+            else
+                target = Math.Max(0, target);
+
+            // Force pause (use SetPause to avoid a Pause/Play state race)
+            try { _mediaPlayer.SetPause(true); } catch { /* ignore */ }
+            VM.IsPlaying = false;
+
+            // Delay the actual seek slightly to avoid race conditions inside libvlc.
+            // (BeginInvoke alone was not enough in some cases.)
+            var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            t.Tick += (_, __) =>
             {
-                var target = row.Start;
-                if (double.IsNaN(target) || double.IsInfinity(target)) return;
+                t.Stop();
+                try { SeekTo(target); } catch { /* swallow to avoid hard crash */ }
+            };
+            t.Start();
 
-                // Clamp (if length known)
-                if (VM.DurationSeconds > 0)
-                {
-                    target = Math.Max(0, Math.Min(target, Math.Max(0, VM.DurationSeconds - 0.05)));
-                }
-                else
-                {
-                    target = Math.Max(0, target);
-                }
-
-                var wasPlaying = VM.IsPlaying;
-
-                // Seek (LibVLC is usually stable without extra delays)
-                _mediaPlayer.Pause();
-                VM.IsPlaying = false;
-                SeekTo(target);
-
-                if (wasPlaying)
-                {
-                    _mediaPlayer.Play();
-                    VM.IsPlaying = true;
-                }
-
-                VM.StatusText = $"Jumped to {FormatTime(target)}";
-            }
-            catch (Exception ex)
-            {
-                VM.StatusText = "Jump failed.";
-                MessageBox.Show(
-                    $"Failed to jump to clip start.\n\n{ex.Message}",
-                    "Jump Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
+            VM.StatusText = $"Jumped to {FormatTime(target)}";
         }
 
         // Selection changed (from any clips list)

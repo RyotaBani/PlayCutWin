@@ -10,8 +10,12 @@
 
   <ItemGroup>
     <!-- VLC-based player (more stable seek than MediaElement) -->
-    <PackageReference Include="LibVLCSharp" Version="3.9.5.1" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5.1" />
+    <!--
+      GitHub Actions (nuget.org) has LibVLCSharp 3.9.5, but not 3.9.5.1.
+      Pin to the latest available stable to avoid NU1102 restore failures.
+    -->
+    <PackageReference Include="LibVLCSharp" Version="3.9.5" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5" />
     <!-- Native VLC binaries for Windows x64 -->
     <PackageReference Include="LibVLCSharp.NativeAssets.Win64" Version="3.0.20" />
   </ItemGroup>
