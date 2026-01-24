@@ -8,10 +8,4 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
-  <!--
-    IMPORTANT:
-    - GitHub Actions の Restore を通すため、存在しない LibVLCSharp.NativeAssets.* などの参照は入れません。
-    - いまのプレイヤーは WPF の MediaElement を使用（MainWindow.xaml 側）
-  -->
-
 </Project>
