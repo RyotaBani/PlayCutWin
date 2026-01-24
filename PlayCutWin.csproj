@@ -8,16 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- VLC (WPF) -->
-    <PackageReference Include="LibVLCSharp" Version="3.9.5.1" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5.1" />
+    <!-- VLC / LibVLCSharp -->
+    <!-- IMPORTANT: NuGet has LibVLCSharp 3.9.5 (no ".1").
+         If you reference 3.9.5.1, GitHub Actions "dotnet restore" fails with NU1102. -->
+    <PackageReference Include="LibVLCSharp" Version="3.9.5" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5" />
 
-    <!-- IMPORTANT:
-         GitHub Actions のエラー原因：
-         LibVLCSharp.NativeAssets.Win64 / Win32 が NuGet 側に存在せず restore で落ちる。
-         Windows 用はこのパッケージ1つにまとめる。
-         3.0.* は “3.0 系の最新パッチ” を拾う floating version。
-    -->
+    <!-- Native VLC binaries for Windows (needed for CI / self-contained builds) -->
     <PackageReference Include="LibVLCSharp.NativeAssets.Windows" Version="3.0.*" />
   </ItemGroup>
 
