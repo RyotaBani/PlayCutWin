@@ -5,17 +5,17 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- VLC / LibVLCSharp -->
-    <!-- IMPORTANT: NuGet has LibVLCSharp 3.9.5 (no ".1").
-         If you reference 3.9.5.1, GitHub Actions "dotnet restore" fails with NU1102. -->
-    <PackageReference Include="LibVLCSharp" Version="3.9.5" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5" />
+    <!-- VLC-based player (more stable seek than MediaElement) -->
+    <PackageReference Include="LibVLCSharp" Version="3.9.5.1" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5.1" />
 
-    <!-- Native VLC binaries for Windows (needed for CI / self-contained builds) -->
-    <PackageReference Include="LibVLCSharp.NativeAssets.Windows" Version="3.0.*" />
+    <!-- Native VLC binaries for Windows x64 -->
+    <!-- NOTE: The correct package id is *.Windows (not *.Win64) -->
+    <PackageReference Include="LibVLCSharp.NativeAssets.Windows" Version="3.0.20" />
   </ItemGroup>
 
 </Project>
