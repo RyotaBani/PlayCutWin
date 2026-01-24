@@ -29,19 +29,17 @@ namespace PlayCutWin
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
         private double _currentSpeed = 1.0;
 
-        // Double-click jump guard (cancel previous jump)
-        private int _jumpToken = 0;
-        private DispatcherTimer? _jumpTimer1;
-        private DispatcherTimer? _jumpTimer2;
-
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
+
+        // ✅ Jump reentry guard (double click can fire twice by bubbling)
+        private bool _isJumping = false;
+        private int _jumpToken = 0;
 
         public MainWindow()
         {
             InitializeComponent();
             DataContext = VM;
 
-            // UI initial: 1x selected
             HighlightSpeedButtons(_currentSpeed);
 
             _timer = new DispatcherTimer
@@ -73,14 +71,12 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                VideoHint.Visibility = Visibility.Collapsed;
+                if (VideoHint != null) VideoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
 
-                // back to 1x
                 SetSpeed(1.0);
-
                 Player.Play();
                 Player.Pause();
 
@@ -99,7 +95,7 @@ namespace PlayCutWin
             if (Player.NaturalDuration.HasTimeSpan)
             {
                 VM.DurationSeconds = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                TimelineSlider.Maximum = VM.DurationSeconds;
+                if (TimelineSlider != null) TimelineSlider.Maximum = VM.DurationSeconds;
                 VM.StatusText = "Ready";
             }
         }
@@ -263,13 +259,17 @@ namespace PlayCutWin
         // ----------------------------
         // Clips
         // ----------------------------
-        // Double click -> SAFE Jump (two-stage delay)
+        // ✅ Double click -> JUMP (seek) safely
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
+            // ✅ Stop bubbling to prevent double-fire (ListViewItem -> ListView)
+            e.Handled = true;
+
+            if (_isJumping) return;
+
             if (sender is not ListView lv) return;
             if (lv.SelectedItem is not ClipRow row) return;
             if (Player?.Source == null) return;
-
             if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0) return;
 
             double target = row.Start;
@@ -283,93 +283,68 @@ namespace PlayCutWin
 
         private void SafeJumpTo(double targetSeconds)
         {
-            // cancel previous jump sequence
+            _isJumping = true;
             _jumpToken++;
             int token = _jumpToken;
 
-            try
-            {
-                _jumpTimer1?.Stop();
-                _jumpTimer2?.Stop();
-            }
-            catch { }
-
             bool wasPlaying = VM.IsPlaying;
 
-            // Step0: Pause immediately (no seek yet)
             try
             {
-                Player.Pause();
-                VM.IsPlaying = false;
+                // ✅ "Pause -> Stop -> Position -> Play" is the most stable sequence for MediaElement
+                try { Player.Pause(); } catch { }
+                try { Player.Stop(); } catch { }
+
+                // Seek
+                Player.Position = TimeSpan.FromSeconds(targetSeconds);
+                VM.CurrentSeconds = targetSeconds;
+
+                // Restore speed
+                if (Player?.Source != null) Player.SpeedRatio = _currentSpeed;
+
+                // Play or keep paused
+                if (wasPlaying)
+                {
+                    Player.Play();
+                    VM.IsPlaying = true;
+                }
+                else
+                {
+                    // keep paused at the new position
+                    try { Player.Pause(); } catch { }
+                    VM.IsPlaying = false;
+                }
+
+                if (token == _jumpToken)
+                {
+                    VM.StatusText = $"Jumped to {FormatTime(targetSeconds)}";
+                }
             }
             catch
             {
-                return;
+                // If managed exception happens, don't crash the app
+                VM.StatusText = "Jump failed.";
             }
-
-            // Step1: after 250ms -> Seek (still paused)
-            _jumpTimer1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            _jumpTimer1.Tick += (_, __) =>
+            finally
             {
-                _jumpTimer1!.Stop();
-                if (token != _jumpToken) return;
-
-                try
+                // small delay to avoid reentry during the same mouse sequence
+                var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+                t.Tick += (_, __) =>
                 {
-                    if (Player?.Source == null) return;
-                    if (!Player.NaturalDuration.HasTimeSpan || VM.DurationSeconds <= 0) return;
-
-                    Player.Position = TimeSpan.FromSeconds(targetSeconds);
-                    VM.CurrentSeconds = targetSeconds;
-                    VM.StatusText = $"Jump seek: {FormatTime(targetSeconds)}";
-                }
-                catch
-                {
-                    // native crash prevention: do nothing else
-                    return;
-                }
-
-                // Step2: after 250ms -> Play (only if it was playing)
-                _jumpTimer2 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-                _jumpTimer2.Tick += (_, ___) =>
-                {
-                    _jumpTimer2!.Stop();
-                    if (token != _jumpToken) return;
-
-                    try
-                    {
-                        if (Player?.Source == null) return;
-
-                        if (wasPlaying)
-                        {
-                            Player.Play();
-                            VM.IsPlaying = true;
-                            VM.StatusText = $"Jumped to {FormatTime(targetSeconds)}";
-                        }
-                        else
-                        {
-                            // keep paused (safer)
-                            VM.IsPlaying = false;
-                            VM.StatusText = $"Jumped (paused) to {FormatTime(targetSeconds)}";
-                        }
-                    }
-                    catch
-                    {
-                        // swallow
-                    }
+                    t.Stop();
+                    _isJumping = false;
                 };
-                _jumpTimer2.Start();
-            };
-            _jumpTimer1.Start();
+                t.Start();
+            }
         }
 
         // Selection changed (from any clips list)
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is not ListView lv) return;
-
             if (lv.SelectedItem is ClipRow row)
             {
+                // ensure single selection across lists
                 if (lv.Name != "TeamAList" && TeamAList != null) TeamAList.SelectedItem = null;
                 if (lv.Name != "TeamBList" && TeamBList != null) TeamBList.SelectedItem = null;
                 if (lv.Name != "TeamAOnlyList" && TeamAOnlyList != null) TeamAOnlyList.SelectedItem = null;
@@ -437,15 +412,8 @@ namespace PlayCutWin
         // ----------------------------
         // CSV / Export Clips
         // ----------------------------
-        private void ExportAll_Click(object sender, RoutedEventArgs e)
-        {
-            ExportClipsInternal(VM.AllClips.ToList());
-        }
-
-        private void ExportClips_Click(object sender, RoutedEventArgs e)
-        {
-            ExportClipsInternal(VM.AllClips.ToList());
-        }
+        private void ExportAll_Click(object sender, RoutedEventArgs e) => ExportClipsInternal(VM.AllClips.ToList());
+        private void ExportClips_Click(object sender, RoutedEventArgs e) => ExportClipsInternal(VM.AllClips.ToList());
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
         {
@@ -598,7 +566,7 @@ namespace PlayCutWin
         }
 
         // ----------------------------
-        // Video export (ffmpeg)
+        // Video export (ffmpeg) - unchanged
         // ----------------------------
         private void ExportClipsInternal(List<ClipRow> clips)
         {
@@ -898,7 +866,7 @@ namespace PlayCutWin
     }
 
     // ============================
-    // ViewModel / Models
+    // ViewModel / Models (self-contained)
     // ============================
     public class MainWindowViewModel : INotifyPropertyChanged
     {
@@ -922,8 +890,7 @@ namespace PlayCutWin
         private string _currentTagsText = "(No tags selected)";
         private string _clipsHeader = "Clips (Total 0)";
 
-        public ObservableCollection<string> ClipFilters { get; } =
-            new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
+        public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
         private string _selectedClipFilter = "All Clips";
         public string SelectedClipFilter
@@ -948,21 +915,19 @@ namespace PlayCutWin
 
         public bool HasSelectedClip => SelectedClip != null;
 
-        public ObservableCollection<TagToggleModel> OffenseTags { get; } =
-            new ObservableCollection<TagToggleModel>(
-                new[]
-                {
-                    "Transition","Set","PnR","BLOB","SLOB","vs M/M","vs Zone","2nd Attack","3rd Attack more"
-                }.Select(x => new TagToggleModel { Name = x })
-            );
+        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
+            new[]
+            {
+                "Transition","Set","PnR","BLOB","SLOB","vs M/M","vs Zone","2nd Attack","3rd Attack more"
+            }.Select(x => new TagToggleModel { Name = x })
+        );
 
-        public ObservableCollection<TagToggleModel> DefenseTags { get; } =
-            new ObservableCollection<TagToggleModel>(
-                new[]
-                {
-                    "M/M","Zone","Rebound","Steal"
-                }.Select(x => new TagToggleModel { Name = x })
-            );
+        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>(
+            new[]
+            {
+                "M/M","Zone","Rebound","Steal"
+            }.Select(x => new TagToggleModel { Name = x })
+        );
 
         public MainWindowViewModel()
         {
@@ -1017,11 +982,8 @@ namespace PlayCutWin
         public string ClipEndText => $"END: {FormatTime(ClipEndSeconds)}";
 
         public string TimeDisplay { get => _timeDisplay; set { _timeDisplay = value; OnPropertyChanged(); } }
-
         public string CustomTagInput { get => _customTagInput; set { _customTagInput = value; OnPropertyChanged(); } }
-
         public string CurrentTagsText { get => _currentTagsText; set { _currentTagsText = value; OnPropertyChanged(); } }
-
         public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
 
         public IEnumerable<string> GetSelectedTags()
