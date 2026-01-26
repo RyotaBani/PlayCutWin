@@ -1,25 +1,28 @@
-# PlayCutWin 開発ログ（note用）
+# PlayCutWin 開発ログ（構成固定フェーズ）
 
-## 2026-01-27 — Jump後の自動再生を安定化
+## 2026-01-27 起動クラッシュ（XamlParseException）再発 → App.xaml を安定版へ
 
-### 背景
-- クリップ一覧ダブルクリック → StartへSeek → 必ず再生開始（Player.Play）という仕様を確定済み。
-- WPF MediaElement は **Position更新直後の同一tickで Play()** を呼ぶと、環境によって再生開始が不安定になることがある。
+### 発生
+- 起動直後にクラッシュ
+- 例外: System.Windows.Markup.XamlParseException
+- 内容: Setter.Value の Set で ArgumentException（Style 値が不正）
 
-### 対応（完全置き換え）
-- `MainWindow.xaml.cs` の `SeekToSeconds(seconds, autoPlay)` を修正
-  - Seek（Player.Position）とUI同期（CurrentSeconds/TimelineSlider）を行った後、
-  - `Dispatcher.BeginInvoke(..., DispatcherPriority.ContextIdle)` で **1ターン遅らせて Play()** を実行
-  - `VM.IsPlaying = true` を確実に同期
+### 原因
+- App.xaml 内の ControlTemplate / Setter.Value が環境差で解決に失敗し、Window.Show() 時点で例外化。
+- 特にテンプレートの Setter.Value は、型不一致や参照リソースのズレがあると即クラッシュになる。
 
-### 期待する挙動
-- クリップ一覧ダブルクリック時：
-  - Start秒へSeek
-  - 必ず再生開始
-  - IsPlaying（VM.IsPlaying）が true
+### 対応
+- **App.xaml を “安定最優先” に全面置き換え**
+  - ControlTemplate を一旦撤去（WPF既定テンプレートを使用）
+  - 画面が参照する StaticResource キーを App.xaml に必ず定義
+    - Bg0 / PanelBg / PanelBorderBrush / Body / H1 / H2 / Small / SubLabel
+    - Panel / PanelBorder / PanelHeader / InnerBorder
+    - DarkButton / TopButton / AccentButton
+    - TagToggleBase / OffenseTagToggle / DefenseTagToggle
+    - DarkTextBox / TeamTextBox / WatermarkTextBox
+    - DarkListView
 
-### 次の作業
-- `MainWindow.xaml` を「最小構成」に固定したまま、BBVideoTagger準拠の見た目を段階的に復元
-  - Team A/B 色分け
-  - タグトグルの配色
-  - パネル余白・角丸・ホバーなど（Actions安定後）
+### 狙い
+- まず **起動で落ちない**・**GitHub Actions が安定** を最優先で固定。
+- 見た目（角丸・ホバー等のカスタムテンプレート復活）は、Actions安定後に段階的に実施する。
+

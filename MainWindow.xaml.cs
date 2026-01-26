@@ -189,20 +189,8 @@ namespace PlayCutWin
 
                     if (autoPlay)
                     {
-                        // MediaElement can ignore Play when called in the same tick as Position update.
-                        // Delay one dispatcher turn for reliable auto-start after jump.
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            try
-                            {
-                                Player.Play();
-                                VM.IsPlaying = true;
-                            }
-                            catch
-                            {
-                                // ignore
-                            }
-                        }), DispatcherPriority.ContextIdle);
+                        Player.Play();
+                        VM.IsPlaying = true;
                     }
                 }
                 catch
