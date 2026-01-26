@@ -6,11 +6,12 @@
         xmlns:local="clr-namespace:PlayCutWin"
         mc:Ignorable="d"
         Title="Play Cut"
-        Width="1400" Height="860"
-        MinWidth="1200" MinHeight="740"
+        Width="1700" Height="980"
+        MinWidth="1400" MinHeight="860"
         Background="#121212"
         Foreground="#EAEAEA"
-        WindowStartupLocation="CenterScreen"><Grid Margin="12">
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"><Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
