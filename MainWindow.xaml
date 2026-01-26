@@ -135,6 +135,7 @@
                                                   SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
+                                                  ItemContainerStyle="{StaticResource TeamAClipRow}"
                                                   Style="{StaticResource DarkListView}">
                                             <ListView.View>
                                                 <GridView>
@@ -159,6 +160,7 @@
                                                   SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
+                                                  ItemContainerStyle="{StaticResource TeamBClipRow}"
                                                   Style="{StaticResource DarkListView}">
                                             <ListView.View>
                                                 <GridView>
@@ -189,6 +191,7 @@
                                               SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
+                                              ItemContainerStyle="{StaticResource TeamAClipRow}"
                                               Style="{StaticResource DarkListView}">
                                         <ListView.View>
                                             <GridView>
@@ -218,6 +221,7 @@
                                               SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
+                                              ItemContainerStyle="{StaticResource TeamBClipRow}"
                                               Style="{StaticResource DarkListView}">
                                         <ListView.View>
                                             <GridView>

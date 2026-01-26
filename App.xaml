@@ -14,6 +14,11 @@
         <SolidColorBrush x:Key="Text2" Color="#B8B8B8"/>
 
         <SolidColorBrush x:Key="Accent" Color="#3AA6FF"/>
+        <SolidColorBrush x:Key="TeamAAccent" Color="#3AA6FF"/>
+        <SolidColorBrush x:Key="TeamBAccent" Color="#FF4D6D"/>
+
+        <SolidColorBrush x:Key="ClipRowHover" Color="#232323"/>
+        <SolidColorBrush x:Key="ClipRowSelected" Color="#2A2E35"/>
 
         <SolidColorBrush x:Key="BtnBg" Color="#242424"/>
         <SolidColorBrush x:Key="BtnBgHover" Color="#2C2C2C"/>
@@ -187,6 +192,35 @@
             <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="4"/>
+        </Style>
+
+        <!-- =========================
+             ListViewItem (Clip Row)
+             - No custom ControlTemplate
+             - Just setters/triggers (startup-stable)
+             ========================= -->
+        <Style x:Key="ClipRowBase" TargetType="ListViewItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ClipRowHover}"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ClipRowSelected}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="TeamAClipRow" TargetType="ListViewItem" BasedOn="{StaticResource ClipRowBase}">
+            <Setter Property="BorderBrush" Value="{StaticResource TeamAAccent}"/>
+        </Style>
+
+        <Style x:Key="TeamBClipRow" TargetType="ListViewItem" BasedOn="{StaticResource ClipRowBase}">
+            <Setter Property="BorderBrush" Value="{StaticResource TeamBAccent}"/>
         </Style>
 
     </Application.Resources>
