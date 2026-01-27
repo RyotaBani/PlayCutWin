@@ -224,46 +224,9 @@ namespace PlayCutWin.Views
         private void ImportCsv_Click(object sender, RoutedEventArgs e) => _state.ImportCsvFromDialog();
         private void ExportCsv_Click(object sender, RoutedEventArgs e) => _state.ExportCsvToDialog();
         private void ExportAll_Click(object sender, RoutedEventArgs e)
-{
-    try
-    {
-        if (!_state.HasVideo)
         {
-            MessageBox.Show("先に動画をロードしてください。", "Export All", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            _state.StatusMessage = "Export All: (not implemented yet)";
         }
-
-        // WPF-only フォルダ選択（WinForms不要）:
-        // OpenFileDialogを“フォルダ選択”として使う定番トリック。
-        var dlg = new OpenFileDialog
-        {
-            Title = "Select export folder",
-            CheckFileExists = false,
-            CheckPathExists = true,
-            ValidateNames = false,
-            FileName = "Select Folder",
-            Filter = "Folder|."
-        };
-
-        if (dlg.ShowDialog() != true) return;
-
-        var folder = System.IO.Path.GetDirectoryName(dlg.FileName);
-        if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder))
-        {
-            MessageBox.Show("フォルダが選択されませんでした。", "Export All", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        // TODO: ここで実際のExport Allを実行する（ffmpeg等）
-        _state.StatusMessage = $"Export All: folder selected -> {folder}";
-        MessageBox.Show($"保存フォルダ:\n{folder}\n\n※ Export All の動画書き出し本体は次で実装します。", "Export All",
-            MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-    catch (Exception ex)
-    {
-        MessageBox.Show(ex.Message, "Export All", MessageBoxButton.OK, MessageBoxImage.Error);
-    }
-}
 
         private void Preferences_Click(object sender, RoutedEventArgs e)
         {
