@@ -6,8 +6,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <!-- FolderBrowserDialog (System.Windows.Forms) is used for selecting export folder -->
-    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
 </Project>
