@@ -74,7 +74,7 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                _videoHint?.Visibility = Visibility.Collapsed;
+                if (_videoHint != null) _videoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
