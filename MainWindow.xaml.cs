@@ -23,8 +23,6 @@ namespace PlayCutWin
     {
         private readonly DispatcherTimer _timer;
 
-        private TextBlock? _videoHint;
-
         private bool _isDraggingTimeline = false;
 
         // seek-jump safety
@@ -41,7 +39,6 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
-            _videoHint = FindName("VideoHint") as TextBlock;
             DataContext = VM;
 
             HighlightSpeedButtons(_currentSpeed);
@@ -75,7 +72,7 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                if (_videoHint != null) _videoHint.Visibility = Visibility.Collapsed;
+                VideoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
