@@ -21,7 +21,6 @@ namespace PlayCutWin
 {
     public partial class MainWindow : Window
     {
-        private TextBlock? _videoHint; // resolved via FindName to avoid x:Name field generation issues
         private readonly DispatcherTimer _timer;
 
         private bool _isDraggingTimeline = false;
@@ -40,7 +39,6 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
-            _videoHint = FindName("VideoHint") as TextBlock;
             DataContext = VM;
 
             HighlightSpeedButtons(_currentSpeed);
@@ -74,7 +72,7 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                if (_videoHint != null) _videoHint.Visibility = Visibility.Collapsed;
+                VideoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
@@ -556,8 +554,12 @@ namespace PlayCutWin
             if (ffmpeg == null)
             {
                 MessageBox.Show(
-                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
-                    "Tip: Open cmd and run: ffmpeg -version",
+                    "ffmpeg was not found.\n\n" +
+                    "Please do ONE of the following:\n" +
+                    "  1) Put ffmpeg.exe next to PlayCutWin.exe (recommended), or\n" +
+                    "  2) Add ffmpeg to PATH, or\n" +
+                    "  3) Install to a common location (e.g. C:\\ffmpeg\\bin).\n\n" +
+                    "Check: open cmd and run: ffmpeg -version",
                     "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -644,9 +646,28 @@ namespace PlayCutWin
 
         private static string? ResolveFfmpegPath()
         {
+            // 1) PATH
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
+            // 2) Adjacent to app (recommended)
+            try
+            {
+                var baseDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+                var localCandidates = new[]
+                {
+                    Path.Combine(baseDir, "ffmpeg.exe"),
+                    Path.Combine(baseDir, "tools", "ffmpeg.exe"),
+                    Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
+                };
+                foreach (var c in localCandidates)
+                {
+                    if (File.Exists(c)) return c;
+                }
+            }
+            catch { /* ignore */ }
+
+            // 3) Common install locations
             var candidates = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
@@ -657,8 +678,10 @@ namespace PlayCutWin
             {
                 if (File.Exists(c)) return c;
             }
+
             return null;
         }
+
 
         private static string? ChooseFolder(string title)
         {
