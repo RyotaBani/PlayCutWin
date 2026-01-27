@@ -21,6 +21,7 @@ namespace PlayCutWin
 {
     public partial class MainWindow : Window
     {
+        private TextBlock? _videoHint; // resolved via FindName to avoid x:Name field generation issues
         private readonly DispatcherTimer _timer;
 
         private bool _isDraggingTimeline = false;
@@ -39,6 +40,7 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
+            _videoHint = FindName("VideoHint") as TextBlock;
             DataContext = VM;
 
             HighlightSpeedButtons(_currentSpeed);
@@ -72,7 +74,7 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                VideoHint.Visibility = Visibility.Collapsed;
+                _videoHint?.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
@@ -178,8 +180,7 @@ namespace PlayCutWin
             if (seconds < 0) seconds = 0;
             if (seconds > max) seconds = max;
 
-            // WPF MediaElement sometimes ignores Play() right after a seek.
-            // We do: Seek -> UI sync -> (1 tick later) Play.
+            // Avoid crashy state transitions: seek only, then optionally Play.
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 try
@@ -190,15 +191,8 @@ namespace PlayCutWin
 
                     if (autoPlay)
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            try
-                            {
-                                Player.Play();
-                                VM.IsPlaying = true;
-                            }
-                            catch { }
-                        }), DispatcherPriority.ContextIdle);
+                        Player.Play();
+                        VM.IsPlaying = true;
                     }
                 }
                 catch
@@ -650,14 +644,6 @@ namespace PlayCutWin
 
         private static string? ResolveFfmpegPath()
         {
-            // 1) Same folder as the app (recommended for portable installs)
-            try
-            {
-                var local = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-                if (File.Exists(local)) return local;
-            }
-            catch { }
-
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 

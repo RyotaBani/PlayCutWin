@@ -1,27 +1,54 @@
-# PlayCutWin 開発ログ（note用）
+# PlayCutWin 開発ログ（構成固定フェーズ）
 
-## 2026-01-27 — ジャンプ後の自動再生を「確実に」する + UIリソース統一
+## 2026-01-27 起動クラッシュ（XamlParseException）再発 → App.xaml を安定版へ
 
-### できたこと
+### 発生
+- 起動直後にクラッシュ
+- 例外: System.Windows.Markup.XamlParseException
+- 内容: Setter.Value の Set で ArgumentException（Style 値が不正）
 
-#### 1) ジャンプ後の自動再生を完成形へ
-- クリップ一覧のダブルクリックで `Start秒へSeek → 必ず再生開始 → IsPlaying=true 同期` を保証
-- WPF `MediaElement` のクセ（Seek直後に `Play()` が効かないことがある）対策として、
-  - `Seek` を先に実行
-  - **Dispatcherで1tick遅らせて `Play()`**（`DispatcherPriority.ContextIdle`）
-  - UI（Slider/Time/IsPlaying）を即同期
+### 原因
+- App.xaml 内の ControlTemplate / Setter.Value が環境差で解決に失敗し、Window.Show() 時点で例外化。
+- 特にテンプレートの Setter.Value は、型不一致や参照リソースのズレがあると即クラッシュになる。
 
-#### 2) Style/Resource を App.xaml に一本化
-- `MainWindow.xaml` の `Window.Resources` を撤去
-- 参照キー（`Panel` / `DarkButton` / `DarkListView` / `OffenseTagToggle` / `DefenseTagToggle` など）は **すべて App.xaml に集約**
-- 以前クラッシュ原因になった `ControlTemplate.Triggers` 内の `TemplateBinding` を回避し、
-  - `RelativeSource TemplatedParent` の Binding で安全に置換
+### 対応
+- **App.xaml を “安定最優先” に全面置き換え**
+  - ControlTemplate を一旦撤去（WPF既定テンプレートを使用）
+  - 画面が参照する StaticResource キーを App.xaml に必ず定義
+    - Bg0 / PanelBg / PanelBorderBrush / Body / H1 / H2 / Small / SubLabel
+    - Panel / PanelBorder / PanelHeader / InnerBorder
+    - DarkButton / TopButton / AccentButton
+    - TagToggleBase / OffenseTagToggle / DefenseTagToggle
+    - DarkTextBox / TeamTextBox / WatermarkTextBox
+    - DarkListView
 
-### 目的（なぜこうしたか）
-- GitHub Actions が落ちない「基準点」を作る
-- UI（Mac版BBVideoTagger準拠）を戻していく前に、WPFで壊れやすい要因（Resource散在・Trigger内TemplateBinding）を先に排除
+### 狙い
+- まず **起動で落ちない**・**GitHub Actions が安定** を最優先で固定。
+- 見た目（角丸・ホバー等のカスタムテンプレート復活）は、Actions安定後に段階的に実施する。
+
+---
+
+## 2026-01-27 画面サイズ調整（起動時Maximize）＋ クリップ行の Team 色アクセント
+
+### 目的
+- Mac版BBVideoTaggerに近い “見やすい” 作業領域に戻す
+- 既に安定した構成（App.xaml一本化 / ControlTemplate撤去）を崩さずにUIを改善
+
+### 対応
+- MainWindow.xaml
+  - 起動時に WindowState=Maximized
+  - Width/Height を広めに設定し、MinWidth/MinHeight で小さすぎ防止
+- App.xaml
+  - Clip行（ListViewItem）に対して **テンプレート無し**の ItemContainerStyle を追加
+    - Team A：青アクセント（TeamAAccent）
+    - Team B：赤アクセント（TeamBAccent）
+    - Hover / Selected の背景色を統一
+
+### 結果
+- 画面が狭くて見づらい問題を解消
+- クリップ一覧が Team 別に視認しやすくなり、Mac版の雰囲気に近づいた
 
 ### 次にやること
-1. Actionsが緑のコミットを基準化（ここが“安全地帯”）
-2. 角丸/ホバー/タグ色分けを段階的に復活（1コミット=1変更）
-3. エクスポート周りは ffmpeg の検出/エラー文言を整えて現場運用へ
+- Actionsを“緑”の基準点に固定
+- 角丸やホバーなどのカスタムテンプレート復活は、**1つずつ**導入して安全に戻す
+
