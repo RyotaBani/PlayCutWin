@@ -17,6 +17,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
+// WinForms dialog for selecting folders (WPF doesn't have a built-in folder picker)
+using WinForms = System.Windows.Forms;
+
 namespace PlayCutWin
 {
     public partial class MainWindow : Window
@@ -554,12 +557,8 @@ namespace PlayCutWin
             if (ffmpeg == null)
             {
                 MessageBox.Show(
-                    "ffmpeg was not found.\n\n" +
-                    "Please do ONE of the following:\n" +
-                    "  1) Put ffmpeg.exe next to PlayCutWin.exe (recommended), or\n" +
-                    "  2) Add ffmpeg to PATH, or\n" +
-                    "  3) Install to a common location (e.g. C:\\ffmpeg\\bin).\n\n" +
-                    "Check: open cmd and run: ffmpeg -version",
+                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
+                    "Tip: Open cmd and run: ffmpeg -version",
                     "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -646,28 +645,9 @@ namespace PlayCutWin
 
         private static string? ResolveFfmpegPath()
         {
-            // 1) PATH
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
-            // 2) Adjacent to app (recommended)
-            try
-            {
-                var baseDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
-                var localCandidates = new[]
-                {
-                    Path.Combine(baseDir, "ffmpeg.exe"),
-                    Path.Combine(baseDir, "tools", "ffmpeg.exe"),
-                    Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
-                };
-                foreach (var c in localCandidates)
-                {
-                    if (File.Exists(c)) return c;
-                }
-            }
-            catch { /* ignore */ }
-
-            // 3) Common install locations
             var candidates = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
@@ -678,27 +658,25 @@ namespace PlayCutWin
             {
                 if (File.Exists(c)) return c;
             }
-
             return null;
         }
 
-
         private static string? ChooseFolder(string title)
         {
-            var sfd = new SaveFileDialog
+            // Use the standard Windows folder picker instead of a SaveFileDialog hack.
+            // This avoids confusing UI (filename field / .txt) and matches the spec:
+            // Export All => select destination folder.
+            using var dlg = new WinForms.FolderBrowserDialog
             {
-                Title = title,
-                FileName = "export_here",
-                DefaultExt = ".txt",
-                Filter = "Folder (select location)|*.txt"
+                Description = title,
+                UseDescriptionForTitle = true,
+                ShowNewFolderButton = true
             };
 
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
+            var result = dlg.ShowDialog();
+            if (result == WinForms.DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.SelectedPath))
+                return dlg.SelectedPath;
+
             return null;
         }
 
