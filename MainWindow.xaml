@@ -6,12 +6,11 @@
         xmlns:local="clr-namespace:PlayCutWin"
         mc:Ignorable="d"
         Title="Play Cut"
-        Width="1700" Height="980"
-        MinWidth="1400" MinHeight="860"
+        Width="1400" Height="860"
+        MinWidth="1200" MinHeight="740"
         Background="#121212"
         Foreground="#EAEAEA"
-        WindowStartupLocation="CenterScreen"
-        WindowState="Maximized"><Grid Margin="12">
+        WindowStartupLocation="CenterScreen"><Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
@@ -135,7 +134,6 @@
                                                   SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
-                                                  ItemContainerStyle="{StaticResource TeamAClipRow}"
                                                   Style="{StaticResource DarkListView}">
                                             <ListView.View>
                                                 <GridView>
@@ -160,7 +158,6 @@
                                                   SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
-                                                  ItemContainerStyle="{StaticResource TeamBClipRow}"
                                                   Style="{StaticResource DarkListView}">
                                             <ListView.View>
                                                 <GridView>
@@ -191,7 +188,6 @@
                                               SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
-                                              ItemContainerStyle="{StaticResource TeamAClipRow}"
                                               Style="{StaticResource DarkListView}">
                                         <ListView.View>
                                             <GridView>
@@ -221,7 +217,6 @@
                                               SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
-                                              ItemContainerStyle="{StaticResource TeamBClipRow}"
                                               Style="{StaticResource DarkListView}">
                                         <ListView.View>
                                             <GridView>
