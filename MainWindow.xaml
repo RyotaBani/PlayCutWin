@@ -328,6 +328,15 @@
                                       MediaOpened="Player_MediaOpened"
                                       MediaFailed="Player_MediaFailed"
                                       />
+                        <TextBlock x:Name="VideoHint"
+                                   Text="Load Video to start"
+                                   Foreground="#BFFFFFFF"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   />
                     </Grid>
                 </Border>
             </Grid>
