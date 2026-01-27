@@ -10,7 +10,9 @@
         MinWidth="1200" MinHeight="740"
         Background="#121212"
         Foreground="#EAEAEA"
-        WindowStartupLocation="CenterScreen"><Grid Margin="12">
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
@@ -43,15 +45,7 @@
 
                 <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
-                        <!-- Hint (コードビハインドから参照されるので必ず存在させる) -->
-                        <TextBlock x:Name="VideoHint"
-                                   Text="Load a video to start"
-                                   Foreground="#8A8A8A"
-                                   FontSize="14"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-
-                        <!-- Player -->
+                        <!-- ★ここが Actions 落ちてた原因（Player が無い）を必ず作る -->
                         <MediaElement x:Name="Player"
                                       LoadedBehavior="Manual"
                                       UnloadedBehavior="Manual"
@@ -129,7 +123,8 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <ListView Grid.Row="1"
+                                        <ListView x:Name="TeamAList"
+                                                  Grid.Row="1"
                                                   ItemsSource="{Binding TeamAView}"
                                                   SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
@@ -153,7 +148,8 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <ListView Grid.Row="1"
+                                        <ListView x:Name="TeamBList"
+                                                  Grid.Row="1"
                                                   ItemsSource="{Binding TeamBView}"
                                                   SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
@@ -184,7 +180,8 @@
                                         </Style>
                                     </Grid.Style>
 
-                                    <ListView ItemsSource="{Binding TeamAView}"
+                                    <ListView x:Name="TeamAOnlyList"
+                                              ItemsSource="{Binding TeamAView}"
                                               SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
@@ -213,7 +210,8 @@
                                         </Style>
                                     </Grid.Style>
 
-                                    <ListView ItemsSource="{Binding TeamBView}"
+                                    <ListView x:Name="TeamBOnlyList"
+                                              ItemsSource="{Binding TeamBView}"
                                               SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
@@ -368,7 +366,7 @@
 
                         <TextBlock Text="Custom Tag" Opacity="0.85" Margin="0,14,0,0"/>
                         <DockPanel Margin="0,6,0,0">
-                            <TextBox DockPanel.Dock="Left" Width="260" Text="{Binding CustomTagInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox x:Name="CustomTagBox" DockPanel.Dock="Left" Width="260" Text="{Binding CustomTagInput, UpdateSourceTrigger=PropertyChanged}"/>
                             <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddCustomTag_Click"/>
                             <Button Style="{StaticResource DarkButton}" Content="Clear" Click="ClearTags_Click"/>
                         </DockPanel>

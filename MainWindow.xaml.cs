@@ -178,7 +178,8 @@ namespace PlayCutWin
             if (seconds < 0) seconds = 0;
             if (seconds > max) seconds = max;
 
-            // Avoid crashy state transitions: seek only, then optionally Play.
+            // WPF MediaElement sometimes ignores Play() right after a seek.
+            // We do: Seek -> UI sync -> (1 tick later) Play.
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 try
@@ -189,8 +190,15 @@ namespace PlayCutWin
 
                     if (autoPlay)
                     {
-                        Player.Play();
-                        VM.IsPlaying = true;
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            try
+                            {
+                                Player.Play();
+                                VM.IsPlaying = true;
+                            }
+                            catch { }
+                        }), DispatcherPriority.ContextIdle);
                     }
                 }
                 catch
@@ -642,6 +650,14 @@ namespace PlayCutWin
 
         private static string? ResolveFfmpegPath()
         {
+            // 1) Same folder as the app (recommended for portable installs)
+            try
+            {
+                var local = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
+                if (File.Exists(local)) return local;
+            }
+            catch { }
+
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
