@@ -686,11 +686,10 @@ namespace PlayCutWin
             catch { /* ignore */ }
 
             VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-            MessageBox.Show($"Exported clips to:
-{rootDir}
-
-OK:{ok}  Fail:{fail}", "Export Clips",
-                MessageBoxButton.OK, (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            var msg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
+            MessageBox.Show(msg, "Export Clips",
+                MessageBoxButton.OK,
+                (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
 
         private static async Task<(int exitCode, string stdOut, string stdErr)> RunProcessAsync(string exePath, string args)
