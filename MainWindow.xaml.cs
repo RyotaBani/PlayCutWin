@@ -580,18 +580,13 @@ namespace PlayCutWin
             if (ffmpeg == null)
             {
                 var exeDir = AppDomain.CurrentDomain.BaseDirectory;
-                MessageBox.Show(
-                    "ffmpeg was not found.
+                var message =
+                    "ffmpeg was not found.\n\n" +
+                    "Place ffmpeg.exe next to PlayCutWin.exe (recommended):\n" + exeDir + "\n\n" +
+                    "Or add ffmpeg to PATH.\n" +
+                    "Tip: Open cmd and run: ffmpeg -version";
 
-" +
-                    "Place ffmpeg.exe next to PlayCutWin.exe (recommended):
-" + exeDir + "
-
-" +
-                    "Or add ffmpeg to PATH.
-" +
-                    "Tip: Open cmd and run: ffmpeg -version",
-                    "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(message, "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
