@@ -72,7 +72,8 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                VideoHint.Visibility = Visibility.Collapsed;
+                var hint = FindName("VideoHint") as TextBlock;
+                if (hint != null) hint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
@@ -628,6 +629,59 @@ namespace PlayCutWin
 
             return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
         }
+
+// === Export Helpers (Mac-style folder/name) ===
+private static string NormalizeTagFolderName(string tag)
+{
+    if (string.IsNullOrWhiteSpace(tag)) return string.Empty;
+    var s = tag.Trim();
+
+    // Safe folder/file name characters
+    s = s.Replace(" ", "_");
+    s = s.Replace("/", "_").Replace("\\", "_");
+    s = s.Replace(":", "_").Replace("*", "_").Replace("?", "_");
+    s = s.Replace("\"", "_").Replace("<", "_").Replace(">", "_").Replace("|", "_");
+
+    while (s.Contains("__")) s = s.Replace("__", "_");
+    return s.Trim('_');
+}
+
+private static string FormatTimeForMacFile(double seconds)
+{
+    if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0) seconds = 0;
+    var total = (int)Math.Floor(seconds);
+    var m = total / 60;
+    var s = total % 60;
+    return $"{m:00}m{s:00}s";
+}
+
+private static string BuildFfmpegArgsForMov(string inputPath, double startSeconds, double durationSeconds, string outputPath)
+{
+    // Mac-friendly clips: H.264/AAC inside .mov
+    var ss = startSeconds < 0 ? 0 : startSeconds;
+    var t = durationSeconds < 0.01 ? 0.01 : durationSeconds;
+
+    string Q(string p) => "\"" + p.Replace("\"", "\\\"") + "\"";
+
+    return string.Join(" ", new[]
+    {
+        "-hide_banner",
+        "-y",
+        "-ss", ss.ToString("0.###", CultureInfo.InvariantCulture),
+        "-i", Q(inputPath),
+        "-t", t.ToString("0.###", CultureInfo.InvariantCulture),
+        "-map", "0:v:0?",
+        "-map", "0:a:0?",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        Q(outputPath)
+    });
+}
 
         private static (int exitCode, string stdOut, string stdErr) RunProcess(string exePath, string args)
         {
