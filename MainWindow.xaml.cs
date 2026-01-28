@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -29,7 +30,9 @@ namespace PlayCutWin
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
-        // Speed button visuals
+                private bool _isExporting = false;
+
+// Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
         private double _currentSpeed = 1.0;
@@ -385,14 +388,32 @@ namespace PlayCutWin
         // ----------------------------
         // CSV / Export Clips
         // ----------------------------
-        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            ExportClipsInternal(VM.AllClips.ToList());
+            if (_isExporting) return;
+            _isExporting = true;
+            try
+            {
+                await ExportClipsInternalAsync(VM.AllClips.ToList());
+            }
+            finally
+            {
+                _isExporting = false;
+            }
         }
 
-        private void ExportClips_Click(object sender, RoutedEventArgs e)
+        private async void ExportClips_Click(object sender, RoutedEventArgs e)
         {
-            ExportClipsInternal(VM.AllClips.ToList());
+            if (_isExporting) return;
+            _isExporting = true;
+            try
+            {
+                await ExportClipsInternalAsync(VM.AllClips.ToList());
+            }
+            finally
+            {
+                _isExporting = false;
+            }
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
@@ -534,7 +555,11 @@ namespace PlayCutWin
         // ----------------------------
         // Video export (ffmpeg)
         // ----------------------------
-        private void ExportClipsInternal(List<ClipRow> clips)
+        
+        // ----------------------------
+        // Video export (ffmpeg)  ※UIフリーズしないように非同期実行
+        // ----------------------------
+        private async Task ExportClipsInternalAsync(List<ClipRow> clips)
         {
             if (clips == null || clips.Count == 0)
             {
@@ -556,33 +581,40 @@ namespace PlayCutWin
             {
                 var exeDir = AppDomain.CurrentDomain.BaseDirectory;
                 MessageBox.Show(
-                    "ffmpeg was not found.\n\n" +
-                    "Place ffmpeg.exe next to PlayCutWin.exe (recommended):\n" + exeDir + "\n\n" +
-                    "Or add ffmpeg to PATH.\n" +
+                    "ffmpeg was not found.
+
+" +
+                    "Place ffmpeg.exe next to PlayCutWin.exe (recommended):
+" + exeDir + "
+
+" +
+                    "Or add ffmpeg to PATH.
+" +
                     "Tip: Open cmd and run: ffmpeg -version",
                     "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            // Mac版と同じ構成:
+            // Mac版に寄せた構成（A/B分割 + タグ別）
             // <VideoName>/
-            //   <Tag1>/*.mov
-            //   <Tag2>/*.mov
-            //   ...
+            //   TeamA/<Tag>/*.mov
+            //   TeamB/<Tag>/*.mov
             var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
             var rootDir = Path.Combine(outFolder, SanitizeFileName(baseName));
             Directory.CreateDirectory(rootDir);
 
-            int ok = 0;
-            int fail = 0;
-            VM.StatusText = "Exporting clips...";
+            string TeamFolder(string team) => (team == "B") ? "TeamB" : "TeamA";
 
-            for (int i = 0; i < clips.Count; i++)
+            // Export jobs を先に組み立てる（タグ複数なら複数出力）
+            var jobs = new List<(ClipRow clip, string teamFolder, string tagFolder, string outPath, string args)>();
+
+            foreach (var c in clips)
             {
-                var c = clips[i];
-                if (c.End <= c.Start) { fail++; continue; }
+                if (c.End <= c.Start) continue;
 
                 var tagList = (c.Tags ?? new List<string>())
+                    .Select(t => (t ?? "").Trim())
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
                     .Select(NormalizeTagFolderName)
                     .Where(t => !string.IsNullOrWhiteSpace(t))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -590,13 +622,16 @@ namespace PlayCutWin
 
                 if (tagList.Count == 0) tagList.Add("Untagged");
 
+                var teamLetter = (c.Team == "B") ? "B" : "A";
+                var teamDirName = TeamFolder(teamLetter);
+
                 foreach (var tag in tagList)
                 {
-                    var tagDir = Path.Combine(rootDir, tag);
+                    var teamDir = Path.Combine(rootDir, teamDirName);
+                    var tagDir = Path.Combine(teamDir, tag);
                     Directory.CreateDirectory(tagDir);
 
-                    var team = (c.Team == "B") ? "B" : "A";
-                    var fileBase = $"{team}_{tag}_{FormatTimeForMacFile(c.Start)}-{FormatTimeForMacFile(c.End)}";
+                    var fileBase = $"{teamLetter}_{tag}_{FormatTimeForMacFile(c.Start)}-{FormatTimeForMacFile(c.End)}";
                     var outPath = Path.Combine(tagDir, fileBase + ".mov");
 
                     var duration = Math.Max(0.01, c.End - c.Start);
@@ -606,20 +641,100 @@ namespace PlayCutWin
                         durationSeconds: duration,
                         outputPath: outPath);
 
-                    VM.StatusText = $"Exporting {i + 1}/{clips.Count}...";
-
-                    var result = RunProcess(ffmpeg, args);
-                    if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-                    else
-                    {
-                        fail++;
-                        Debug.WriteLine(result.stdErr);
-                    }
+                    jobs.Add((c, teamDirName, tag, outPath, args));
                 }
             }
 
+            if (jobs.Count == 0)
+            {
+                MessageBox.Show("No valid clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            int ok = 0;
+            int fail = 0;
+
+            // UIは止めない（バックグラウンドで順次実行）
+            VM.StatusText = $"Exporting... (0/{jobs.Count})";
+
+            var manifestLines = new List<string>();
+            manifestLines.Add("team,start,end,tags,comment,output");
+
+            for (int i = 0; i < jobs.Count; i++)
+            {
+                var j = jobs[i];
+
+                // 進捗表示（UIスレッド）
+                VM.StatusText = $"Exporting... ({i + 1}/{jobs.Count})";
+
+                var r = await RunProcessAsync(ffmpeg, j.args).ConfigureAwait(true);
+
+                if (r.exitCode == 0 && File.Exists(j.outPath))
+                {
+                    ok++;
+                    var tags = string.Join("|", j.clip.Tags ?? new List<string>());
+                    var line = $"{j.clip.Team},{j.clip.Start.ToString("0.###", CultureInfo.InvariantCulture)},{j.clip.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(j.clip.Comment ?? "")},{EscapeCsv(j.outPath)}";
+                    manifestLines.Add(line);
+                }
+                else
+                {
+                    fail++;
+                    Debug.WriteLine(r.stdErr);
+                }
+            }
+
+            // manifest 出力（Mac風の“コメント残し”を補強：CSVで追える）
+            try
+            {
+                File.WriteAllLines(Path.Combine(rootDir, "export_manifest.csv"), manifestLines, Encoding.UTF8);
+            }
+            catch { /* ignore */ }
+
             VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-            MessageBox.Show($"Exported clips to:\n{rootDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"Exported clips to:
+{rootDir}
+
+OK:{ok}  Fail:{fail}", "Export Clips",
+                MessageBoxButton.OK, (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+
+        private static async Task<(int exitCode, string stdOut, string stdErr)> RunProcessAsync(string exePath, string args)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exePath,
+                    Arguments = args,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using var p = Process.Start(psi);
+                if (p == null) return (-1, "", "Process start failed.");
+
+                var stdoutTask = p.StandardOutput.ReadToEndAsync();
+                var stderrTask = p.StandardError.ReadToEndAsync();
+
+                await p.WaitForExitAsync().ConfigureAwait(false);
+
+                var stdout = await stdoutTask.ConfigureAwait(false);
+                var stderr = await stderrTask.ConfigureAwait(false);
+
+                return (p.ExitCode, stdout, stderr);
+            }
+            catch (Exception ex)
+            {
+                return (-1, "", ex.ToString());
+            }
+        }
+
+        private void ExportClipsInternal(List<ClipRow> clips)
+        {
+            // 旧同期版の呼び出し口（互換用）
+            _ = ExportClipsInternalAsync(clips);
         }
 
         private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
@@ -898,7 +1013,7 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
             if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
 
             string raw = tagsRaw.Trim();
-            char[] seps = new[] { ';', '|' };
+            char[] seps = new[] { ';', '|', ',' };
             var tokens = raw.Split(seps, StringSplitOptions.RemoveEmptyEntries);
             foreach (var t in tokens)
             {
