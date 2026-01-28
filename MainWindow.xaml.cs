@@ -386,7 +386,7 @@ namespace PlayCutWin
         // ----------------------------
         private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            ExportClipsInternal(VM.AllClips.ToList());
+            ExportAllInternal(VM.AllClips.ToList());
         }
 
         private void ExportClips_Click(object sender, RoutedEventArgs e)
@@ -554,12 +554,8 @@ namespace PlayCutWin
             if (ffmpeg == null)
             {
                 MessageBox.Show(
-	                    "ffmpeg was not found.\n\n" +
-	                    "Export needs ffmpeg.exe.\n\n" +
-	                    "Recommended: place ffmpeg.exe in the same folder as PlayCutWin.exe:\n" +
-	                    $"  {AppDomain.CurrentDomain.BaseDirectory}\n\n" +
-	                    "Or: add ffmpeg to PATH, or install to C:\\ffmpeg\\bin.\n\n" +
-	                    "Check: open cmd and run: ffmpeg -version",
+                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
+                    "Tip: Open cmd and run: ffmpeg -version",
                     "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -644,30 +640,30 @@ namespace PlayCutWin
             }
         }
 
-        private static string? ResolveFfmpegPath()
+private static string? ResolveFfmpegPath()
         {
             // 1) PATH
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
-            // 2) Adjacent to app (recommended)
+            // 2) App folder (portable)
             try
             {
-                var baseDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+                var appDir = AppDomain.CurrentDomain.BaseDirectory;
                 var localCandidates = new[]
                 {
-                    Path.Combine(baseDir, "ffmpeg.exe"),
-                    Path.Combine(baseDir, "tools", "ffmpeg.exe"),
-                    Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
+                    Path.Combine(appDir, "ffmpeg.exe"),
+                    Path.Combine(appDir, "tools", "ffmpeg.exe"),
+                    Path.Combine(appDir, "ffmpeg", "bin", "ffmpeg.exe")
                 };
                 foreach (var c in localCandidates)
                 {
                     if (File.Exists(c)) return c;
                 }
             }
-            catch { /* ignore */ }
+            catch { }
 
-            // 3) Common install locations
+            // 3) Common install paths
             var candidates = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
@@ -678,32 +674,27 @@ namespace PlayCutWin
             {
                 if (File.Exists(c)) return c;
             }
-
             return null;
         }
 
-
-        private static string? ChooseFolder(string title)
+private static string? ChooseFolder(string title)
         {
-            // WPF-only folder picker (CI safe: no WinForms).
-            // Uses OpenFileDialog "select folder" trick.
-            var ofd = new Microsoft.Win32.OpenFileDialog
+            // WPF-only "folder picker" using OpenFileDialog trick (no WinForms, CI safe)
+            var ofd = new OpenFileDialog
             {
                 Title = title,
-                Filter = "Folder|.",
                 CheckFileExists = false,
                 CheckPathExists = true,
-                ValidateNames = false,
                 FileName = "Select Folder"
             };
 
-            if (ofd.ShowDialog() != true) return null;
-
-            // When selecting a folder, FileName becomes:
-            //   C:\path\to\folder\Select Folder
-            // So we take the directory name.
-            var dir = System.IO.Path.GetDirectoryName(ofd.FileName);
-            return string.IsNullOrWhiteSpace(dir) ? null : dir;
+            var ok = ofd.ShowDialog();
+            if (ok == true)
+            {
+                var dir = Path.GetDirectoryName(ofd.FileName);
+                return string.IsNullOrWhiteSpace(dir) ? null : dir;
+            }
+            return null;
         }
 
         private static string SanitizeFileName(string name)
