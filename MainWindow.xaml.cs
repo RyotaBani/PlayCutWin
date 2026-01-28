@@ -389,8 +389,7 @@ namespace PlayCutWin
         // ----------------------------
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            if (_isExporting) return;
-            _isExporting = true;
+            if (VM.IsExporting) return;
             VM.IsExporting = true;
             VM.StatusText = "Exporting...";
             try
@@ -400,14 +399,13 @@ namespace PlayCutWin
             finally
             {
                 VM.IsExporting = false;
-                _isExporting = false;
+                if (VM.StatusText == "Exporting...") VM.StatusText = "Ready";
             }
         }
 
         private async void ExportClips_Click(object sender, RoutedEventArgs e)
         {
-            if (_isExporting) return;
-            _isExporting = true;
+            if (VM.IsExporting) return;
             VM.IsExporting = true;
             VM.StatusText = "Exporting...";
             try
@@ -416,7 +414,8 @@ namespace PlayCutWin
             }
             finally
             {
-                _isExporting = false;
+                VM.IsExporting = false;
+                if (VM.StatusText == "Exporting...") VM.StatusText = "Ready";
             }
         }
 
