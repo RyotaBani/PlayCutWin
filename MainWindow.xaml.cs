@@ -30,6 +30,8 @@ namespace PlayCutWin
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
+                private bool VM.IsExporting = false;
+                _isExporting = false;
 
 // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
@@ -42,6 +44,7 @@ namespace PlayCutWin
         {
             InitializeComponent();
             DataContext = VM;
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
 
             HighlightSpeedButtons(_currentSpeed);
 
@@ -225,6 +228,128 @@ namespace PlayCutWin
             }
         }
 
+
+        // ----------------------------
+        // Keyboard Shortcuts (Mac-like)
+        // ----------------------------
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (VM.IsExporting) return;
+
+            // Don't steal keys while typing in text inputs
+            if (IsTextInputFocused()) return;
+
+            var mods = System.Windows.Input.Keyboard.Modifiers;
+            var key = (e.Key == System.Windows.Input.Key.System) ? e.SystemKey : e.Key;
+
+            bool ctrl = mods.HasFlag(System.Windows.Input.ModifierKeys.Control);
+            bool shift = mods.HasFlag(System.Windows.Input.ModifierKeys.Shift);
+            bool alt = mods.HasFlag(System.Windows.Input.ModifierKeys.Alt);
+
+            // Playback
+            if (!ctrl && !alt && key == System.Windows.Input.Key.Space)
+            {
+                TogglePlayPause();
+                e.Handled = true;
+                return;
+            }
+
+            // Seek
+            if (!ctrl && !alt && (key == System.Windows.Input.Key.Left || key == System.Windows.Input.Key.Right))
+            {
+                double delta = (key == System.Windows.Input.Key.Left) ? -1 : +1;
+                if (shift) delta = (key == System.Windows.Input.Key.Left) ? -5 : +5;
+                SeekBy(delta);
+                e.Handled = true;
+                return;
+            }
+
+            // File operations
+            if (ctrl && !alt && key == System.Windows.Input.Key.O) // Load Video
+            {
+                LoadVideo_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && !alt && key == System.Windows.Input.Key.I) // Import CSV
+            {
+                ImportCsv_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && shift && !alt && key == System.Windows.Input.Key.E) // Export CSV
+            {
+                ExportCsv_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && !shift && !alt && key == System.Windows.Input.Key.E) // Export All
+            {
+                ExportAll_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            // Clip actions (Alt = explicit, avoid conflicts while browsing)
+            if (alt && !ctrl && key == System.Windows.Input.Key.S) // Clip START
+            {
+                ClipStart_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (alt && !ctrl && key == System.Windows.Input.Key.D) // Clip END
+            {
+                ClipEnd_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (alt && !ctrl && key == System.Windows.Input.Key.A) // Save Team A
+            {
+                SaveTeamA_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (alt && !ctrl && key == System.Windows.Input.Key.B) // Save Team B
+            {
+                SaveTeamB_Click(this, new System.Windows.RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+        }
+
+        private bool IsTextInputFocused()
+        {
+            var focused = System.Windows.Input.Keyboard.FocusedElement as System.Windows.DependencyObject;
+            while (focused != null)
+            {
+                if (focused is System.Windows.Controls.TextBox ||
+                    focused is System.Windows.Controls.Primitives.TextBoxBase ||
+                    focused is System.Windows.Controls.PasswordBox ||
+                    focused is System.Windows.Controls.ComboBox)
+                {
+                    return true;
+                }
+                focused = System.Windows.Media.VisualTreeHelper.GetParent(focused);
+            }
+            return false;
+        }
+
+        private void TogglePlayPause()
+        {
+            if (Player.Source == null) return;
+
+            if (VM.IsPlaying)
+            {
+                Player.Pause();
+                VM.IsPlaying = false;
+            }
+            else
+            {
+                Player.Play();
+                VM.IsPlaying = true;
+            }
+        }
+
         private void Speed025_Click(object sender, RoutedEventArgs e) => SetSpeed(0.25);
         private void Speed05_Click(object sender, RoutedEventArgs e) => SetSpeed(0.5);
         private void Speed1_Click(object sender, RoutedEventArgs e) => SetSpeed(1.0);
@@ -389,7 +514,8 @@ namespace PlayCutWin
         // ----------------------------
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            if (VM.IsExporting) return;
+            if (_isExporting) return;
+            _isExporting = true;
             VM.IsExporting = true;
             VM.StatusText = "Exporting...";
             try
@@ -399,13 +525,14 @@ namespace PlayCutWin
             finally
             {
                 VM.IsExporting = false;
-                if (VM.StatusText == "Exporting...") VM.StatusText = "Ready";
+                _isExporting = false;
             }
         }
 
         private async void ExportClips_Click(object sender, RoutedEventArgs e)
         {
-            if (VM.IsExporting) return;
+            if (_isExporting) return;
+            _isExporting = true;
             VM.IsExporting = true;
             VM.StatusText = "Exporting...";
             try
@@ -414,8 +541,7 @@ namespace PlayCutWin
             }
             finally
             {
-                VM.IsExporting = false;
-                if (VM.StatusText == "Exporting...") VM.StatusText = "Ready";
+                _isExporting = false;
             }
         }
 
@@ -798,10 +924,14 @@ namespace PlayCutWin
 
                 VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
 
-                var resultMsg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
-                MessageBox.Show(resultMsg, "Export Clips",
-                    MessageBoxButton.OK,
-                    (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                var resultMsg = $"Export completed.\n\n{ok} clips exported successfully.\n{fail} clips failed.\n\nFolder:\n{rootDir}";
+                var open = MessageBox.Show(resultMsg, "Export Complete",
+                    MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.Yes);
+                if (open == MessageBoxResult.Yes)
+                {
+                    try { Process.Start(new ProcessStartInfo { FileName = rootDir, UseShellExecute = true }); } catch { }
+                }
+
             }
             finally
             {
