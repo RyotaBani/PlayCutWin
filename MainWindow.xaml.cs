@@ -799,14 +799,7 @@ private void ExportClipsInternal(List<ClipRow> clips)
                 if (File.Exists(c)) return c;
             }
             return null;
-        };
-            foreach (var c in candidates)
-            {
-                if (File.Exists(c)) return c;
-            }
-            return null;
         }
-
         private static string? ChooseFolder(string title)
         {
             // WPF-only folder picker (no WinForms, CI-safe)
