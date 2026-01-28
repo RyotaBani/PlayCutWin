@@ -72,7 +72,6 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                VideoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
@@ -533,7 +532,134 @@ namespace PlayCutWin
         // ----------------------------
         // Video export (ffmpeg)
         // ----------------------------
-        private void ExportClipsInternal(List<ClipRow> clips)
+        
+        private void ExportAllInternal(List<ClipRow> clips)
+        {
+            if (clips == null || clips.Count == 0)
+            {
+                MessageBox.Show("No clips to export.", "Export All", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(VM.LoadedVideoPath) || !File.Exists(VM.LoadedVideoPath))
+            {
+                MessageBox.Show("Please load a video first.", "Export All", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Choose export folder
+            var outFolder = ChooseFolder("Select export folder");
+            if (string.IsNullOrWhiteSpace(outFolder)) return;
+
+            var ffmpeg = ResolveFfmpegPath();
+            if (ffmpeg == null)
+            {
+                var exeDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+                MessageBox.Show(
+                    "ffmpeg was not found.\n\n" +
+                    "Place ffmpeg.exe next to PlayCutWin.exe (recommended):\n" + exeDir + "\n\n" +
+                    "Or add ffmpeg to PATH.\n" +
+                    "Tip: Open cmd and run: ffmpeg -version",
+                    "Export All", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_export_{stamp}");
+            Directory.CreateDirectory(sessionDir);
+
+            // Export individual clips
+            var sorted = clips.OrderBy(c => c.Start).ToList();
+            var exportedFiles = new List<string>();
+
+            int ok = 0;
+            int fail = 0;
+
+            VM.StatusText = "Exporting clips...";
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                var c = sorted[i];
+                if (c.End <= c.Start) { fail++; continue; }
+
+                var tags = string.Join("-", (c.Tags ?? new List<string>()).Take(5));
+                var safeTags = SanitizeFileName(tags);
+                var safeTeam = (c.Team == "B") ? "B" : "A";
+                var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
+                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
+                file += ".mp4";
+
+                var outPath = Path.Combine(sessionDir, file);
+                var duration = Math.Max(0.01, c.End - c.Start);
+
+                var args = BuildFfmpegArgs(
+                    inputPath: VM.LoadedVideoPath,
+                    startSeconds: c.Start,
+                    durationSeconds: duration,
+                    outputPath: outPath);
+
+                VM.StatusText = $"Exporting {i + 1}/{sorted.Count}...";
+                var result = RunProcess(ffmpeg, args);
+
+                if (result.exitCode == 0 && File.Exists(outPath))
+                {
+                    ok++;
+                    exportedFiles.Add(outPath);
+                }
+                else
+                {
+                    fail++;
+                    Debug.WriteLine(result.stdErr);
+                }
+            }
+
+            // Create AllClips.mp4 (best-effort)
+            string? allClipsPath = null;
+            if (exportedFiles.Count > 0)
+            {
+                VM.StatusText = "Building AllClips.mp4...";
+                allClipsPath = Path.Combine(sessionDir, "AllClips.mp4");
+
+                // 1) concat demuxer (fast, no re-encode)
+                var listFile = Path.Combine(sessionDir, "filelist.txt");
+                try
+                {
+                    var sb = new StringBuilder();
+                    foreach (var f in exportedFiles)
+                    {
+                        // ffmpeg concat expects: file 'path'
+                        sb.AppendLine("file '" + f.Replace("'", "'\\''") + "'");
+                    }
+                    File.WriteAllText(listFile, sb.ToString(), Encoding.UTF8);
+
+                    var concatArgs = $"-y -hide_banner -loglevel error -f concat -safe 0 -i \"{listFile}\" -c copy \"{allClipsPath}\"";
+                    var r1 = RunProcess(ffmpeg, concatArgs);
+
+                    if (r1.exitCode != 0 || !File.Exists(allClipsPath))
+                    {
+                        // 2) concat filter (re-encode, more compatible)
+                        var inputs = string.Join(" ", exportedFiles.Select(f => "-i \"" + f + "\""));
+                        var n = exportedFiles.Count;
+                        var filter = $"concat=n={n}:v=1:a=1";
+                        var concatArgs2 = $"-y -hide_banner -loglevel error {inputs} -filter_complex \"{filter}\" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{allClipsPath}\"";
+                        var r2 = RunProcess(ffmpeg, concatArgs2);
+                        if (r2.exitCode != 0) Debug.WriteLine(r2.stdErr);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+
+            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
+            var msg = $"Exported {ok} clip(s) to:\n{sessionDir}";
+            if (!string.IsNullOrWhiteSpace(allClipsPath) && File.Exists(allClipsPath))
+                msg += $"\n\nAllClips.mp4 created:\n{allClipsPath}";
+            MessageBox.Show(msg, "Export All", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+private void ExportClipsInternal(List<ClipRow> clips)
         {
             if (clips == null || clips.Count == 0)
             {
@@ -640,28 +766,26 @@ namespace PlayCutWin
             }
         }
 
-private static string? ResolveFfmpegPath()
+        private static string? ResolveFfmpegPath()
         {
             // 1) PATH
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
-            // 2) App folder (portable)
+            // 2) App directory / tools
             try
             {
-                var appDir = AppDomain.CurrentDomain.BaseDirectory;
-                var localCandidates = new[]
-                {
-                    Path.Combine(appDir, "ffmpeg.exe"),
-                    Path.Combine(appDir, "tools", "ffmpeg.exe"),
-                    Path.Combine(appDir, "ffmpeg", "bin", "ffmpeg.exe")
-                };
-                foreach (var c in localCandidates)
-                {
-                    if (File.Exists(c)) return c;
-                }
+                var exeDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+                var c1 = Path.Combine(exeDir, "ffmpeg.exe");
+                if (File.Exists(c1)) return c1;
+
+                var c2 = Path.Combine(exeDir, "tools", "ffmpeg.exe");
+                if (File.Exists(c2)) return c2;
+
+                var c3 = Path.Combine(exeDir, "ffmpeg", "bin", "ffmpeg.exe");
+                if (File.Exists(c3)) return c3;
             }
-            catch { }
+            catch { /* ignore */ }
 
             // 3) Common install paths
             var candidates = new[]
@@ -675,11 +799,17 @@ private static string? ResolveFfmpegPath()
                 if (File.Exists(c)) return c;
             }
             return null;
+        };
+            foreach (var c in candidates)
+            {
+                if (File.Exists(c)) return c;
+            }
+            return null;
         }
 
-private static string? ChooseFolder(string title)
+        private static string? ChooseFolder(string title)
         {
-            // WPF-only "folder picker" using OpenFileDialog trick (no WinForms, CI safe)
+            // WPF-only folder picker (no WinForms, CI-safe)
             var ofd = new OpenFileDialog
             {
                 Title = title,
@@ -688,10 +818,16 @@ private static string? ChooseFolder(string title)
                 FileName = "Select Folder"
             };
 
-            var ok = ofd.ShowDialog();
+            if (ofd.ShowDialog() != true) return null;
+
+            var dir = Path.GetDirectoryName(ofd.FileName);
+            return string.IsNullOrWhiteSpace(dir) ? null : dir;
+        };
+
+            var ok = sfd.ShowDialog();
             if (ok == true)
             {
-                var dir = Path.GetDirectoryName(ofd.FileName);
+                var dir = Path.GetDirectoryName(sfd.FileName);
                 return string.IsNullOrWhiteSpace(dir) ? null : dir;
             }
             return null;

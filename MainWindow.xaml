@@ -266,7 +266,7 @@
                         <Setter TargetName="bd" Property="Background" Value="#2A2A2A"/>
                     </Trigger>
                     <Trigger Property="IsChecked" Value="True">
-                        <Setter TargetName="bd" Property="Background" Value="{TemplateBinding BorderBrush}"/>
+                        <Setter TargetName="bd" Property="Background" Value="{Binding BorderBrush, RelativeSource={RelativeSource TemplatedParent}}"/>
                         <Setter Property="Foreground" Value="White"/>
                     </Trigger>
                     <Trigger Property="IsEnabled" Value="False">
