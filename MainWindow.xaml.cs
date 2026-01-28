@@ -815,18 +815,8 @@ private void ExportClipsInternal(List<ClipRow> clips)
 
             var dir = Path.GetDirectoryName(ofd.FileName);
             return string.IsNullOrWhiteSpace(dir) ? null : dir;
-        };
-
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-            return null;
         }
-
-        private static string SanitizeFileName(string name)
+private static string SanitizeFileName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "";
             var invalid = Path.GetInvalidFileNameChars();
