@@ -561,6 +561,12 @@ namespace PlayCutWin
         // ----------------------------
         private async Task ExportClipsInternalAsync(List<ClipRow> clips)
         {
+            // Progress dialog (WPF-only, no WinForms)
+            Window? progressWindow = null;
+            ProgressBar? progressBar = null;
+            TextBlock? progressTitle = null;
+            TextBlock? progressDetail = null;
+
             if (clips == null || clips.Count == 0)
             {
                 MessageBox.Show("No clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -588,6 +594,71 @@ namespace PlayCutWin
 
                 MessageBox.Show(message, "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
+            }
+
+            // Show progress UI (create after validation so it doesn't flash)
+            try
+            {
+                // ensure we are on UI thread
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    progressTitle = new TextBlock
+                    {
+                        Text = "Exporting clips...",
+                        FontSize = 14,
+                        FontWeight = FontWeights.SemiBold,
+                        Margin = new Thickness(0, 0, 0, 8)
+                    };
+
+                    progressDetail = new TextBlock
+                    {
+                        Text = "Preparing export jobs...",
+                        Opacity = 0.9,
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(0, 0, 0, 10)
+                    };
+
+                    progressBar = new ProgressBar
+                    {
+                        Height = 18,
+                        IsIndeterminate = true
+                    };
+
+                    var panel = new StackPanel
+                    {
+                        Margin = new Thickness(16)
+                    };
+                    panel.Children.Add(progressTitle);
+                    panel.Children.Add(progressDetail);
+                    panel.Children.Add(progressBar);
+
+                    progressWindow = new Window
+                    {
+                        Title = "Export",
+                        Width = 520,
+                        Height = 170,
+                        ResizeMode = ResizeMode.NoResize,
+                        WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                        WindowStyle = WindowStyle.ToolWindow,
+                        ShowInTaskbar = false,
+                        Owner = this,
+                        Content = panel
+                    };
+
+                    // Make it feel modal without blocking the UI thread
+                    this.IsEnabled = false;
+                    progressWindow.Closed += (_, __) =>
+                    {
+                        // safety: re-enable if user closes unexpectedly
+                        if (!this.IsEnabled) this.IsEnabled = true;
+                    };
+
+                    progressWindow.Show();
+                });
+            }
+            catch
+            {
+                // If dialog fails, continue export without it.
             }
 
             // Mac版に寄せた構成（A/B分割 + タグ別）
@@ -642,25 +713,62 @@ namespace PlayCutWin
 
             if (jobs.Count == 0)
             {
+                if (progressWindow != null)
+                {
+                    try { await Dispatcher.InvokeAsync(() => progressWindow.Close()); } catch { }
+                    this.IsEnabled = true;
+                }
                 MessageBox.Show("No valid clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             int ok = 0;
             int fail = 0;
+            try
+            {
+                // UIは止めない（バックグラウンドで順次実行）
+                VM.StatusText = $"Exporting... (0/{jobs.Count})";
 
-            // UIは止めない（バックグラウンドで順次実行）
-            VM.StatusText = $"Exporting... (0/{jobs.Count})";
+            // switch to determinate progress
+            if (progressBar != null)
+            {
+                try
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        progressBar.IsIndeterminate = false;
+                        progressBar.Minimum = 0;
+                        progressBar.Maximum = jobs.Count;
+                        progressBar.Value = 0;
+                        if (progressDetail != null) progressDetail.Text = $"0 / {jobs.Count}";
+                    });
+                }
+                catch { }
+            }
 
             var manifestLines = new List<string>();
             manifestLines.Add("team,start,end,tags,comment,output");
 
-            for (int i = 0; i < jobs.Count; i++)
-            {
+                for (int i = 0; i < jobs.Count; i++)
+                {
                 var j = jobs[i];
 
                 // 進捗表示（UIスレッド）
                 VM.StatusText = $"Exporting... ({i + 1}/{jobs.Count})";
+
+                if (progressBar != null)
+                {
+                    try
+                    {
+                        var msg = $"{i + 1} / {jobs.Count}  ({j.teamFolder} / {j.tagFolder})";
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            progressBar.Value = i + 1;
+                            if (progressDetail != null) progressDetail.Text = msg;
+                        });
+                    }
+                    catch { }
+                }
 
                 var r = await RunProcessAsync(ffmpeg, j.args).ConfigureAwait(true);
 
@@ -676,20 +784,32 @@ namespace PlayCutWin
                     fail++;
                     Debug.WriteLine(r.stdErr);
                 }
-            }
+                }
 
-            // manifest 出力（Mac風の“コメント残し”を補強：CSVで追える）
-            try
+                // manifest 出力（Mac風の“コメント残し”を補強：CSVで追える）
+                try
+                {
+                    File.WriteAllLines(Path.Combine(rootDir, "export_manifest.csv"), manifestLines, Encoding.UTF8);
+                }
+                catch { /* ignore */ }
+
+                VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
+
+                var msg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
+                MessageBox.Show(msg, "Export Clips",
+                    MessageBoxButton.OK,
+                    (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            }
+            finally
             {
-                File.WriteAllLines(Path.Combine(rootDir, "export_manifest.csv"), manifestLines, Encoding.UTF8);
-            }
-            catch { /* ignore */ }
+                // Close progress UI
+                if (progressWindow != null)
+                {
+                    try { await Dispatcher.InvokeAsync(() => progressWindow.Close()); } catch { }
+                }
 
-            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-            var msg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
-            MessageBox.Show(msg, "Export Clips",
-                MessageBoxButton.OK,
-                (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                if (!this.IsEnabled) this.IsEnabled = true;
+            }
         }
 
         private static async Task<(int exitCode, string stdOut, string stdErr)> RunProcessAsync(string exePath, string args)
