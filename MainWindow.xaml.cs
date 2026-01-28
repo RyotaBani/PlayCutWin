@@ -30,7 +30,8 @@ namespace PlayCutWin
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
-                private bool _isExporting = false;
+                private bool VM.IsExporting = false;
+                _isExporting = false;
 
 // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
@@ -392,12 +393,15 @@ namespace PlayCutWin
         {
             if (_isExporting) return;
             _isExporting = true;
+            VM.IsExporting = true;
+            VM.StatusText = "Exporting...";
             try
             {
                 await ExportClipsInternalAsync(VM.AllClips.ToList());
             }
             finally
             {
+                VM.IsExporting = false;
                 _isExporting = false;
             }
         }
@@ -406,6 +410,8 @@ namespace PlayCutWin
         {
             if (_isExporting) return;
             _isExporting = true;
+            VM.IsExporting = true;
+            VM.StatusText = "Exporting...";
             try
             {
                 await ExportClipsInternalAsync(VM.AllClips.ToList());
@@ -1160,6 +1166,7 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
         private string _loadedVideoName = "";
         private string _loadedVideoPath = "";
         private string _statusText = "";
+        private bool _isExporting = false;
         private bool _isPlaying = false;
 
         private double _durationSeconds = 0;
@@ -1255,6 +1262,21 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
         public string LoadedVideoPath { get => _loadedVideoPath; set { _loadedVideoPath = value; OnPropertyChanged(); } }
 
         public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
+
+        public bool IsExporting
+        {
+            get => _isExporting;
+            set
+            {
+                if (_isExporting == value) return;
+                _isExporting = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsNotExporting));
+            }
+        }
+
+        public bool IsNotExporting => !_isExporting;
+
 
         public bool IsPlaying
         {

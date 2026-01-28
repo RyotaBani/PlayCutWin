@@ -355,10 +355,10 @@
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>
                         <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteSelectedClip_Click" IsEnabled="{Binding HasSelectedClip}"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click" IsEnabled="{Binding IsNotExporting}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click" IsEnabled="{Binding IsNotExporting}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click" IsEnabled="{Binding IsNotExporting}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click" IsEnabled="{Binding IsNotExporting}"/>
                     </StackPanel>
                 </DockPanel>
 
