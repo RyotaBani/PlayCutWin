@@ -760,11 +760,11 @@ namespace PlayCutWin
                 {
                     try
                     {
-                        var msg = $"{i + 1} / {jobs.Count}  ({j.teamFolder} / {j.tagFolder})";
+                        var progressMsg = $"{i + 1} / {jobs.Count}  ({j.teamFolder} / {j.tagFolder})";
                         await Dispatcher.InvokeAsync(() =>
                         {
                             progressBar.Value = i + 1;
-                            if (progressDetail != null) progressDetail.Text = msg;
+                            if (progressDetail != null) progressDetail.Text = progressMsg;
                         });
                     }
                     catch { }
@@ -795,8 +795,8 @@ namespace PlayCutWin
 
                 VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
 
-                var msg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
-                MessageBox.Show(msg, "Export Clips",
+                var resultMsg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
+                MessageBox.Show(resultMsg, "Export Clips",
                     MessageBoxButton.OK,
                     (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
             }
