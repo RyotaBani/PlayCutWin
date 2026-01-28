@@ -669,11 +669,14 @@ namespace PlayCutWin
                 var p1 = Path.Combine(exeDir, "ffmpeg.exe");
                 if (File.Exists(p1)) return p1;
 
-                // 3) tools\\ffmpeg.exe
+                // 3) tools\ffmpeg.exe
                 var p2 = Path.Combine(exeDir, "tools", "ffmpeg.exe");
                 if (File.Exists(p2)) return p2;
             }
-            catch { /* ignore */ }
+            catch
+            {
+                // ignore
+            }
 
             // 4) common install locations
             var candidates = new[]
@@ -682,22 +685,18 @@ namespace PlayCutWin
                 @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
                 @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
             };
+
             foreach (var c in candidates)
             {
                 if (File.Exists(c)) return c;
             }
-            return null;
-        };
-            foreach (var c in candidates)
-            {
-                if (File.Exists(c)) return c;
-            }
+
             return null;
         }
 
         private static string? ChooseFolder(string title)
         {
-            // WPF only: use OpenFileDialog as a "folder picker" without WinForms dependency (CI-safe)
+            // WPF-only "folder picker" trick: OpenFileDialog with fake filename (CI-safe, no WinForms)
             var ofd = new OpenFileDialog
             {
                 Title = title,
@@ -708,26 +707,19 @@ namespace PlayCutWin
             };
 
             var ok = ofd.ShowDialog();
-            if (ok == true)
-            {
-                var path = ofd.FileName;
-                // ofd.FileName returns "...\\Select Folder" -> take parent
-                var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                if (string.IsNullOrWhiteSpace(dir)) return null;
-                if (dir.EndsWith("Select Folder", StringComparison.OrdinalIgnoreCase))
-                    dir = Path.GetDirectoryName(dir) ?? dir;
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-            return null;
-        };
+            if (ok != true) return null;
 
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-            return null;
+            var selected = ofd.FileName;
+            // If a user clicks a folder and hits Open, FileName can be that folder path (or folder\Select Folder)
+            if (Directory.Exists(selected)) return selected;
+
+            var dir = Path.GetDirectoryName(selected);
+            if (string.IsNullOrWhiteSpace(dir)) return null;
+
+            if (dir.EndsWith("Select Folder", StringComparison.OrdinalIgnoreCase))
+                dir = Path.GetDirectoryName(dir) ?? dir;
+
+            return string.IsNullOrWhiteSpace(dir) ? null : dir;
         }
 
         private static string SanitizeFileName(string name)
