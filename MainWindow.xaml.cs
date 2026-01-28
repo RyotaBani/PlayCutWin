@@ -72,6 +72,7 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
+                VideoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
@@ -553,8 +554,12 @@ namespace PlayCutWin
             if (ffmpeg == null)
             {
                 MessageBox.Show(
-                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
-                    "Tip: Open cmd and run: ffmpeg -version",
+	                    "ffmpeg was not found.\n\n" +
+	                    "Export needs ffmpeg.exe.\n\n" +
+	                    "Recommended: place ffmpeg.exe in the same folder as PlayCutWin.exe:\n" +
+	                    $"  {AppDomain.CurrentDomain.BaseDirectory}\n\n" +
+	                    "Or: add ffmpeg to PATH, or install to C:\\ffmpeg\\bin.\n\n" +
+	                    "Check: open cmd and run: ffmpeg -version",
                     "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -641,9 +646,28 @@ namespace PlayCutWin
 
         private static string? ResolveFfmpegPath()
         {
+            // 1) PATH
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
+            // 2) Adjacent to app (recommended)
+            try
+            {
+                var baseDir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+                var localCandidates = new[]
+                {
+                    Path.Combine(baseDir, "ffmpeg.exe"),
+                    Path.Combine(baseDir, "tools", "ffmpeg.exe"),
+                    Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
+                };
+                foreach (var c in localCandidates)
+                {
+                    if (File.Exists(c)) return c;
+                }
+            }
+            catch { /* ignore */ }
+
+            // 3) Common install locations
             var candidates = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
@@ -654,26 +678,32 @@ namespace PlayCutWin
             {
                 if (File.Exists(c)) return c;
             }
+
             return null;
         }
 
+
         private static string? ChooseFolder(string title)
         {
-            var sfd = new SaveFileDialog
+            // WPF-only folder picker (CI safe: no WinForms).
+            // Uses OpenFileDialog "select folder" trick.
+            var ofd = new Microsoft.Win32.OpenFileDialog
             {
                 Title = title,
-                FileName = "export_here",
-                DefaultExt = ".txt",
-                Filter = "Folder (select location)|*.txt"
+                Filter = "Folder|.",
+                CheckFileExists = false,
+                CheckPathExists = true,
+                ValidateNames = false,
+                FileName = "Select Folder"
             };
 
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-            return null;
+            if (ofd.ShowDialog() != true) return null;
+
+            // When selecting a folder, FileName becomes:
+            //   C:\path\to\folder\Select Folder
+            // So we take the directory name.
+            var dir = System.IO.Path.GetDirectoryName(ofd.FileName);
+            return string.IsNullOrWhiteSpace(dir) ? null : dir;
         }
 
         private static string SanitizeFileName(string name)
