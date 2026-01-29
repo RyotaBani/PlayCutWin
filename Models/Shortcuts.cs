@@ -5,6 +5,8 @@ namespace PlayCutWin.Models
 {
     public enum ShortcutAction
     {
+        LoadVideo,
+        OpenPreferences,
         PlayPause,
         SeekMinus5,
         SeekMinus1,
@@ -14,6 +16,8 @@ namespace PlayCutWin.Models
         ClipEnd,
         SaveTeamA,
         SaveTeamB,
+        ImportCsv,
+        ExportCsv,
         ExportAll,
         FocusCustomTag,
     }
@@ -25,6 +29,8 @@ namespace PlayCutWin.Models
 
         public string Label => Action switch
         {
+            ShortcutAction.LoadVideo => "Load Video",
+            ShortcutAction.OpenPreferences => "Preferences",
             ShortcutAction.PlayPause => "Play / Pause",
             ShortcutAction.SeekMinus5 => "Seek -5s",
             ShortcutAction.SeekMinus1 => "Seek -1s",
@@ -34,6 +40,8 @@ namespace PlayCutWin.Models
             ShortcutAction.ClipEnd => "Clip END",
             ShortcutAction.SaveTeamA => "Save Team A",
             ShortcutAction.SaveTeamB => "Save Team B",
+            ShortcutAction.ImportCsv => "Import CSV",
+            ShortcutAction.ExportCsv => "Export CSV",
             ShortcutAction.ExportAll => "Export All",
             ShortcutAction.FocusCustomTag => "Focus Custom Tag",
             _ => Action.ToString()

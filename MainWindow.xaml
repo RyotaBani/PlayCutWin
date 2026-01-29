@@ -360,6 +360,15 @@
                                       MediaOpened="Player_MediaOpened"
                                       MediaFailed="Player_MediaFailed"
                                       />
+
+                        <!-- Overlay hint (code-behind toggles Visibility) -->
+                        <TextBlock x:Name="VideoHint"
+                                   Text="Load video from the button →"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#B0B0B0"
+                                   FontSize="16"
+                                   Visibility="Visible"/>
                     </Grid>
                 </Border>
             </Grid>

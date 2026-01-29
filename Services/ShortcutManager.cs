@@ -12,6 +12,9 @@ namespace PlayCutWin.Services
     {
         private readonly string _filePath;
 
+        // Current editable items (used by Preferences window)
+        private List<ShortcutItem> _items = new();
+
         // In-memory map: gesture string (normalized) -> action
         private Dictionary<string, ShortcutAction> _map = new(StringComparer.OrdinalIgnoreCase);
 
@@ -34,8 +37,9 @@ namespace PlayCutWin.Services
                 {
                     var json = File.ReadAllText(_filePath);
                     var items = JsonSerializer.Deserialize<List<ShortcutItem>>(json) ?? new List<ShortcutItem>();
-                    Apply(items);
-                    return items;
+                    _items = items;
+                    Apply(_items);
+                    return _items;
                 }
             }
             catch
@@ -43,10 +47,49 @@ namespace PlayCutWin.Services
                 // fall back to defaults
             }
 
-            var defaults = GetDefaults();
-            Apply(defaults);
-            Save(defaults);
-            return defaults;
+            _items = GetDefaults();
+            Apply(_items);
+            Save(_items);
+            return _items;
+        }
+
+        // --- API expected by PreferencesWindow ---
+
+        public Dictionary<ShortcutAction, string> GetBindings()
+        {
+            return _items
+                .GroupBy(i => i.Action)
+                .ToDictionary(g => g.Key, g => g.First().Gesture ?? "");
+        }
+
+        public void SetBinding(ShortcutAction action, string gesture)
+        {
+            var it = _items.FirstOrDefault(x => x.Action == action);
+            if (it == null)
+            {
+                it = new ShortcutItem { Action = action, Gesture = gesture };
+                _items.Add(it);
+            }
+            else
+            {
+                it.Gesture = gesture;
+            }
+
+            Apply(_items);
+            Save(_items);
+        }
+
+        public void RestoreDefaults()
+        {
+            _items = GetDefaults();
+            Apply(_items);
+            Save(_items);
+        }
+
+        // Convenience overload used by PreferencesWindow
+        public void Save()
+        {
+            Save(_items);
         }
 
         public void Save(IEnumerable<ShortcutItem> items)
@@ -91,6 +134,9 @@ namespace PlayCutWin.Services
             parts.Add(KeyToText(key));
             return string.Join("+", parts);
         }
+
+        // Naming aligned with the mac app / PreferencesWindow expectation
+        public static string ToGestureString(KeyEventArgs e) => FromKeyEvent(e);
 
         public static string NormalizeGesture(string? gesture)
         {
@@ -138,6 +184,10 @@ namespace PlayCutWin.Services
 
         private static List<ShortcutItem> GetDefaults() => new()
         {
+            new ShortcutItem { Action = ShortcutAction.LoadVideo, Gesture = "Ctrl+O" },
+            new ShortcutItem { Action = ShortcutAction.OpenPreferences, Gesture = "Ctrl+OemComma" },
+            new ShortcutItem { Action = ShortcutAction.ImportCsv, Gesture = "Ctrl+I" },
+            new ShortcutItem { Action = ShortcutAction.ExportCsv, Gesture = "Ctrl+Shift+E" },
             new ShortcutItem { Action = ShortcutAction.PlayPause, Gesture = "Space" },
             new ShortcutItem { Action = ShortcutAction.SeekMinus5, Gesture = "Left" },
             new ShortcutItem { Action = ShortcutAction.SeekPlus5, Gesture = "Right" },
