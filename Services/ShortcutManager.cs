@@ -7,172 +7,159 @@ using System.Windows.Input;
 
 namespace PlayCutWin.Services
 {
-    /// <summary>
-    /// Loads/saves user-editable keyboard shortcuts (Mac-like workflow).
-    /// Stored as a simple mapping: actionKey -> gesture string (e.g. "Ctrl+O", "Space").
-    /// </summary>
     public sealed class ShortcutManager
     {
-        public const string AppFolderName = "PlayCutWin";
-        public const string FileName = "shortcuts.json";
-
-        private readonly Dictionary<string, string> _actionToGestureText = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, string> _gestureTextToAction = new(StringComparer.OrdinalIgnoreCase);
-
-        public IReadOnlyDictionary<string, string> ActionToGestureText => _actionToGestureText;
-
-        public static string GetConfigFolder()
+        public sealed class BindingItem
         {
-            var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(baseDir, AppFolderName);
+            public string ActionId { get; set; } = "";
+            public string Gesture { get; set; } = "";
+            public string Title { get; set; } = "";
+            public string Category { get; set; } = "";
         }
 
-        public static string GetConfigPath() => Path.Combine(GetConfigFolder(), FileName);
+        public static ShortcutManager Instance { get; } = new ShortcutManager();
 
-        public void LoadOrCreateDefaults(Dictionary<string, string> defaults)
+        private readonly KeyGestureConverter _converter = new KeyGestureConverter();
+        private readonly Dictionary<string, KeyGesture> _gestureByAction = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<BindingItem> _items = new();
+
+        public IReadOnlyList<BindingItem> Items => _items;
+
+        private ShortcutManager()
         {
-            _actionToGestureText.Clear();
-            foreach (var kv in defaults)
-                _actionToGestureText[kv.Key] = kv.Value;
+            Load();
+        }
 
-            var path = GetConfigPath();
-            if (File.Exists(path))
+        public string ConfigPath
+        {
+            get
             {
-                try
-                {
-                    var json = File.ReadAllText(path);
-                    var loaded = JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
-                    foreach (var kv in loaded)
-                    {
-                        if (!string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
-                            _actionToGestureText[kv.Key] = NormalizeGestureText(kv.Value);
-                    }
-                }
-                catch
-                {
-                    // ignore; fall back to defaults
-                }
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "PlayCutWin");
+                Directory.CreateDirectory(dir);
+                return Path.Combine(dir, "shortcuts.json");
             }
-
-            RebuildReverseMap();
         }
 
-        public void Save()
+        public void Load()
         {
-            Directory.CreateDirectory(GetConfigFolder());
-            var path = GetConfigPath();
-            var json = JsonSerializer.Serialize(_actionToGestureText, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(path, json);
-        }
+            _items.Clear();
+            _gestureByAction.Clear();
 
-        public void ResetTo(Dictionary<string, string> defaults)
-        {
-            _actionToGestureText.Clear();
-            foreach (var kv in defaults)
-                _actionToGestureText[kv.Key] = NormalizeGestureText(kv.Value);
+            var defaults = DefaultBindings();
 
-            RebuildReverseMap();
-            Save();
-        }
-
-        public void SetMapping(IEnumerable<(string actionKey, string gestureText)> mappings)
-        {
-            _actionToGestureText.Clear();
-            foreach (var (actionKey, gestureText) in mappings)
-            {
-                if (string.IsNullOrWhiteSpace(actionKey)) continue;
-                if (string.IsNullOrWhiteSpace(gestureText)) continue;
-
-                _actionToGestureText[actionKey] = NormalizeGestureText(gestureText);
-            }
-
-            RebuildReverseMap();
-        }
-
-        public bool TryGetAction(KeyEventArgs e, out string actionKey)
-        {
-            actionKey = string.Empty;
-
-            var mods = Keyboard.Modifiers;
-            var key = (e.Key == Key.System) ? e.SystemKey : e.Key;
-
-            // Ignore pure modifier presses
-            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
-                return false;
-
-            var gestureText = NormalizeGestureText(FormatGesture(mods, key));
-            if (_gestureTextToAction.TryGetValue(gestureText, out var found))
-            {
-                actionKey = found;
-                return true;
-            }
-            return false;
-        }
-
-        public static string NormalizeGestureText(string s)
-        {
-            // Use WPF's KeyGestureConverter to normalize to a stable string.
             try
             {
-                var conv = new KeyGestureConverter();
-                var kg = conv.ConvertFromString(s) as KeyGesture;
-                if (kg == null) return s.Trim();
+                if (File.Exists(ConfigPath))
+                {
+                    var json = File.ReadAllText(ConfigPath);
+                    var loaded = JsonSerializer.Deserialize<List<BindingItem>>(json) ?? new List<BindingItem>();
 
-                // Convert back to string
-                var back = conv.ConvertToString(kg);
-                return string.IsNullOrWhiteSpace(back) ? s.Trim() : back.Trim();
+                    // Merge: loaded overrides defaults by ActionId
+                    var map = defaults.ToDictionary(x => x.ActionId, StringComparer.OrdinalIgnoreCase);
+                    foreach (var it in loaded)
+                    {
+                        if (string.IsNullOrWhiteSpace(it.ActionId)) continue;
+                        map[it.ActionId] = it;
+                    }
+                    defaults = map.Values.OrderBy(x => x.Category).ThenBy(x => x.Title).ToList();
+                }
             }
             catch
             {
-                return s.Trim();
+                // If broken JSON, fall back to defaults
             }
-        }
 
-        private static string FormatGesture(ModifierKeys mods, Key key)
-        {
-            // Keep it compatible with KeyGestureConverter.
-            string k = key.ToString();
-            if (key == Key.Space) k = "Space";
-            if (key == Key.OemPlus) k = "OemPlus";
-            if (key == Key.OemMinus) k = "OemMinus";
-            if (key == Key.OemComma) k = "OemComma";
-            if (key == Key.OemPeriod) k = "OemPeriod";
-
-            // Build with "+" separators
-            var parts = new List<string>();
-            if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
-            if (mods.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
-            if (mods.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
-            parts.Add(k);
-            return string.Join("+", parts);
-        }
-
-        private void RebuildReverseMap()
-        {
-            _gestureTextToAction.Clear();
-            foreach (var kv in _actionToGestureText)
+            foreach (var item in defaults)
             {
-                var action = kv.Key;
-                var gesture = NormalizeGestureText(kv.Value);
-
-                if (string.IsNullOrWhiteSpace(action) || string.IsNullOrWhiteSpace(gesture))
-                    continue;
-
-                // Only accept gestures we can parse (avoids crashes)
-                try
+                _items.Add(item);
+                var g = TryParseGesture(item.Gesture);
+                if (g != null)
                 {
-                    var conv = new KeyGestureConverter();
-                    var kg = conv.ConvertFromString(gesture) as KeyGesture;
-                    if (kg == null) continue;
-
-                    var normalized = NormalizeGestureText(conv.ConvertToString(kg) ?? gesture);
-                    _gestureTextToAction[normalized] = action;
-                }
-                catch
-                {
-                    // ignore invalid gesture
+                    _gestureByAction[item.ActionId] = g;
                 }
             }
+        }
+
+        public void Save(IEnumerable<BindingItem> items)
+        {
+            var list = items
+                .Where(x => !string.IsNullOrWhiteSpace(x.ActionId))
+                .Select(x => new BindingItem
+                {
+                    ActionId = x.ActionId.Trim(),
+                    Gesture = (x.Gesture ?? "").Trim(),
+                    Title = x.Title ?? "",
+                    Category = x.Category ?? ""
+                })
+                .ToList();
+
+            var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(ConfigPath, json);
+
+            Load();
+        }
+
+        public string? FindActionId(KeyEventArgs e)
+        {
+            // Convert KeyEventArgs to a KeyGesture-like signature
+            var key = (e.Key == Key.System) ? e.SystemKey : e.Key;
+            if (key == Key.None) return null;
+
+            var modifiers = Keyboard.Modifiers;
+
+            foreach (var item in _items)
+            {
+                var g = TryParseGesture(item.Gesture);
+                if (g == null) continue;
+
+                if (g.Key == key && g.Modifiers == modifiers)
+                {
+                    return item.ActionId;
+                }
+            }
+
+            return null;
+        }
+
+        public KeyGesture? TryParseGesture(string gesture)
+        {
+            if (string.IsNullOrWhiteSpace(gesture)) return null;
+            try
+            {
+                return _converter.ConvertFromString(gesture) as KeyGesture;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static List<BindingItem> DefaultBindings()
+        {
+            return new List<BindingItem>
+            {
+                new() { Category="Playback", Title="Play/Pause", ActionId="play_pause", Gesture="Space" },
+                new() { Category="Playback", Title="Seek -1s", ActionId="seek_minus_1", Gesture="Left" },
+                new() { Category="Playback", Title="Seek +1s", ActionId="seek_plus_1", Gesture="Right" },
+                new() { Category="Playback", Title="Seek -5s", ActionId="seek_minus_5", Gesture="Shift+Left" },
+                new() { Category="Playback", Title="Seek +5s", ActionId="seek_plus_5", Gesture="Shift+Right" },
+
+                new() { Category="Clips", Title="Mark Clip Start", ActionId="clip_start", Gesture="I" },
+                new() { Category="Clips", Title="Mark Clip End", ActionId="clip_end", Gesture="O" },
+                new() { Category="Clips", Title="Save Team A Clip", ActionId="save_team_a", Gesture="A" },
+                new() { Category="Clips", Title="Save Team B Clip", ActionId="save_team_b", Gesture="B" },
+                new() { Category="Clips", Title="Jump to Selected Clip", ActionId="jump_selected", Gesture="Enter" },
+                new() { Category="Clips", Title="Delete Selected Clip", ActionId="delete_clip", Gesture="Delete" },
+
+                new() { Category="File", Title="Load Video", ActionId="load_video", Gesture="Ctrl+L" },
+                new() { Category="File", Title="Import CSV", ActionId="import_csv", Gesture="Ctrl+I" },
+                new() { Category="File", Title="Export CSV", ActionId="export_csv", Gesture="Ctrl+E" },
+                new() { Category="File", Title="Export All Clips", ActionId="export_all", Gesture="Ctrl+Shift+E" },
+
+                new() { Category="UI", Title="Open Preferences", ActionId="open_preferences", Gesture="Ctrl+Comma" },
+            };
         }
     }
 }

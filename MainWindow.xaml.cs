@@ -17,8 +17,6 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using PlayCutWin.Services;
-using PlayCutWin.Views;
 
 namespace PlayCutWin
 {
@@ -32,33 +30,7 @@ namespace PlayCutWin
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
-
-
-        
-
-        // Shortcuts (user-editable)
-        private readonly ShortcutManager _shortcuts = new ShortcutManager();
-        private static readonly Dictionary<string, string> DefaultShortcuts = new()
-        {
-            ["TogglePlayPause"] = "Space",
-            ["SeekMinus1"] = "Left",
-            ["SeekPlus1"] = "Right",
-            ["SeekMinus5"] = "Shift+Left",
-            ["SeekPlus5"] = "Shift+Right",
-
-            ["LoadVideo"] = "Ctrl+O",
-            ["ImportCsv"] = "Ctrl+I",
-            ["ExportCsv"] = "Ctrl+Shift+E",
-            ["ExportAll"] = "Ctrl+E",
-
-            ["ClipStart"] = "Alt+S",
-            ["ClipEnd"] = "Alt+D",
-            ["SaveTeamA"] = "Alt+A",
-            ["SaveTeamB"] = "Alt+B",
-        };
-
-// Export (guard for double-click / re-entry)
-        private bool _isExporting = false;
+                private bool _isExporting = false;
 
 // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
@@ -70,12 +42,7 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
-
-            // Load shortcuts (user can customize via Preferences)
-            _shortcuts.LoadOrCreateDefaults(DefaultShortcuts);
-
             DataContext = VM;
-            PreviewKeyDown += MainWindow_PreviewKeyDown;
 
             HighlightSpeedButtons(_currentSpeed);
 
@@ -259,59 +226,6 @@ namespace PlayCutWin
             }
         }
 
-
-        // ----------------------------
-        // Keyboard Shortcuts (Mac-like)
-        // ----------------------------
-        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-        {
-            // When typing in TextBox, do not steal shortcuts (Mac-like).
-            if (IsTextInputFocused())
-                return;
-
-            if (_shortcuts.TryGetAction(e, out var action))
-            {
-                if (ExecuteShortcutAction(action))
-                {
-                    e.Handled = true;
-                    return;
-                }
-            }
-        }
-
-        private bool IsTextInputFocused()
-        {
-            var focused = System.Windows.Input.Keyboard.FocusedElement as System.Windows.DependencyObject;
-            while (focused != null)
-            {
-                if (focused is System.Windows.Controls.TextBox ||
-                    focused is System.Windows.Controls.Primitives.TextBoxBase ||
-                    focused is System.Windows.Controls.PasswordBox ||
-                    focused is System.Windows.Controls.ComboBox)
-                {
-                    return true;
-                }
-                focused = System.Windows.Media.VisualTreeHelper.GetParent(focused);
-            }
-            return false;
-        }
-
-        private void TogglePlayPause()
-        {
-            if (Player.Source == null) return;
-
-            if (VM.IsPlaying)
-            {
-                Player.Pause();
-                VM.IsPlaying = false;
-            }
-            else
-            {
-                Player.Play();
-                VM.IsPlaying = true;
-            }
-        }
-
         private void Speed025_Click(object sender, RoutedEventArgs e) => SetSpeed(0.25);
         private void Speed05_Click(object sender, RoutedEventArgs e) => SetSpeed(0.5);
         private void Speed1_Click(object sender, RoutedEventArgs e) => SetSpeed(1.0);
@@ -478,15 +392,13 @@ namespace PlayCutWin
         {
             if (_isExporting) return;
             _isExporting = true;
-            VM.IsExporting = true;
-            VM.StatusText = "Exporting...";
             try
             {
                 await ExportClipsInternalAsync(VM.AllClips.ToList());
             }
             finally
             {
-                VM.IsExporting = false;
+                _isExporting = false;
             }
         }
 
@@ -494,15 +406,12 @@ namespace PlayCutWin
         {
             if (_isExporting) return;
             _isExporting = true;
-            VM.IsExporting = true;
-            VM.StatusText = "Exporting...";
             try
             {
                 await ExportClipsInternalAsync(VM.AllClips.ToList());
             }
             finally
             {
-                VM.IsExporting = false;
                 _isExporting = false;
             }
         }
@@ -886,14 +795,10 @@ namespace PlayCutWin
 
                 VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
 
-                var resultMsg = $"Export completed.\n\n{ok} clips exported successfully.\n{fail} clips failed.\n\nFolder:\n{rootDir}";
-                var open = MessageBox.Show(resultMsg, "Export Complete",
-                    MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.Yes);
-                if (open == MessageBoxResult.Yes)
-                {
-                    try { Process.Start(new ProcessStartInfo { FileName = rootDir, UseShellExecute = true }); } catch { }
-                }
-
+                var resultMsg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
+                MessageBox.Show(resultMsg, "Export Clips",
+                    MessageBoxButton.OK,
+                    (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
             }
             finally
             {
@@ -1255,7 +1160,6 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
         private string _loadedVideoName = "";
         private string _loadedVideoPath = "";
         private string _statusText = "";
-        private bool _isExporting = false;
         private bool _isPlaying = false;
 
         private double _durationSeconds = 0;
@@ -1351,21 +1255,6 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
         public string LoadedVideoPath { get => _loadedVideoPath; set { _loadedVideoPath = value; OnPropertyChanged(); } }
 
         public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-
-        public bool IsExporting
-        {
-            get => _isExporting;
-            set
-            {
-                if (_isExporting == value) return;
-                _isExporting = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(IsNotExporting));
-            }
-        }
-
-        public bool IsNotExporting => !_isExporting;
-
 
         public bool IsPlaying
         {
@@ -1508,5 +1397,120 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+        // ===========================
+        // Mac-style shortcuts + Preferences
+        // ===========================
+
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            // If focus is in a text box, do not steal typing shortcuts.
+            if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBoxBase)
+                return;
+
+            var actionId = ShortcutManager.Instance.FindActionId(e);
+            if (string.IsNullOrWhiteSpace(actionId))
+                return;
+
+            ExecuteShortcutAction(actionId);
+            e.Handled = true;
+        }
+
+        private void OpenPreferences_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            var win = new PreferencesWindow
+            {
+                Owner = this
+            };
+            win.ShowDialog();
+        }
+
+        private void ExecuteShortcutAction(string actionId)
+        {
+            switch (actionId)
+            {
+                case "play_pause":
+                    PlayPause_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "seek_minus_1":
+                    SeekMinus1_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "seek_plus_1":
+                    SeekPlus1_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "seek_minus_5":
+                    SeekMinus5_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "seek_plus_5":
+                    SeekPlus5_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "clip_start":
+                    ClipStart_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "clip_end":
+                    ClipEnd_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "save_team_a":
+                    SaveTeamA_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "save_team_b":
+                    SaveTeamB_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "jump_selected":
+                    JumpSelectedClipAndPlay();
+                    break;
+
+                case "delete_clip":
+                    DeleteSelectedClip_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "load_video":
+                    LoadVideo_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "import_csv":
+                    ImportCsv_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "export_csv":
+                    ExportCsv_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "export_all":
+                    ExportAll_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+
+                case "open_preferences":
+                    OpenPreferences_Click(this, new System.Windows.RoutedEventArgs());
+                    break;
+            }
+        }
+
+        private void JumpSelectedClipAndPlay()
+        {
+            try
+            {
+                if (VM?.SelectedClip == null) return;
+
+                SeekToSeconds(VM.SelectedClip.Start);
+
+                // auto start after jump (Mac behavior)
+                if (VM.IsPlaying == false)
+                {
+                    PlayPause_Click(this, new System.Windows.RoutedEventArgs());
+                }
+            }
+            catch { }
+        }
+
     }
 }

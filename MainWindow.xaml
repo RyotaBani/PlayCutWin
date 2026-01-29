@@ -1,4 +1,4 @@
-<Window x:Class="PlayCutWin.MainWindow"
+<Window x:Class="PlayCutWin.MainWindow" PreviewKeyDown="MainWindow_PreviewKeyDown"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -355,10 +355,10 @@
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>
                         <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteSelectedClip_Click" IsEnabled="{Binding HasSelectedClip}"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click" IsEnabled="{Binding IsNotExporting}"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click" IsEnabled="{Binding IsNotExporting}"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click" IsEnabled="{Binding IsNotExporting}"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click" IsEnabled="{Binding IsNotExporting}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click"/>
                     </StackPanel>
                 </DockPanel>
 
