@@ -1,95 +1,101 @@
-using PlayCutWin.Services;
-using System.Collections.Generic;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using PlayCutWin.Models;
+using PlayCutWin.Services;
 
 namespace PlayCutWin.Views
 {
     public partial class PreferencesWindow : Window
     {
-        private ObservableCollection<ShortcutManager.BindingItem> _items = new();
+        private readonly ShortcutManager _manager;
 
-        public PreferencesWindow()
+        public ObservableCollection<ShortcutRow> Items { get; } = new();
+
+        public PreferencesWindow(ShortcutManager manager)
         {
             InitializeComponent();
+            _manager = manager;
 
-            LoadFromManager();
+            foreach (var kv in _manager.GetBindings().OrderBy(k => k.Key.ToString()))
+            {
+                Items.Add(new ShortcutRow(kv.Key, ShortcutRow.Label(kv.Key), kv.Value));
+            }
+
+            DataContext = this;
         }
 
-        private void LoadFromManager()
+        private void GestureBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            _items = new ObservableCollection<ShortcutManager.BindingItem>(
-                ShortcutManager.Instance.Items.Select(x => new ShortcutManager.BindingItem
-                {
-                    ActionId = x.ActionId,
-                    Gesture = x.Gesture,
-                    Title = x.Title,
-                    Category = x.Category
-                })
-            );
+            if (sender is not TextBox tb || tb.DataContext is not ShortcutRow row)
+                return;
 
-            GridShortcuts.ItemsSource = _items;
-            TxtStatus.Text = $"Config: {ShortcutManager.Instance.ConfigPath}";
+            // Prevent DataGrid navigation keys from stealing the input
+            e.Handled = true;
+
+            // Allow Backspace/Delete to clear
+            if (e.Key == Key.Back || e.Key == Key.Delete)
+            {
+                row.Gesture = string.Empty;
+                return;
+            }
+
+            var gesture = ShortcutManager.ToGestureString(e);
+            if (string.IsNullOrWhiteSpace(gesture))
+                return;
+
+            row.Gesture = gesture;
         }
 
         private void RestoreDefaults_Click(object sender, RoutedEventArgs e)
         {
-            // Delete config file and reload
-            try
-            {
-                var path = ShortcutManager.Instance.ConfigPath;
-                if (System.IO.File.Exists(path))
-                    System.IO.File.Delete(path);
-            }
-            catch { }
-
-            ShortcutManager.Instance.Load();
-            LoadFromManager();
+            _manager.RestoreDefaults();
+            Items.Clear();
+            foreach (var kv in _manager.GetBindings().OrderBy(k => k.Key.ToString()))
+                Items.Add(new ShortcutRow(kv.Key, ShortcutRow.Label(kv.Key), kv.Value));
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-            // Basic validation: duplicates & parseability
-            var mgr = ShortcutManager.Instance;
+            // Convert and validate (avoid duplicate gestures)
+            var gestureMap = Items
+                .Where(i => !string.IsNullOrWhiteSpace(i.Gesture))
+                .GroupBy(i => i.Gesture.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            var parsed = new List<(string actionId, string gesture, string? err)>();
-            foreach (var it in _items)
-            {
-                var g = (it.Gesture ?? "").Trim();
-                if (string.IsNullOrEmpty(g))
-                {
-                    parsed.Add((it.ActionId, g, null));
-                    continue;
-                }
-
-                var kg = mgr.TryParseGesture(g);
-                if (kg == null)
-                {
-                    MessageBox.Show($"Invalid shortcut: \"{g}\" for {it.Title}", "Preferences",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                parsed.Add((it.ActionId, g, null));
-            }
-
-            var dup = parsed
-                .Where(x => !string.IsNullOrWhiteSpace(x.gesture))
-                .GroupBy(x => x.gesture)
-                .FirstOrDefault(g => g.Count() > 1);
-
+            var dup = gestureMap.FirstOrDefault(g => g.Count() > 1);
             if (dup != null)
             {
-                var names = _items.Where(x => (x.Gesture ?? "").Trim() == dup.Key).Select(x => x.Title).ToList();
-                MessageBox.Show($"Duplicate shortcut \"{dup.Key}\" used by:\n- {string.Join("\n- ", names)}",
-                    "Preferences", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, $"Duplicate shortcut: {dup.Key}", "Preferences", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            mgr.Save(_items);
+            foreach (var item in Items)
+            {
+                _manager.SetBinding(item.Action, item.Gesture);
+            }
+
+            _manager.Save();
             DialogResult = true;
             Close();
+        }
+
+        private void Cancel_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            Close();
+        }
+
+        private void Close_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                DialogResult = false;
+                Close();
+            }
         }
     }
 }

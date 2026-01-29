@@ -4,162 +4,151 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Windows.Input;
+using PlayCutWin.Models;
 
 namespace PlayCutWin.Services
 {
     public sealed class ShortcutManager
     {
-        public sealed class BindingItem
+        private readonly string _filePath;
+
+        // In-memory map: gesture string (normalized) -> action
+        private Dictionary<string, ShortcutAction> _map = new(StringComparer.OrdinalIgnoreCase);
+
+        public ShortcutManager(string appName = "PlayCutWin")
         {
-            public string ActionId { get; set; } = "";
-            public string Gesture { get; set; } = "";
-            public string Title { get; set; } = "";
-            public string Category { get; set; } = "";
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                appName);
+            Directory.CreateDirectory(dir);
+            _filePath = Path.Combine(dir, "shortcuts.json");
         }
 
-        public static ShortcutManager Instance { get; } = new ShortcutManager();
+        public IReadOnlyDictionary<string, ShortcutAction> Map => _map;
 
-        private readonly KeyGestureConverter _converter = new KeyGestureConverter();
-        private readonly Dictionary<string, KeyGesture> _gestureByAction = new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<BindingItem> _items = new();
-
-        public IReadOnlyList<BindingItem> Items => _items;
-
-        private ShortcutManager()
+        public List<ShortcutItem> LoadOrCreateDefaults()
         {
-            Load();
-        }
-
-        public string ConfigPath
-        {
-            get
-            {
-                var dir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "PlayCutWin");
-                Directory.CreateDirectory(dir);
-                return Path.Combine(dir, "shortcuts.json");
-            }
-        }
-
-        public void Load()
-        {
-            _items.Clear();
-            _gestureByAction.Clear();
-
-            var defaults = DefaultBindings();
-
             try
             {
-                if (File.Exists(ConfigPath))
+                if (File.Exists(_filePath))
                 {
-                    var json = File.ReadAllText(ConfigPath);
-                    var loaded = JsonSerializer.Deserialize<List<BindingItem>>(json) ?? new List<BindingItem>();
-
-                    // Merge: loaded overrides defaults by ActionId
-                    var map = defaults.ToDictionary(x => x.ActionId, StringComparer.OrdinalIgnoreCase);
-                    foreach (var it in loaded)
-                    {
-                        if (string.IsNullOrWhiteSpace(it.ActionId)) continue;
-                        map[it.ActionId] = it;
-                    }
-                    defaults = map.Values.OrderBy(x => x.Category).ThenBy(x => x.Title).ToList();
+                    var json = File.ReadAllText(_filePath);
+                    var items = JsonSerializer.Deserialize<List<ShortcutItem>>(json) ?? new List<ShortcutItem>();
+                    Apply(items);
+                    return items;
                 }
             }
             catch
             {
-                // If broken JSON, fall back to defaults
+                // fall back to defaults
             }
 
-            foreach (var item in defaults)
+            var defaults = GetDefaults();
+            Apply(defaults);
+            Save(defaults);
+            return defaults;
+        }
+
+        public void Save(IEnumerable<ShortcutItem> items)
+        {
+            var json = JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_filePath, json);
+        }
+
+        public void Apply(IEnumerable<ShortcutItem> items)
+        {
+            _map = new Dictionary<string, ShortcutAction>(StringComparer.OrdinalIgnoreCase);
+            foreach (var it in items)
             {
-                _items.Add(item);
-                var g = TryParseGesture(item.Gesture);
-                if (g != null)
-                {
-                    _gestureByAction[item.ActionId] = g;
-                }
+                var key = NormalizeGesture(it.Gesture);
+                if (string.IsNullOrWhiteSpace(key)) continue;
+                _map[key] = it.Action;
             }
         }
 
-        public void Save(IEnumerable<BindingItem> items)
+        public bool TryResolve(KeyEventArgs e, out ShortcutAction action)
         {
-            var list = items
-                .Where(x => !string.IsNullOrWhiteSpace(x.ActionId))
-                .Select(x => new BindingItem
-                {
-                    ActionId = x.ActionId.Trim(),
-                    Gesture = (x.Gesture ?? "").Trim(),
-                    Title = x.Title ?? "",
-                    Category = x.Category ?? ""
-                })
+            action = default;
+            var gesture = FromKeyEvent(e);
+            var norm = NormalizeGesture(gesture);
+            return !string.IsNullOrEmpty(norm) && _map.TryGetValue(norm, out action);
+        }
+
+        public static string FromKeyEvent(KeyEventArgs e)
+        {
+            // ignore modifier-only
+            if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
+                return "";
+
+            var parts = new List<string>();
+            var mods = Keyboard.Modifiers;
+            if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
+            if (mods.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
+            if (mods.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
+
+            // Prefer SystemKey when Alt is involved
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            parts.Add(KeyToText(key));
+            return string.Join("+", parts);
+        }
+
+        public static string NormalizeGesture(string? gesture)
+        {
+            if (string.IsNullOrWhiteSpace(gesture)) return "";
+
+            // Normalize separators/spaces and order modifiers
+            var tokens = gesture
+                .Split(new[] { '+', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
                 .ToList();
 
-            var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(ConfigPath, json);
+            bool ctrl = tokens.Any(t => t.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || t.Equals("Control", StringComparison.OrdinalIgnoreCase));
+            bool shift = tokens.Any(t => t.Equals("Shift", StringComparison.OrdinalIgnoreCase));
+            bool alt = tokens.Any(t => t.Equals("Alt", StringComparison.OrdinalIgnoreCase));
 
-            Load();
+            var keyToken = tokens.FirstOrDefault(t =>
+                !t.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) &&
+                !t.Equals("Control", StringComparison.OrdinalIgnoreCase) &&
+                !t.Equals("Shift", StringComparison.OrdinalIgnoreCase) &&
+                !t.Equals("Alt", StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrWhiteSpace(keyToken)) return "";
+
+            var parts = new List<string>();
+            if (ctrl) parts.Add("Ctrl");
+            if (shift) parts.Add("Shift");
+            if (alt) parts.Add("Alt");
+            parts.Add(keyToken);
+            return string.Join("+", parts);
         }
 
-        public string? FindActionId(KeyEventArgs e)
+        public static string KeyToText(Key key)
         {
-            // Convert KeyEventArgs to a KeyGesture-like signature
-            var key = (e.Key == Key.System) ? e.SystemKey : e.Key;
-            if (key == Key.None) return null;
-
-            var modifiers = Keyboard.Modifiers;
-
-            foreach (var item in _items)
+            // Make a few keys nicer
+            return key switch
             {
-                var g = TryParseGesture(item.Gesture);
-                if (g == null) continue;
-
-                if (g.Key == key && g.Modifiers == modifiers)
-                {
-                    return item.ActionId;
-                }
-            }
-
-            return null;
-        }
-
-        public KeyGesture? TryParseGesture(string gesture)
-        {
-            if (string.IsNullOrWhiteSpace(gesture)) return null;
-            try
-            {
-                return _converter.ConvertFromString(gesture) as KeyGesture;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static List<BindingItem> DefaultBindings()
-        {
-            return new List<BindingItem>
-            {
-                new() { Category="Playback", Title="Play/Pause", ActionId="play_pause", Gesture="Space" },
-                new() { Category="Playback", Title="Seek -1s", ActionId="seek_minus_1", Gesture="Left" },
-                new() { Category="Playback", Title="Seek +1s", ActionId="seek_plus_1", Gesture="Right" },
-                new() { Category="Playback", Title="Seek -5s", ActionId="seek_minus_5", Gesture="Shift+Left" },
-                new() { Category="Playback", Title="Seek +5s", ActionId="seek_plus_5", Gesture="Shift+Right" },
-
-                new() { Category="Clips", Title="Mark Clip Start", ActionId="clip_start", Gesture="I" },
-                new() { Category="Clips", Title="Mark Clip End", ActionId="clip_end", Gesture="O" },
-                new() { Category="Clips", Title="Save Team A Clip", ActionId="save_team_a", Gesture="A" },
-                new() { Category="Clips", Title="Save Team B Clip", ActionId="save_team_b", Gesture="B" },
-                new() { Category="Clips", Title="Jump to Selected Clip", ActionId="jump_selected", Gesture="Enter" },
-                new() { Category="Clips", Title="Delete Selected Clip", ActionId="delete_clip", Gesture="Delete" },
-
-                new() { Category="File", Title="Load Video", ActionId="load_video", Gesture="Ctrl+L" },
-                new() { Category="File", Title="Import CSV", ActionId="import_csv", Gesture="Ctrl+I" },
-                new() { Category="File", Title="Export CSV", ActionId="export_csv", Gesture="Ctrl+E" },
-                new() { Category="File", Title="Export All Clips", ActionId="export_all", Gesture="Ctrl+Shift+E" },
-
-                new() { Category="UI", Title="Open Preferences", ActionId="open_preferences", Gesture="Ctrl+Comma" },
+                Key.Space => "Space",
+                Key.OemPlus => "+",
+                Key.OemMinus => "-",
+                Key.Return => "Enter",
+                Key.Escape => "Esc",
+                _ => key.ToString()
             };
         }
+
+        private static List<ShortcutItem> GetDefaults() => new()
+        {
+            new ShortcutItem { Action = ShortcutAction.PlayPause, Gesture = "Space" },
+            new ShortcutItem { Action = ShortcutAction.SeekMinus5, Gesture = "Left" },
+            new ShortcutItem { Action = ShortcutAction.SeekPlus5, Gesture = "Right" },
+            new ShortcutItem { Action = ShortcutAction.SeekMinus1, Gesture = "Ctrl+Left" },
+            new ShortcutItem { Action = ShortcutAction.SeekPlus1, Gesture = "Ctrl+Right" },
+            new ShortcutItem { Action = ShortcutAction.ClipStart, Gesture = "S" },
+            new ShortcutItem { Action = ShortcutAction.ClipEnd, Gesture = "E" },
+            new ShortcutItem { Action = ShortcutAction.SaveTeamA, Gesture = "A" },
+            new ShortcutItem { Action = ShortcutAction.SaveTeamB, Gesture = "B" },
+            new ShortcutItem { Action = ShortcutAction.ExportAll, Gesture = "Ctrl+E" },
+            new ShortcutItem { Action = ShortcutAction.FocusCustomTag, Gesture = "Ctrl+L" },
+        };
     }
 }

@@ -10,16 +10,16 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+
+using PlayCutWin.Models;
 using PlayCutWin.Services;
 using PlayCutWin.Views;
-using System.Windows.Controls.Primitives;
 
 namespace PlayCutWin
 {
@@ -27,15 +27,15 @@ namespace PlayCutWin
     {
         private readonly DispatcherTimer _timer;
 
+        private readonly ShortcutManager _shortcutManager;
+
         private bool _isDraggingTimeline = false;
 
         // seek-jump safety
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
-                private bool _isExporting = false;
-
-// Speed button visuals
+        // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
         private double _currentSpeed = 1.0;
@@ -46,6 +46,10 @@ namespace PlayCutWin
         {
             InitializeComponent();
             DataContext = VM;
+
+            // Shortcuts (Mac-like): load user custom bindings.
+            _shortcutManager = new ShortcutManager();
+            _shortcutManager.LoadOrCreateDefaults();
 
             HighlightSpeedButtons(_currentSpeed);
 
@@ -78,8 +82,7 @@ namespace PlayCutWin
                 VM.LoadedVideoName = Path.GetFileName(dlg.FileName);
                 VM.StatusText = "Loading video…";
 
-                var hint = FindName("VideoHint") as TextBlock;
-                if (hint != null) hint.Visibility = Visibility.Collapsed;
+                VideoHint.Visibility = Visibility.Collapsed;
 
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
@@ -391,32 +394,14 @@ namespace PlayCutWin
         // ----------------------------
         // CSV / Export Clips
         // ----------------------------
-        private async void ExportAll_Click(object sender, RoutedEventArgs e)
+        private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            if (_isExporting) return;
-            _isExporting = true;
-            try
-            {
-                await ExportClipsInternalAsync(VM.AllClips.ToList());
-            }
-            finally
-            {
-                _isExporting = false;
-            }
+            ExportClipsInternal(VM.AllClips.ToList());
         }
 
-        private async void ExportClips_Click(object sender, RoutedEventArgs e)
+        private void ExportClips_Click(object sender, RoutedEventArgs e)
         {
-            if (_isExporting) return;
-            _isExporting = true;
-            try
-            {
-                await ExportClipsInternalAsync(VM.AllClips.ToList());
-            }
-            finally
-            {
-                _isExporting = false;
-            }
+            ExportClipsInternal(VM.AllClips.ToList());
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
@@ -558,18 +543,8 @@ namespace PlayCutWin
         // ----------------------------
         // Video export (ffmpeg)
         // ----------------------------
-        
-        // ----------------------------
-        // Video export (ffmpeg)  ※UIフリーズしないように非同期実行
-        // ----------------------------
-        private async Task ExportClipsInternalAsync(List<ClipRow> clips)
+        private void ExportClipsInternal(List<ClipRow> clips)
         {
-            // Progress dialog (WPF-only, no WinForms)
-            Window? progressWindow = null;
-            ProgressBar? progressBar = null;
-            TextBlock? progressTitle = null;
-            TextBlock? progressDetail = null;
-
             if (clips == null || clips.Count == 0)
             {
                 MessageBox.Show("No clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -588,270 +563,56 @@ namespace PlayCutWin
             var ffmpeg = ResolveFfmpegPath();
             if (ffmpeg == null)
             {
-                var exeDir = AppDomain.CurrentDomain.BaseDirectory;
-                var message =
-                    "ffmpeg was not found.\n\n" +
-                    "Place ffmpeg.exe next to PlayCutWin.exe (recommended):\n" + exeDir + "\n\n" +
-                    "Or add ffmpeg to PATH.\n" +
-                    "Tip: Open cmd and run: ffmpeg -version";
-
-                MessageBox.Show(message, "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
+                    "Tip: Open cmd and run: ffmpeg -version",
+                    "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            // Show progress UI (create after validation so it doesn't flash)
-            try
-            {
-                // ensure we are on UI thread
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    progressTitle = new TextBlock
-                    {
-                        Text = "Exporting clips...",
-                        FontSize = 14,
-                        FontWeight = FontWeights.SemiBold,
-                        Margin = new Thickness(0, 0, 0, 8)
-                    };
-
-                    progressDetail = new TextBlock
-                    {
-                        Text = "Preparing export jobs...",
-                        Opacity = 0.9,
-                        TextWrapping = TextWrapping.Wrap,
-                        Margin = new Thickness(0, 0, 0, 10)
-                    };
-
-                    progressBar = new ProgressBar
-                    {
-                        Height = 18,
-                        IsIndeterminate = true
-                    };
-
-                    var panel = new StackPanel
-                    {
-                        Margin = new Thickness(16)
-                    };
-                    panel.Children.Add(progressTitle);
-                    panel.Children.Add(progressDetail);
-                    panel.Children.Add(progressBar);
-
-                    progressWindow = new Window
-                    {
-                        Title = "Export",
-                        Width = 520,
-                        Height = 170,
-                        ResizeMode = ResizeMode.NoResize,
-                        WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                        WindowStyle = WindowStyle.ToolWindow,
-                        ShowInTaskbar = false,
-                        Owner = this,
-                        Content = panel
-                    };
-
-                    // Make it feel modal without blocking the UI thread
-                    this.IsEnabled = false;
-                    progressWindow.Closed += (_, __) =>
-                    {
-                        // safety: re-enable if user closes unexpectedly
-                        if (!this.IsEnabled) this.IsEnabled = true;
-                    };
-
-                    progressWindow.Show();
-                });
-            }
-            catch
-            {
-                // If dialog fails, continue export without it.
-            }
-
-            // Mac版に寄せた構成（A/B分割 + タグ別）
-            // <VideoName>/
-            //   TeamA/<Tag>/*.mov
-            //   TeamB/<Tag>/*.mov
             var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
-            var rootDir = Path.Combine(outFolder, SanitizeFileName(baseName));
-            Directory.CreateDirectory(rootDir);
-
-            string TeamFolder(string team) => (team == "B") ? "TeamB" : "TeamA";
-
-            // Export jobs を先に組み立てる（タグ複数なら複数出力）
-            var jobs = new List<(ClipRow clip, string teamFolder, string tagFolder, string outPath, string args)>();
-
-            foreach (var c in clips)
-            {
-                if (c.End <= c.Start) continue;
-
-                var tagList = (c.Tags ?? new List<string>())
-                    .Select(t => (t ?? "").Trim())
-                    .Where(t => !string.IsNullOrWhiteSpace(t))
-                    .Select(NormalizeTagFolderName)
-                    .Where(t => !string.IsNullOrWhiteSpace(t))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                if (tagList.Count == 0) tagList.Add("Untagged");
-
-                var teamLetter = (c.Team == "B") ? "B" : "A";
-                var teamDirName = TeamFolder(teamLetter);
-
-                foreach (var tag in tagList)
-                {
-                    var teamDir = Path.Combine(rootDir, teamDirName);
-                    var tagDir = Path.Combine(teamDir, tag);
-                    Directory.CreateDirectory(tagDir);
-
-                    var fileBase = $"{teamLetter}_{tag}_{FormatTimeForMacFile(c.Start)}-{FormatTimeForMacFile(c.End)}";
-                    var outPath = Path.Combine(tagDir, fileBase + ".mov");
-
-                    var duration = Math.Max(0.01, c.End - c.Start);
-                    var args = BuildFfmpegArgsForMov(
-                        inputPath: VM.LoadedVideoPath,
-                        startSeconds: c.Start,
-                        durationSeconds: duration,
-                        outputPath: outPath);
-
-                    jobs.Add((c, teamDirName, tag, outPath, args));
-                }
-            }
-
-            if (jobs.Count == 0)
-            {
-                if (progressWindow != null)
-                {
-                    try { await Dispatcher.InvokeAsync(() => progressWindow.Close()); } catch { }
-                    this.IsEnabled = true;
-                }
-                MessageBox.Show("No valid clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_clips_{stamp}");
+            Directory.CreateDirectory(sessionDir);
 
             int ok = 0;
             int fail = 0;
-            try
+            VM.StatusText = "Exporting clips...";
+
+            for (int i = 0; i < clips.Count; i++)
             {
-                // UIは止めない（バックグラウンドで順次実行）
-                VM.StatusText = $"Exporting... (0/{jobs.Count})";
+                var c = clips[i];
+                if (c.End <= c.Start) { fail++; continue; }
 
-            // switch to determinate progress
-            if (progressBar != null)
-            {
-                try
-                {
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        progressBar.IsIndeterminate = false;
-                        progressBar.Minimum = 0;
-                        progressBar.Maximum = jobs.Count;
-                        progressBar.Value = 0;
-                        if (progressDetail != null) progressDetail.Text = $"0 / {jobs.Count}";
-                    });
-                }
-                catch { }
-            }
+                var tags = string.Join("-", (c.Tags ?? new List<string>()).Take(5));
+                var safeTags = SanitizeFileName(tags);
+                var safeTeam = (c.Team == "B") ? "B" : "A";
+                var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
+                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
+                file += ".mp4";
 
-            var manifestLines = new List<string>();
-            manifestLines.Add("team,start,end,tags,comment,output");
+                var outPath = Path.Combine(sessionDir, file);
+                var duration = Math.Max(0.01, c.End - c.Start);
 
-                for (int i = 0; i < jobs.Count; i++)
-                {
-                var j = jobs[i];
+                var args = BuildFfmpegArgs(
+                    inputPath: VM.LoadedVideoPath,
+                    startSeconds: c.Start,
+                    durationSeconds: duration,
+                    outputPath: outPath);
 
-                // 進捗表示（UIスレッド）
-                VM.StatusText = $"Exporting... ({i + 1}/{jobs.Count})";
+                VM.StatusText = $"Exporting {i + 1}/{clips.Count}...";
 
-                if (progressBar != null)
-                {
-                    try
-                    {
-                        var progressMsg = $"{i + 1} / {jobs.Count}  ({j.teamFolder} / {j.tagFolder})";
-                        await Dispatcher.InvokeAsync(() =>
-                        {
-                            progressBar.Value = i + 1;
-                            if (progressDetail != null) progressDetail.Text = progressMsg;
-                        });
-                    }
-                    catch { }
-                }
-
-                var r = await RunProcessAsync(ffmpeg, j.args).ConfigureAwait(true);
-
-                if (r.exitCode == 0 && File.Exists(j.outPath))
-                {
-                    ok++;
-                    var tags = string.Join("|", j.clip.Tags ?? new List<string>());
-                    var line = $"{j.clip.Team},{j.clip.Start.ToString("0.###", CultureInfo.InvariantCulture)},{j.clip.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(j.clip.Comment ?? "")},{EscapeCsv(j.outPath)}";
-                    manifestLines.Add(line);
-                }
+                var result = RunProcess(ffmpeg, args);
+                if (result.exitCode == 0 && File.Exists(outPath)) ok++;
                 else
                 {
                     fail++;
-                    Debug.WriteLine(r.stdErr);
+                    Debug.WriteLine(result.stdErr);
                 }
-                }
-
-                // manifest 出力（Mac風の“コメント残し”を補強：CSVで追える）
-                try
-                {
-                    File.WriteAllLines(Path.Combine(rootDir, "export_manifest.csv"), manifestLines, Encoding.UTF8);
-                }
-                catch { /* ignore */ }
-
-                VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-
-                var resultMsg = $"Exported clips to:\n{rootDir}\n\nOK:{ok}  Fail:{fail}";
-                MessageBox.Show(resultMsg, "Export Clips",
-                    MessageBoxButton.OK,
-                    (fail == 0) ? MessageBoxImage.Information : MessageBoxImage.Warning);
             }
-            finally
-            {
-                // Close progress UI
-                if (progressWindow != null)
-                {
-                    try { await Dispatcher.InvokeAsync(() => progressWindow.Close()); } catch { }
-                }
 
-                if (!this.IsEnabled) this.IsEnabled = true;
-            }
-        }
-
-        private static async Task<(int exitCode, string stdOut, string stdErr)> RunProcessAsync(string exePath, string args)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    Arguments = args,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using var p = Process.Start(psi);
-                if (p == null) return (-1, "", "Process start failed.");
-
-                var stdoutTask = p.StandardOutput.ReadToEndAsync();
-                var stderrTask = p.StandardError.ReadToEndAsync();
-
-                await p.WaitForExitAsync().ConfigureAwait(false);
-
-                var stdout = await stdoutTask.ConfigureAwait(false);
-                var stderr = await stderrTask.ConfigureAwait(false);
-
-                return (p.ExitCode, stdout, stderr);
-            }
-            catch (Exception ex)
-            {
-                return (-1, "", ex.ToString());
-            }
-        }
-
-        private void ExportClipsInternal(List<ClipRow> clips)
-        {
-            // 旧同期版の呼び出し口（互換用）
-            _ = ExportClipsInternalAsync(clips);
+            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
+            MessageBox.Show($"Exported {ok} clip(s) to:\n{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
@@ -861,59 +622,6 @@ namespace PlayCutWin
 
             return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
         }
-
-// === Export Helpers (Mac-style folder/name) ===
-private static string NormalizeTagFolderName(string tag)
-{
-    if (string.IsNullOrWhiteSpace(tag)) return string.Empty;
-    var s = tag.Trim();
-
-    // Safe folder/file name characters
-    s = s.Replace(" ", "_");
-    s = s.Replace("/", "_").Replace("\\", "_");
-    s = s.Replace(":", "_").Replace("*", "_").Replace("?", "_");
-    s = s.Replace("\"", "_").Replace("<", "_").Replace(">", "_").Replace("|", "_");
-
-    while (s.Contains("__")) s = s.Replace("__", "_");
-    return s.Trim('_');
-}
-
-private static string FormatTimeForMacFile(double seconds)
-{
-    if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0) seconds = 0;
-    var total = (int)Math.Floor(seconds);
-    var m = total / 60;
-    var s = total % 60;
-    return $"{m:00}m{s:00}s";
-}
-
-private static string BuildFfmpegArgsForMov(string inputPath, double startSeconds, double durationSeconds, string outputPath)
-{
-    // Mac-friendly clips: H.264/AAC inside .mov
-    var ss = startSeconds < 0 ? 0 : startSeconds;
-    var t = durationSeconds < 0.01 ? 0.01 : durationSeconds;
-
-    string Q(string p) => "\"" + p.Replace("\"", "\\\"") + "\"";
-
-    return string.Join(" ", new[]
-    {
-        "-hide_banner",
-        "-y",
-        "-ss", ss.ToString("0.###", CultureInfo.InvariantCulture),
-        "-i", Q(inputPath),
-        "-t", t.ToString("0.###", CultureInfo.InvariantCulture),
-        "-map", "0:v:0?",
-        "-map", "0:a:0?",
-        "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "18",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-movflags", "+faststart",
-        Q(outputPath)
-    });
-}
 
         private static (int exitCode, string stdOut, string stdErr) RunProcess(string exePath, string args)
         {
@@ -944,68 +652,39 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
 
         private static string? ResolveFfmpegPath()
         {
-            // 1) PATH
             var r = RunProcess("ffmpeg", "-version");
             if (r.exitCode == 0) return "ffmpeg";
 
-            // 2) next to exe (recommended)
-            try
-            {
-                var exeDir = AppDomain.CurrentDomain.BaseDirectory;
-                var p1 = Path.Combine(exeDir, "ffmpeg.exe");
-                if (File.Exists(p1)) return p1;
-
-                // 3) tools\ffmpeg.exe
-                var p2 = Path.Combine(exeDir, "tools", "ffmpeg.exe");
-                if (File.Exists(p2)) return p2;
-            }
-            catch
-            {
-                // ignore
-            }
-
-            // 4) common install locations
             var candidates = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
                 @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
                 @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
             };
-
             foreach (var c in candidates)
             {
                 if (File.Exists(c)) return c;
             }
-
             return null;
         }
 
         private static string? ChooseFolder(string title)
         {
-            // WPF-only "folder picker" trick: OpenFileDialog with fake filename (CI-safe, no WinForms)
-            var ofd = new OpenFileDialog
+            var sfd = new SaveFileDialog
             {
                 Title = title,
-                CheckFileExists = false,
-                CheckPathExists = true,
-                ValidateNames = false,
-                FileName = "Select Folder"
+                FileName = "export_here",
+                DefaultExt = ".txt",
+                Filter = "Folder (select location)|*.txt"
             };
 
-            var ok = ofd.ShowDialog();
-            if (ok != true) return null;
-
-            var selected = ofd.FileName;
-            // If a user clicks a folder and hits Open, FileName can be that folder path (or folder\Select Folder)
-            if (Directory.Exists(selected)) return selected;
-
-            var dir = Path.GetDirectoryName(selected);
-            if (string.IsNullOrWhiteSpace(dir)) return null;
-
-            if (dir.EndsWith("Select Folder", StringComparison.OrdinalIgnoreCase))
-                dir = Path.GetDirectoryName(dir) ?? dir;
-
-            return string.IsNullOrWhiteSpace(dir) ? null : dir;
+            var ok = sfd.ShowDialog();
+            if (ok == true)
+            {
+                var dir = Path.GetDirectoryName(sfd.FileName);
+                return string.IsNullOrWhiteSpace(dir) ? null : dir;
+            }
+            return null;
         }
 
         private static string SanitizeFileName(string name)
@@ -1130,7 +809,7 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
             if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
 
             string raw = tagsRaw.Trim();
-            char[] seps = new[] { ';', '|', ',' };
+            char[] seps = new[] { ';', '|' };
             var tokens = raw.Split(seps, StringSplitOptions.RemoveEmptyEntries);
             foreach (var t in tokens)
             {
@@ -1148,6 +827,76 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
             if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
             return ts.ToString(@"m\:ss");
         }
+        // =============================
+        // Mac-like Shortcuts / Preferences
+        // =============================
+
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Don't steal keystrokes while typing.
+            if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
+                return;
+
+            var gesture = _shortcutManager.ToGestureString(e);
+            if (gesture == null)
+                return;
+
+            if (_shortcutManager.TryGetAction(gesture, out var action))
+            {
+                e.Handled = true;
+                ExecuteShortcutAction(action);
+            }
+        }
+
+        private void OpenPreferences_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new PreferencesWindow(_shortcutManager)
+            {
+                Owner = this
+            };
+            win.ShowDialog();
+        }
+
+        private void ExecuteShortcutAction(ShortcutAction action)
+        {
+            switch (action)
+            {
+                case ShortcutAction.PlayPause:
+                    PlayPause_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.SeekMinus5:
+                    SeekMinus5_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.SeekMinus1:
+                    SeekMinus1_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.SeekPlus1:
+                    SeekPlus1_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.SeekPlus5:
+                    SeekPlus5_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.ClipStart:
+                    ClipStart_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.ClipEnd:
+                    ClipEnd_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.SaveTeamA:
+                    SaveTeamA_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.SaveTeamB:
+                    SaveTeamB_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.ExportAll:
+                    ExportAll_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.FocusCustomTag:
+                    try { CustomTagTextBox?.Focus(); } catch { /* ignore */ }
+                    break;
+            }
+        }
+
     }
 
     // ============================
@@ -1400,120 +1149,5 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-
-        // ===========================
-        // Mac-style shortcuts + Preferences
-        // ===========================
-
-        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-        {
-            // If focus is in a text box, do not steal typing shortcuts.
-            if (System.Windows.Input.Keyboard.FocusedElement is TextBoxBase)
-                return;
-
-            var actionId = ShortcutManager.Instance.FindActionId(e);
-            if (string.IsNullOrWhiteSpace(actionId))
-                return;
-
-            ExecuteShortcutAction(actionId);
-            e.Handled = true;
-        }
-
-        private void OpenPreferences_Click(object sender, System.Windows.RoutedEventArgs e)
-        {
-            var win = new PreferencesWindow
-            {
-                Owner = this
-            };
-            win.ShowDialog();
-        }
-
-        private void ExecuteShortcutAction(string actionId)
-        {
-            switch (actionId)
-            {
-                case "play_pause":
-                    PlayPause_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "seek_minus_1":
-                    SeekMinus1_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "seek_plus_1":
-                    SeekPlus1_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "seek_minus_5":
-                    SeekMinus5_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "seek_plus_5":
-                    SeekPlus5_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "clip_start":
-                    ClipStart_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "clip_end":
-                    ClipEnd_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "save_team_a":
-                    SaveTeamA_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "save_team_b":
-                    SaveTeamB_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "jump_selected":
-                    JumpSelectedClipAndPlay();
-                    break;
-
-                case "delete_clip":
-                    DeleteSelectedClip_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "load_video":
-                    LoadVideo_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "import_csv":
-                    ImportCsv_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "export_csv":
-                    ExportCsv_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "export_all":
-                    ExportAll_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-
-                case "open_preferences":
-                    OpenPreferences_Click(this, new System.Windows.RoutedEventArgs());
-                    break;
-            }
-        }
-
-        private void JumpSelectedClipAndPlay()
-        {
-            try
-            {
-                if (VM?.SelectedClip == null) return;
-
-                SeekToSeconds(VM.SelectedClip.Start);
-
-                // auto start after jump (Mac behavior)
-                if (VM.IsPlaying == false)
-                {
-                    PlayPause_Click(this, new System.Windows.RoutedEventArgs());
-                }
-            }
-            catch { }
-        }
-
     }
 }
