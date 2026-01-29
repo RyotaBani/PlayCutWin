@@ -17,6 +17,9 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using PlayCutWin.Services;
+using PlayCutWin.Views;
+using System.Windows.Controls.Primitives;
 
 namespace PlayCutWin
 {
@@ -1405,7 +1408,7 @@ private static string BuildFfmpegArgsForMov(string inputPath, double startSecond
         private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             // If focus is in a text box, do not steal typing shortcuts.
-            if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBoxBase)
+            if (System.Windows.Input.Keyboard.FocusedElement is TextBoxBase)
                 return;
 
             var actionId = ShortcutManager.Instance.FindActionId(e);
