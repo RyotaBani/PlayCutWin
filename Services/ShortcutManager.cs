@@ -29,15 +29,6 @@ public sealed class ShortcutManager
         LoadOrCreate();
     }
 
-    /// <summary>
-    /// Backward-compatible entry point used by MainWindow startup.
-    /// Loads shortcuts from disk or creates the default set if missing.
-    /// </summary>
-    public void LoadOrCreateDefaults()
-    {
-        LoadOrCreate();
-    }
-
     // ------------------- Public API used by the app -------------------
 
     public IReadOnlyDictionary<ShortcutAction, string> GetBindings()
@@ -144,24 +135,35 @@ public sealed class ShortcutManager
 
     private static Dictionary<ShortcutAction, string> DefaultBindings() => new()
     {
-        // Mac-like defaults on Windows:
-        // - Load Video: Ctrl+O
-        // - Preferences: Ctrl+,
-        { ShortcutAction.LoadVideo, "Ctrl+O" },
-        { ShortcutAction.OpenPreferences, "Ctrl+," },
+        // Mac-like feel on Windows (single-key by default).
+        // NOTE: When a TextBox is focused, MainWindow ignores these so typing isn't disturbed.
+        { ShortcutAction.LoadVideo, "O" },
+        { ShortcutAction.OpenPreferences, "," },
 
         { ShortcutAction.PlayPause, "Space" },
-        { ShortcutAction.SeekMinus5, "Left" },
-        { ShortcutAction.SeekPlus5, "Right" },
-        { ShortcutAction.SeekMinus1, "Shift+Left" },
-        { ShortcutAction.SeekPlus1, "Shift+Right" },
+        // Arrow keys = frame step (requested)
+        { ShortcutAction.StepFrameBack, "Left" },
+        { ShortcutAction.StepFrameForward, "Right" },
+
+        // Up/Down = seconds seek
+        { ShortcutAction.SeekMinus1, "Down" },
+        { ShortcutAction.SeekPlus1, "Up" },
+        { ShortcutAction.SeekMinus5, "Shift+Down" },
+        { ShortcutAction.SeekPlus5, "Shift+Up" },
         { ShortcutAction.ClipStart, "S" },
         { ShortcutAction.ClipEnd, "E" },
         { ShortcutAction.SaveTeamA, "A" },
         { ShortcutAction.SaveTeamB, "B" },
-        { ShortcutAction.ExportAll, "Ctrl+Shift+E" },
+        { ShortcutAction.ExportAll, "X" },
         { ShortcutAction.FocusCustomTag, "T" },
     };
+
+    // Compatibility helpers (older call sites)
+    public void LoadOrCreateDefaults()
+    {
+        // Re-load from disk if present, otherwise defaults are created.
+        LoadOrCreate();
+    }
 
     private static string GetDefaultFilePath()
     {

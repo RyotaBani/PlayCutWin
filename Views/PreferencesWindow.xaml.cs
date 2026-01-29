@@ -12,17 +12,27 @@ namespace PlayCutWin.Views
     public partial class PreferencesWindow : Window
     {
         private readonly ShortcutManager _manager;
+        private readonly TagCatalog _tagCatalog;
 
         public ObservableCollection<ShortcutRow> Items { get; } = new();
+        public ObservableCollection<TagDefinition> TagItems { get; } = new();
 
-        public PreferencesWindow(ShortcutManager manager)
+        public PreferencesWindow(ShortcutManager manager, TagCatalog tagCatalog)
         {
             InitializeComponent();
             _manager = manager;
+            _tagCatalog = tagCatalog;
 
             foreach (var kv in _manager.GetBindings().OrderBy(k => k.Key.ToString()))
             {
                 Items.Add(new ShortcutRow(kv.Key, ShortcutRow.Label(kv.Key), kv.Value));
+            }
+
+            foreach (var td in _tagCatalog.All
+                .OrderBy(t => t.Category)
+                .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                TagItems.Add(new TagDefinition { Category = td.Category, Name = td.Name, Comment = td.Comment });
             }
 
             DataContext = this;
@@ -58,6 +68,18 @@ namespace PlayCutWin.Views
                 Items.Add(new ShortcutRow(kv.Key, ShortcutRow.Label(kv.Key), kv.Value));
         }
 
+        private void RestoreTagDefaults_Click(object sender, RoutedEventArgs e)
+        {
+            _tagCatalog.RestoreDefaults();
+            TagItems.Clear();
+            foreach (var td in _tagCatalog.All
+                .OrderBy(t => t.Category)
+                .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                TagItems.Add(new TagDefinition { Category = td.Category, Name = td.Name, Comment = td.Comment });
+            }
+        }
+
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             // Convert and validate (avoid duplicate gestures)
@@ -79,6 +101,11 @@ namespace PlayCutWin.Views
             }
 
             _manager.Save();
+
+            // Save tag comments
+            _tagCatalog.SetAll(TagItems);
+            _tagCatalog.Save();
+
             DialogResult = true;
             Close();
         }

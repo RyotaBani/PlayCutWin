@@ -278,6 +278,23 @@ namespace PlayCutWin
         private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(+1);
         private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(+5);
 
+        // Approximate frame step (assumes 30fps; good enough for review)
+        private void StepFrame(int direction)
+        {
+            if (Player.Source == null) return;
+            // If playing, pause first to make the step feel like "frame advance"
+            if (Player.CanPause)
+            {
+                Player.Pause();
+            }
+
+            const double frame = 1.0 / 30.0;
+            var t = Player.Position.TotalSeconds + (direction * frame);
+            if (t < 0) t = 0;
+            if (VM.DurationSeconds > 0 && t > VM.DurationSeconds) t = VM.DurationSeconds;
+            Player.Position = TimeSpan.FromSeconds(t);
+        }
+
         // ----------------------------
         // Clip
         // ----------------------------
@@ -850,11 +867,15 @@ namespace PlayCutWin
 
         private void OpenPreferences_Click(object sender, RoutedEventArgs e)
         {
-            var win = new PreferencesWindow(_shortcutManager)
+            var win = new PreferencesWindow(_shortcutManager, _vm.TagCatalog)
             {
                 Owner = this
             };
-            win.ShowDialog();
+            var result = win.ShowDialog();
+            if (result == true)
+            {
+                _vm.ReloadTagDefinitions();
+            }
         }
 
         private void ExecuteShortcutAction(ShortcutAction action)
@@ -881,6 +902,12 @@ namespace PlayCutWin
                     break;
                 case ShortcutAction.SeekPlus5:
                     SeekPlus5_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.StepFrameBack:
+                    StepFrame(-1);
+                    break;
+                case ShortcutAction.StepFrameForward:
+                    StepFrame(+1);
                     break;
                 case ShortcutAction.ClipStart:
                     ClipStart_Click(this, new RoutedEventArgs());
@@ -957,22 +984,13 @@ namespace PlayCutWin
         public ICollectionView TeamAView => _teamAView;
         public ICollectionView TeamBView => _teamBView;
 
-        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
-            new[]
-            {
-                "Transition","Set","PnR","BLOB","SLOB","vs M/M","vs Zone","2nd Attack","3rd Attack more"
-            }.Select(x => new TagToggleModel { Name = x })
-        );
-
-        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>(
-            new[]
-            {
-                "M/M","Zone","Rebound","Steal"
-            }.Select(x => new TagToggleModel { Name = x })
-        );
+        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>();
+        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>();
 
         public MainWindowViewModel()
         {
+            LoadTagDefinitions();
+
             foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
@@ -996,6 +1014,22 @@ namespace PlayCutWin
             };
 
             UpdateHeadersAndCurrentTagsText();
+        }
+
+        public void LoadTagDefinitions()
+        {
+            OffenseTags.Clear();
+            DefenseTags.Clear();
+
+            var catalog = Services.TagCatalog.LoadOrCreateDefaults();
+            foreach (var def in catalog.GetByCategory(Models.TagCategory.Offense))
+            {
+                OffenseTags.Add(new TagToggleModel { Name = def.Name, Description = def.Comment });
+            }
+            foreach (var def in catalog.GetByCategory(Models.TagCategory.Defense))
+            {
+                DefenseTags.Add(new TagToggleModel { Name = def.Name, Description = def.Comment });
+            }
         }
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1093,9 +1127,11 @@ namespace PlayCutWin
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private string _name = "";
+        private string _description = "";
         private bool _isSelected = false;
 
         public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
+        public string Description { get => _description; set { _description = value ?? ""; OnPropertyChanged(); } }
         public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
