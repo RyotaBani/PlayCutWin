@@ -562,7 +562,7 @@
             <StackPanel>
                 <TextBlock Text="Controls" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                <TextBlock Text="Load a video to show the timeline slider here." Opacity="0.6"/>
+				<TextBlock x:Name="VideoHint" Text="Load a video to show the timeline slider here." Opacity="0.6"/>
                 <Slider x:Name="TimelineSlider"
                         Minimum="0"
                         Maximum="{Binding DurationSeconds}"

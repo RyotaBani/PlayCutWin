@@ -29,6 +29,15 @@ public sealed class ShortcutManager
         LoadOrCreate();
     }
 
+    /// <summary>
+    /// Backward-compatible entry point used by MainWindow startup.
+    /// Loads shortcuts from disk or creates the default set if missing.
+    /// </summary>
+    public void LoadOrCreateDefaults()
+    {
+        LoadOrCreate();
+    }
+
     // ------------------- Public API used by the app -------------------
 
     public IReadOnlyDictionary<ShortcutAction, string> GetBindings()
