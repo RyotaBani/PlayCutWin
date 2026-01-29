@@ -6,199 +6,213 @@ using System.Text.Json;
 using System.Windows.Input;
 using PlayCutWin.Models;
 
-namespace PlayCutWin.Services
+namespace PlayCutWin.Services;
+
+/// <summary>
+/// Shortcut bindings manager.
+/// - Stores bindings in a JSON file under %AppData%\PlayCutWin\shortcuts.json
+/// - Keeps both (Action -> Gesture) and (Gesture -> Action) lookups.
+/// </summary>
+public sealed class ShortcutManager
 {
-    public sealed class ShortcutManager
+    private readonly string _filePath;
+
+    // Action -> Gesture (normalized)
+    private Dictionary<ShortcutAction, string> _bindings = new();
+
+    // Gesture (normalized) -> Action
+    private Dictionary<string, ShortcutAction> _map = new(StringComparer.OrdinalIgnoreCase);
+
+    public ShortcutManager()
     {
-        private readonly string _filePath;
+        _filePath = GetDefaultFilePath();
+        LoadOrCreate();
+    }
 
-        // Current editable items (used by Preferences window)
-        private List<ShortcutItem> _items = new();
+    // ------------------- Public API used by the app -------------------
 
-        // In-memory map: gesture string (normalized) -> action
-        private Dictionary<string, ShortcutAction> _map = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<ShortcutAction, string> GetBindings()
+        => new Dictionary<ShortcutAction, string>(_bindings);
 
-        public ShortcutManager(string appName = "PlayCutWin")
+    public void SetBinding(ShortcutAction action, string gesture)
+    {
+        var normalized = NormalizeGesture(gesture);
+        if (string.IsNullOrWhiteSpace(normalized)) return;
+
+        _bindings[action] = normalized;
+        RebuildMap();
+    }
+
+    public void RestoreDefaults()
+    {
+        _bindings = DefaultBindings();
+        RebuildMap();
+        Save();
+    }
+
+    public void Save() => Save(_bindings.Select(kv => new ShortcutItem { Action = kv.Key, Gesture = kv.Value }));
+
+    public void Save(IEnumerable<ShortcutItem> items)
+    {
+        try
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                appName);
-            Directory.CreateDirectory(dir);
-            _filePath = Path.Combine(dir, "shortcuts.json");
-        }
-
-        public IReadOnlyDictionary<string, ShortcutAction> Map => _map;
-
-        public List<ShortcutItem> LoadOrCreateDefaults()
-        {
-            try
-            {
-                if (File.Exists(_filePath))
-                {
-                    var json = File.ReadAllText(_filePath);
-                    var items = JsonSerializer.Deserialize<List<ShortcutItem>>(json) ?? new List<ShortcutItem>();
-                    _items = items;
-                    Apply(_items);
-                    return _items;
-                }
-            }
-            catch
-            {
-                // fall back to defaults
-            }
-
-            _items = GetDefaults();
-            Apply(_items);
-            Save(_items);
-            return _items;
-        }
-
-        // --- API expected by PreferencesWindow ---
-
-        public Dictionary<ShortcutAction, string> GetBindings()
-        {
-            return _items
-                .GroupBy(i => i.Action)
-                .ToDictionary(g => g.Key, g => g.First().Gesture ?? "");
-        }
-
-        public void SetBinding(ShortcutAction action, string gesture)
-        {
-            var it = _items.FirstOrDefault(x => x.Action == action);
-            if (it == null)
-            {
-                it = new ShortcutItem { Action = action, Gesture = gesture };
-                _items.Add(it);
-            }
-            else
-            {
-                it.Gesture = gesture;
-            }
-
-            Apply(_items);
-            Save(_items);
-        }
-
-        public void RestoreDefaults()
-        {
-            _items = GetDefaults();
-            Apply(_items);
-            Save(_items);
-        }
-
-        // Convenience overload used by PreferencesWindow
-        public void Save()
-        {
-            Save(_items);
-        }
-
-        public void Save(IEnumerable<ShortcutItem> items)
-        {
-            var json = JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true });
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            var json = JsonSerializer.Serialize(items.ToList(), new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_filePath, json);
         }
-
-        public void Apply(IEnumerable<ShortcutItem> items)
+        catch
         {
-            _map = new Dictionary<string, ShortcutAction>(StringComparer.OrdinalIgnoreCase);
-            foreach (var it in items)
+            // Non-fatal. App can still run with in-memory bindings.
+        }
+    }
+
+    /// <summary>
+    /// Resolve from a WPF KeyEventArgs.
+    /// </summary>
+    public bool TryResolve(KeyEventArgs e, out ShortcutAction action)
+    {
+        var gesture = FromKeyEvent(e);
+        return TryGetAction(gesture, out action);
+    }
+
+    /// <summary>
+    /// Resolve from a normalized gesture string (used by MainWindow key handler).
+    /// </summary>
+    public bool TryGetAction(string gesture, out ShortcutAction action)
+    {
+        var normalized = NormalizeGesture(gesture);
+        return _map.TryGetValue(normalized, out action);
+    }
+
+    /// <summary>
+    /// Create a display string for a key event. (Static because older call sites expect it.)
+    /// </summary>
+    public static string ToGestureString(KeyEventArgs e) => FromKeyEvent(e);
+
+    // ------------------------- Internal logic -------------------------
+
+    private void LoadOrCreate()
+    {
+        var defaults = DefaultBindings();
+        _bindings = new Dictionary<ShortcutAction, string>(defaults);
+
+        // Try load from file and merge.
+        try
+        {
+            if (File.Exists(_filePath))
             {
-                var key = NormalizeGesture(it.Gesture);
-                if (string.IsNullOrWhiteSpace(key)) continue;
-                _map[key] = it.Action;
+                var json = File.ReadAllText(_filePath);
+                var list = JsonSerializer.Deserialize<List<ShortcutItem>>(json) ?? new();
+                foreach (var it in list)
+                {
+                    var g = NormalizeGesture(it.Gesture);
+                    if (string.IsNullOrWhiteSpace(g)) continue;
+                    _bindings[it.Action] = g;
+                }
             }
         }
-
-        public bool TryResolve(KeyEventArgs e, out ShortcutAction action)
+        catch
         {
-            action = default;
-            var gesture = FromKeyEvent(e);
-            var norm = NormalizeGesture(gesture);
-            return !string.IsNullOrEmpty(norm) && _map.TryGetValue(norm, out action);
+            // ignore and keep defaults
         }
 
-        public static string FromKeyEvent(KeyEventArgs e)
+        RebuildMap();
+
+        // Ensure file exists.
+        if (!File.Exists(_filePath)) Save();
+    }
+
+    private void RebuildMap()
+    {
+        _map = new Dictionary<string, ShortcutAction>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in _bindings)
         {
-            // ignore modifier-only
-            if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
-                return "";
-
-            var parts = new List<string>();
-            var mods = Keyboard.Modifiers;
-            if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
-            if (mods.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
-            if (mods.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
-
-            // Prefer SystemKey when Alt is involved
-            var key = e.Key == Key.System ? e.SystemKey : e.Key;
-            parts.Add(KeyToText(key));
-            return string.Join("+", parts);
+            var g = NormalizeGesture(kv.Value);
+            if (string.IsNullOrWhiteSpace(g)) continue;
+            _map[g] = kv.Key;
         }
+    }
 
-        // Naming aligned with the mac app / PreferencesWindow expectation
-        public static string ToGestureString(KeyEventArgs e) => FromKeyEvent(e);
+    private static Dictionary<ShortcutAction, string> DefaultBindings() => new()
+    {
+        // Mac-like defaults on Windows:
+        // - Load Video: Ctrl+O
+        // - Preferences: Ctrl+,
+        { ShortcutAction.LoadVideo, "Ctrl+O" },
+        { ShortcutAction.OpenPreferences, "Ctrl+," },
 
-        public static string NormalizeGesture(string? gesture)
-        {
-            if (string.IsNullOrWhiteSpace(gesture)) return "";
+        { ShortcutAction.PlayPause, "Space" },
+        { ShortcutAction.SeekMinus5, "Left" },
+        { ShortcutAction.SeekPlus5, "Right" },
+        { ShortcutAction.SeekMinus1, "Shift+Left" },
+        { ShortcutAction.SeekPlus1, "Shift+Right" },
+        { ShortcutAction.ClipStart, "S" },
+        { ShortcutAction.ClipEnd, "E" },
+        { ShortcutAction.SaveTeamA, "A" },
+        { ShortcutAction.SaveTeamB, "B" },
+        { ShortcutAction.ExportAll, "Ctrl+Shift+E" },
+        { ShortcutAction.FocusCustomTag, "T" },
+    };
 
-            // Normalize separators/spaces and order modifiers
-            var tokens = gesture
-                .Split(new[] { '+', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim())
-                .ToList();
+    private static string GetDefaultFilePath()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(appData, "PlayCutWin", "shortcuts.json");
+    }
 
-            bool ctrl = tokens.Any(t => t.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || t.Equals("Control", StringComparison.OrdinalIgnoreCase));
-            bool shift = tokens.Any(t => t.Equals("Shift", StringComparison.OrdinalIgnoreCase));
-            bool alt = tokens.Any(t => t.Equals("Alt", StringComparison.OrdinalIgnoreCase));
+    public static string FromKeyEvent(KeyEventArgs e)
+    {
+        var mods = Keyboard.Modifiers;
+        string key = e.Key == Key.System ? e.SystemKey.ToString() : e.Key.ToString();
 
-            var keyToken = tokens.FirstOrDefault(t =>
-                !t.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) &&
-                !t.Equals("Control", StringComparison.OrdinalIgnoreCase) &&
-                !t.Equals("Shift", StringComparison.OrdinalIgnoreCase) &&
-                !t.Equals("Alt", StringComparison.OrdinalIgnoreCase));
+        // Normalize common keys for readability.
+        if (e.Key == Key.OemComma) key = ",";
+        if (e.Key == Key.OemPeriod) key = ".";
+        if (e.Key == Key.OemMinus) key = "-";
+        if (e.Key == Key.OemPlus) key = "+";
 
-            if (string.IsNullOrWhiteSpace(keyToken)) return "";
+        var parts = new List<string>();
+        if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
+        if (mods.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
+        if (mods.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
 
-            var parts = new List<string>();
-            if (ctrl) parts.Add("Ctrl");
-            if (shift) parts.Add("Shift");
-            if (alt) parts.Add("Alt");
-            parts.Add(keyToken);
-            return string.Join("+", parts);
-        }
+        // Use key token for arrows / space.
+        if (key == nameof(Key.Space)) key = "Space";
 
-        public static string KeyToText(Key key)
-        {
-            // Make a few keys nicer
-            return key switch
-            {
-                Key.Space => "Space",
-                Key.OemPlus => "+",
-                Key.OemMinus => "-",
-                Key.Return => "Enter",
-                Key.Escape => "Esc",
-                _ => key.ToString()
-            };
-        }
+        parts.Add(key);
+        return string.Join("+", parts);
+    }
 
-        private static List<ShortcutItem> GetDefaults() => new()
-        {
-            new ShortcutItem { Action = ShortcutAction.LoadVideo, Gesture = "Ctrl+O" },
-            new ShortcutItem { Action = ShortcutAction.OpenPreferences, Gesture = "Ctrl+OemComma" },
-            new ShortcutItem { Action = ShortcutAction.ImportCsv, Gesture = "Ctrl+I" },
-            new ShortcutItem { Action = ShortcutAction.ExportCsv, Gesture = "Ctrl+Shift+E" },
-            new ShortcutItem { Action = ShortcutAction.PlayPause, Gesture = "Space" },
-            new ShortcutItem { Action = ShortcutAction.SeekMinus5, Gesture = "Left" },
-            new ShortcutItem { Action = ShortcutAction.SeekPlus5, Gesture = "Right" },
-            new ShortcutItem { Action = ShortcutAction.SeekMinus1, Gesture = "Ctrl+Left" },
-            new ShortcutItem { Action = ShortcutAction.SeekPlus1, Gesture = "Ctrl+Right" },
-            new ShortcutItem { Action = ShortcutAction.ClipStart, Gesture = "S" },
-            new ShortcutItem { Action = ShortcutAction.ClipEnd, Gesture = "E" },
-            new ShortcutItem { Action = ShortcutAction.SaveTeamA, Gesture = "A" },
-            new ShortcutItem { Action = ShortcutAction.SaveTeamB, Gesture = "B" },
-            new ShortcutItem { Action = ShortcutAction.ExportAll, Gesture = "Ctrl+E" },
-            new ShortcutItem { Action = ShortcutAction.FocusCustomTag, Gesture = "Ctrl+L" },
-        };
+    public static string NormalizeGesture(string gesture)
+    {
+        if (string.IsNullOrWhiteSpace(gesture)) return string.Empty;
+        var raw = gesture.Trim();
+        raw = raw.Replace("Command", "Ctrl", StringComparison.OrdinalIgnoreCase);
+        raw = raw.Replace("Cmd", "Ctrl", StringComparison.OrdinalIgnoreCase);
+        raw = raw.Replace("Control", "Ctrl", StringComparison.OrdinalIgnoreCase);
+        raw = raw.Replace("Option", "Alt", StringComparison.OrdinalIgnoreCase);
+
+        // Split and re-order modifiers in a stable order.
+        var tokens = raw.Split(new[] { '+', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .ToList();
+
+        bool ctrl = tokens.Any(t => string.Equals(t, "Ctrl", StringComparison.OrdinalIgnoreCase));
+        bool shift = tokens.Any(t => string.Equals(t, "Shift", StringComparison.OrdinalIgnoreCase));
+        bool alt = tokens.Any(t => string.Equals(t, "Alt", StringComparison.OrdinalIgnoreCase));
+
+        // Last non-mod token is treated as key.
+        var key = tokens.LastOrDefault(t =>
+            !string.Equals(t, "Ctrl", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Shift", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Alt", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+
+        var parts = new List<string>();
+        if (ctrl) parts.Add("Ctrl");
+        if (shift) parts.Add("Shift");
+        if (alt) parts.Add("Alt");
+        if (!string.IsNullOrWhiteSpace(key)) parts.Add(key);
+
+        return string.Join("+", parts);
     }
 }

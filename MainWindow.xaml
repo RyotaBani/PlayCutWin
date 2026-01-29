@@ -360,15 +360,6 @@
                                       MediaOpened="Player_MediaOpened"
                                       MediaFailed="Player_MediaFailed"
                                       />
-
-                        <!-- Overlay hint (code-behind toggles Visibility) -->
-                        <TextBlock x:Name="VideoHint"
-                                   Text="Load video from the button →"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#B0B0B0"
-                                   FontSize="16"
-                                   Visibility="Visible"/>
                     </Grid>
                 </Border>
             </Grid>
@@ -683,7 +674,7 @@
 
                         <TextBlock Text="Custom Tag" Opacity="0.85" Margin="0,14,0,0"/>
                         <DockPanel Margin="0,6,0,0">
-                            <TextBox x:Name="CustomTagBox" DockPanel.Dock="Left" Width="260" Text="{Binding CustomTagInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox x:Name="CustomTagTextBox" DockPanel.Dock="Left" Width="260" Text="{Binding CustomTagInput, UpdateSourceTrigger=PropertyChanged}"/>
                             <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddCustomTag_Click"/>
                             <Button Style="{StaticResource DarkButton}" Content="Clear" Click="ClearTags_Click"/>
                         </DockPanel>

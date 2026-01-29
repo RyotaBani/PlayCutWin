@@ -837,7 +837,7 @@ namespace PlayCutWin
             if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
                 return;
 
-            var gesture = _shortcutManager.ToGestureString(e);
+            var gesture = Services.ShortcutManager.ToGestureString(e);
             if (gesture == null)
                 return;
 
@@ -861,6 +861,12 @@ namespace PlayCutWin
         {
             switch (action)
             {
+                case ShortcutAction.LoadVideo:
+                    LoadVideo_Click(this, new RoutedEventArgs());
+                    break;
+                case ShortcutAction.OpenPreferences:
+                    OpenPreferences_Click(this, new RoutedEventArgs());
+                    break;
                 case ShortcutAction.PlayPause:
                     PlayPause_Click(this, new RoutedEventArgs());
                     break;
