@@ -941,6 +941,14 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
                 case ShortcutAction.PlayPause:
                     PlayPause_Click(this, new RoutedEventArgs());
                     break;
+
+                case ShortcutAction.FrameBack:
+                    SeekBy(-1.0 / 30.0);
+                    break;
+
+                case ShortcutAction.FrameForward:
+                    SeekBy(1.0 / 30.0);
+                    break;
                 case ShortcutAction.SeekMinus5:
                     SeekMinus5_Click(this, new RoutedEventArgs());
                     break;
