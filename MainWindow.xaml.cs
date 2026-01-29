@@ -35,6 +35,10 @@ namespace PlayCutWin
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
+        // Frame step (Left/Right). Default assumes 30fps.
+        // If you want true frame-accurate stepping, we can later detect FPS via ffprobe.
+        private const double FrameStepSeconds = 1.0 / 30.0;
+
         // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
@@ -941,14 +945,6 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
                 case ShortcutAction.PlayPause:
                     PlayPause_Click(this, new RoutedEventArgs());
                     break;
-
-                case ShortcutAction.FrameBack:
-                    SeekBy(-1.0 / 30.0);
-                    break;
-
-                case ShortcutAction.FrameForward:
-                    SeekBy(1.0 / 30.0);
-                    break;
                 case ShortcutAction.SeekMinus5:
                     SeekMinus5_Click(this, new RoutedEventArgs());
                     break;
@@ -1237,6 +1233,4 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
-}    private const double FrameStepSeconds = 1.0 / 30.0;
-
-
+}

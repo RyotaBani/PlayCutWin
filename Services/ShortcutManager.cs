@@ -6,303 +6,224 @@ using System.Text.Json;
 using System.Windows.Input;
 using PlayCutWin.Models;
 
-namespace PlayCutWin.Services
+namespace PlayCutWin.Services;
+
+/// <summary>
+/// Shortcut bindings manager.
+/// - Stores bindings in a JSON file under %AppData%\PlayCutWin\shortcuts.json
+/// - Keeps both (Action -> Gesture) and (Gesture -> Action) lookups.
+/// </summary>
+public sealed class ShortcutManager
 {
-    /// <summary>
-    /// ショートカット設定（Mac版の「単独キー中心」の操作感を意識）
-    /// - JSONへ保存: %AppData%\PlayCutWin\shortcuts.json
-    /// - 文字列表現 gesture 例: "Space", "Left", "Ctrl+S"
-    /// </summary>
-    public sealed class ShortcutManager
+    private readonly string _filePath;
+
+    // Action -> Gesture (normalized)
+    private Dictionary<ShortcutAction, string> _bindings = new();
+
+    // Gesture (normalized) -> Action
+    private Dictionary<string, ShortcutAction> _map = new(StringComparer.OrdinalIgnoreCase);
+
+    public ShortcutManager()
     {
-        private readonly string _filePath;
-        private List<ShortcutItem> _items = new();
-        private Dictionary<string, ShortcutAction> _lookup = new(StringComparer.OrdinalIgnoreCase);
+        _filePath = GetDefaultFilePath();
+        LoadOrCreate();
+    }
 
-        public ShortcutManager()
+    // ------------------- Public API used by the app -------------------
+
+    public IReadOnlyDictionary<ShortcutAction, string> GetBindings()
+        => new Dictionary<ShortcutAction, string>(_bindings);
+
+    public void SetBinding(ShortcutAction action, string gesture)
+    {
+        var normalized = NormalizeGesture(gesture);
+        if (string.IsNullOrWhiteSpace(normalized)) return;
+
+        _bindings[action] = normalized;
+        RebuildMap();
+    }
+
+    public void RestoreDefaults()
+    {
+        _bindings = DefaultBindings();
+        RebuildMap();
+        Save();
+    }
+
+    public void Save() => Save(_bindings.Select(kv => new ShortcutItem { Action = kv.Key, Gesture = kv.Value }));
+
+    public void Save(IEnumerable<ShortcutItem> items)
+    {
+        try
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlayCutWin");
-            Directory.CreateDirectory(dir);
-            _filePath = Path.Combine(dir, "shortcuts.json");
-        }
-
-        /// <summary>現在のバインド一覧</summary>
-        public IReadOnlyList<ShortcutItem> GetBindings() => _items;
-
-        /// <summary>
-        /// 起動時に呼ぶ。保存が無ければデフォルトを作って保存。
-        /// 保存があれば読み込み、足りないアクションはデフォルトで補完。
-        /// </summary>
-        public List<ShortcutItem> LoadOrCreateDefaults()
-        {
-            var defaults = CreateDefaults();
-
-            if (File.Exists(_filePath))
-            {
-                try
-                {
-                    var json = File.ReadAllText(_filePath);
-                    var loaded = JsonSerializer.Deserialize<List<ShortcutItem>>(json) ?? new List<ShortcutItem>();
-
-                    // 正規化 & 重複排除（後勝ち）
-                    var mergedByAction = new Dictionary<ShortcutAction, ShortcutItem>();
-                    foreach (var it in loaded)
-                    {
-                        if (!Enum.IsDefined(typeof(ShortcutAction), it.Action)) continue;
-                        var g = NormalizeGestureString(it.Gesture);
-                        if (string.IsNullOrWhiteSpace(g)) continue;
-                        mergedByAction[it.Action] = new ShortcutItem { Action = it.Action, Gesture = g };
-                    }
-
-                    // 足りないアクションを追加
-                    foreach (var d in defaults)
-                    {
-                        if (!mergedByAction.ContainsKey(d.Action))
-                            mergedByAction[d.Action] = d;
-                    }
-
-                    // gesture重複を解消（同一gestureは最初のものを残し、それ以外は空にする）
-                    var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var finalList = new List<ShortcutItem>();
-                    foreach (var it in mergedByAction.Values.OrderBy(v => (int)v.Action))
-                    {
-                        if (string.IsNullOrWhiteSpace(it.Gesture))
-                        {
-                            finalList.Add(it);
-                            continue;
-                        }
-                        if (used.Add(it.Gesture))
-                        {
-                            finalList.Add(it);
-                        }
-                        else
-                        {
-                            // 競合したら未割当扱い
-                            finalList.Add(new ShortcutItem { Action = it.Action, Gesture = string.Empty });
-                        }
-                    }
-
-                    _items = finalList;
-                    RebuildLookup();
-                    Save(_items);
-                    return _items;
-                }
-                catch
-                {
-                    // 壊れていたらデフォルトに戻す
-                }
-            }
-
-            _items = defaults;
-            RebuildLookup();
-            Save(_items);
-            return _items;
-        }
-
-        public void Save()
-        {
-            Save(_items);
-        }
-
-        public void Save(IEnumerable<ShortcutItem> items)
-        {
-            _items = items
-                .Select(i => new ShortcutItem { Action = i.Action, Gesture = NormalizeGestureString(i.Gesture) })
-                .ToList();
-
-            // gesture重複は落とす（後勝ち→先勝ちに整える）
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            for (int idx = 0; idx < _items.Count; idx++)
-            {
-                var g = _items[idx].Gesture;
-                if (string.IsNullOrWhiteSpace(g)) continue;
-                if (!seen.Add(g)) _items[idx].Gesture = string.Empty;
-            }
-
-            RebuildLookup();
-
-            var json = JsonSerializer.Serialize(_items, new JsonSerializerOptions { WriteIndented = true });
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            var json = JsonSerializer.Serialize(items.ToList(), new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_filePath, json);
         }
-
-        public void RestoreDefaults()
+        catch
         {
-            _items = CreateDefaults();
-            RebuildLookup();
-            Save(_items);
+            // Non-fatal. App can still run with in-memory bindings.
         }
+    }
 
-        public void SetBinding(ShortcutAction action, string gesture)
+    /// <summary>
+    /// Resolve from a WPF KeyEventArgs.
+    /// </summary>
+    public bool TryResolve(KeyEventArgs e, out ShortcutAction action)
+    {
+        var gesture = FromKeyEvent(e);
+        return TryGetAction(gesture, out action);
+    }
+
+    /// <summary>
+    /// Resolve from a normalized gesture string (used by MainWindow key handler).
+    /// </summary>
+    public bool TryGetAction(string gesture, out ShortcutAction action)
+    {
+        var normalized = NormalizeGesture(gesture);
+        return _map.TryGetValue(normalized, out action);
+    }
+
+    /// <summary>
+    /// Create a display string for a key event. (Static because older call sites expect it.)
+    /// </summary>
+    public static string ToGestureString(KeyEventArgs e) => FromKeyEvent(e);
+
+    // ------------------------- Internal logic -------------------------
+
+    private void LoadOrCreate()
+    {
+        var defaults = DefaultBindings();
+        _bindings = new Dictionary<ShortcutAction, string>(defaults);
+
+        // Try load from file and merge.
+        try
         {
-            var g = NormalizeGestureString(gesture);
-            var found = _items.FirstOrDefault(i => i.Action == action);
-            if (found == null)
+            if (File.Exists(_filePath))
             {
-                _items.Add(new ShortcutItem { Action = action, Gesture = g });
-            }
-            else
-            {
-                found.Gesture = g;
-            }
-
-            // 競合解消（同じgestureが他にあれば空にする）
-            if (!string.IsNullOrWhiteSpace(g))
-            {
-                foreach (var it in _items)
+                var json = File.ReadAllText(_filePath);
+                var list = JsonSerializer.Deserialize<List<ShortcutItem>>(json) ?? new();
+                foreach (var it in list)
                 {
-                    if (it.Action != action && string.Equals(it.Gesture, g, StringComparison.OrdinalIgnoreCase))
-                        it.Gesture = string.Empty;
+                    var g = NormalizeGesture(it.Gesture);
+                    if (string.IsNullOrWhiteSpace(g)) continue;
+                    _bindings[it.Action] = g;
                 }
             }
-
-            RebuildLookup();
         }
-
-        public bool TryGetAction(string gesture, out ShortcutAction action)
+        catch
         {
-            action = ShortcutAction.None;
-            var g = NormalizeGestureString(gesture);
-            if (string.IsNullOrWhiteSpace(g)) return false;
-            return _lookup.TryGetValue(g, out action);
+            // ignore and keep defaults
         }
 
-        private void RebuildLookup()
+        RebuildMap();
+
+        // Ensure file exists.
+        if (!File.Exists(_filePath)) Save();
+    }
+
+    private void RebuildMap()
+    {
+        _map = new Dictionary<string, ShortcutAction>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in _bindings)
         {
-            _lookup = new Dictionary<string, ShortcutAction>(StringComparer.OrdinalIgnoreCase);
-            foreach (var it in _items)
-            {
-                if (it.Action == ShortcutAction.None) continue;
-                var g = NormalizeGestureString(it.Gesture);
-                if (string.IsNullOrWhiteSpace(g)) continue;
-                _lookup[g] = it.Action; // 後勝ち
-            }
+            var g = NormalizeGesture(kv.Value);
+            if (string.IsNullOrWhiteSpace(g)) continue;
+            _map[g] = kv.Key;
         }
+    }
 
-        public static string ToGestureString(KeyEventArgs e)
-        {
-            var key = (e.Key == Key.System) ? e.SystemKey : e.Key;
+    private static Dictionary<ShortcutAction, string> DefaultBindings() => new()
+    {
+        // Mac-like defaults (no Ctrl required; avoid firing while typing in text boxes)
+        { ShortcutAction.LoadVideo, "V" },
+        { ShortcutAction.OpenPreferences, "P" },
 
-            // 修飾キー単体は無視
-            if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt ||
-                key == Key.LeftShift || key == Key.RightShift || key == Key.LWin || key == Key.RWin)
-            {
-                return string.Empty;
-            }
+        { ShortcutAction.PlayPause, "Space" },
 
-            var parts = new List<string>(4);
-            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) parts.Add("Ctrl");
-            if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) parts.Add("Alt");
-            if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) parts.Add("Shift");
+        // Frame step (approx. 1/30s) on arrow keys
+        { ShortcutAction.FrameBack, "Left" },
+        { ShortcutAction.FrameForward, "Right" },
 
-            // Mac版に寄せたいので、Ctrl無しの単独キーが基本
-            parts.Add(KeyToString(key));
-            return NormalizeGestureString(string.Join("+", parts));
-        }
+        // Seconds seek like common video tools
+        { ShortcutAction.SeekMinus1, "J" },
+        { ShortcutAction.SeekPlus1, "L" },
+        { ShortcutAction.SeekMinus5, "Shift+J" },
+        { ShortcutAction.SeekPlus5, "Shift+L" },
 
-        private static string KeyToString(Key key)
-        {
-            return key switch
-            {
-                Key.Space => "Space",
-                Key.Return => "Enter",
-                Key.Escape => "Esc",
-                Key.Back => "Backspace",
-                Key.Delete => "Delete",
-                Key.Left => "Left",
-                Key.Right => "Right",
-                Key.Up => "Up",
-                Key.Down => "Down",
-                _ => key.ToString()
-            };
-        }
+        // Clip
+        { ShortcutAction.ClipStart, "I" },
+        { ShortcutAction.ClipEnd, "O" },
+        { ShortcutAction.SaveTeamA, "A" },
+        { ShortcutAction.SaveTeamB, "B" },
 
-        public static string NormalizeGestureString(string? s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+        // Export
+        { ShortcutAction.ExportAll, "X" },
 
-            // 例: "ctrl +  s" を "Ctrl+S" に揃える
-            var rawParts = s.Split('+', StringSplitOptions.RemoveEmptyEntries)
-                            .Select(p => p.Trim())
-                            .Where(p => !string.IsNullOrWhiteSpace(p))
-                            .ToList();
+        // Focus custom tag box
+        { ShortcutAction.FocusCustomTag, "T" },
+    };
 
-            var mods = new List<string>(3);
-            string? key = null;
+    private static string GetDefaultFilePath()
 
-            foreach (var p in rawParts)
-            {
-                var lower = p.ToLowerInvariant();
-                if (lower == "ctrl" || lower == "control") { if (!mods.Contains("Ctrl")) mods.Add("Ctrl"); continue; }
-                if (lower == "alt" || lower == "option") { if (!mods.Contains("Alt")) mods.Add("Alt"); continue; }
-                if (lower == "shift") { if (!mods.Contains("Shift")) mods.Add("Shift"); continue; }
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(appData, "PlayCutWin", "shortcuts.json");
+    }
 
-                key = CanonicalKeyName(p);
-            }
+    public static string FromKeyEvent(KeyEventArgs e)
+    {
+        var mods = Keyboard.Modifiers;
+        string key = e.Key == Key.System ? e.SystemKey.ToString() : e.Key.ToString();
 
-            // 修飾キーだけは不許可
-            if (key == null) return string.Empty;
+        // Normalize common keys for readability.
+        if (e.Key == Key.OemComma) key = ",";
+        if (e.Key == Key.OemPeriod) key = ".";
+        if (e.Key == Key.OemMinus) key = "-";
+        if (e.Key == Key.OemPlus) key = "+";
 
-            // Ctrl/Alt/Shift は順序固定
-            var orderedMods = new List<string>();
-            if (mods.Contains("Ctrl")) orderedMods.Add("Ctrl");
-            if (mods.Contains("Alt")) orderedMods.Add("Alt");
-            if (mods.Contains("Shift")) orderedMods.Add("Shift");
+        var parts = new List<string>();
+        if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
+        if (mods.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
+        if (mods.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
 
-            orderedMods.Add(key);
-            return string.Join("+", orderedMods);
-        }
+        // Use key token for arrows / space.
+        if (key == nameof(Key.Space)) key = "Space";
 
-        private static string CanonicalKeyName(string p)
-        {
-            // ちょい揺れ吸収
-            var lower = p.Trim().ToLowerInvariant();
-            return lower switch
-            {
-                "enter" or "return" => "Enter",
-                "esc" or "escape" => "Esc",
-                "space" => "Space",
-                "left" => "Left",
-                "right" => "Right",
-                "up" => "Up",
-                "down" => "Down",
-                "back" or "backspace" => "Backspace",
-                "del" or "delete" => "Delete",
-                _ => p.Length == 1 ? p.ToUpperInvariant() : char.ToUpperInvariant(p[0]) + p.Substring(1)
-            };
-        }
+        parts.Add(key);
+        return string.Join("+", parts);
+    }
 
-        private static List<ShortcutItem> CreateDefaults()
-        {
-            // Mac版の操作感に寄せる（Ctrlなし優先）
-            return new List<ShortcutItem>
-            {
-                new ShortcutItem { Action = ShortcutAction.LoadVideo, Gesture = "O" },
-                new ShortcutItem { Action = ShortcutAction.PlayPause, Gesture = "Space" },
+    public static string NormalizeGesture(string gesture)
+    {
+        if (string.IsNullOrWhiteSpace(gesture)) return string.Empty;
+        var raw = gesture.Trim();
+        raw = raw.Replace("Command", "Ctrl", StringComparison.OrdinalIgnoreCase);
+        raw = raw.Replace("Cmd", "Ctrl", StringComparison.OrdinalIgnoreCase);
+        raw = raw.Replace("Control", "Ctrl", StringComparison.OrdinalIgnoreCase);
+        raw = raw.Replace("Option", "Alt", StringComparison.OrdinalIgnoreCase);
 
-                // コマ送り（左右）
-                new ShortcutItem { Action = ShortcutAction.FrameBack, Gesture = "Left" },
-                new ShortcutItem { Action = ShortcutAction.FrameForward, Gesture = "Right" },
+        // Split and re-order modifiers in a stable order.
+        var tokens = raw.Split(new[] { '+', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .ToList();
 
-                // 秒単位（Shift+左右）
-                new ShortcutItem { Action = ShortcutAction.SeekMinus1, Gesture = "Shift+Left" },
-                new ShortcutItem { Action = ShortcutAction.SeekPlus1, Gesture = "Shift+Right" },
-                new ShortcutItem { Action = ShortcutAction.SeekMinus5, Gesture = "Alt+Left" },
-                new ShortcutItem { Action = ShortcutAction.SeekPlus5, Gesture = "Alt+Right" },
+        bool ctrl = tokens.Any(t => string.Equals(t, "Ctrl", StringComparison.OrdinalIgnoreCase));
+        bool shift = tokens.Any(t => string.Equals(t, "Shift", StringComparison.OrdinalIgnoreCase));
+        bool alt = tokens.Any(t => string.Equals(t, "Alt", StringComparison.OrdinalIgnoreCase));
 
-                new ShortcutItem { Action = ShortcutAction.ClipStart, Gesture = "S" },
-                new ShortcutItem { Action = ShortcutAction.ClipEnd, Gesture = "E" },
-                new ShortcutItem { Action = ShortcutAction.SaveTeamA, Gesture = "A" },
-                new ShortcutItem { Action = ShortcutAction.SaveTeamB, Gesture = "B" },
+        // Last non-mod token is treated as key.
+        var key = tokens.LastOrDefault(t =>
+            !string.Equals(t, "Ctrl", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Shift", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(t, "Alt", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
 
-                new ShortcutItem { Action = ShortcutAction.AddCustomTag, Gesture = "Enter" },
-                new ShortcutItem { Action = ShortcutAction.ClearTags, Gesture = "C" },
+        var parts = new List<string>();
+        if (ctrl) parts.Add("Ctrl");
+        if (shift) parts.Add("Shift");
+        if (alt) parts.Add("Alt");
+        if (!string.IsNullOrWhiteSpace(key)) parts.Add(key);
 
-                new ShortcutItem { Action = ShortcutAction.ExportAll, Gesture = "X" },
-                new ShortcutItem { Action = ShortcutAction.ExportCsv, Gesture = "V" },
-                new ShortcutItem { Action = ShortcutAction.ImportCsv, Gesture = "I" },
-
-                new ShortcutItem { Action = ShortcutAction.OpenPreferences, Gesture = "P" },
-            };
-        }
+        return string.Join("+", parts);
     }
 }
