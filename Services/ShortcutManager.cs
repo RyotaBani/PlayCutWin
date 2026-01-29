@@ -135,37 +135,37 @@ public sealed class ShortcutManager
 
     private static Dictionary<ShortcutAction, string> DefaultBindings() => new()
     {
-        // Mac-like feel on Windows (single-key by default).
-        // NOTE: When a TextBox is focused, MainWindow ignores these so typing isn't disturbed.
-        { ShortcutAction.LoadVideo, "O" },
-        { ShortcutAction.OpenPreferences, "," },
+        // Mac-like defaults (no Ctrl required; avoid firing while typing in text boxes)
+        { ShortcutAction.LoadVideo, "V" },
+        { ShortcutAction.OpenPreferences, "P" },
 
         { ShortcutAction.PlayPause, "Space" },
-        // Arrow keys = frame step (requested)
-        { ShortcutAction.StepFrameBack, "Left" },
-        { ShortcutAction.StepFrameForward, "Right" },
 
-        // Up/Down = seconds seek
-        { ShortcutAction.SeekMinus1, "Down" },
-        { ShortcutAction.SeekPlus1, "Up" },
-        { ShortcutAction.SeekMinus5, "Shift+Down" },
-        { ShortcutAction.SeekPlus5, "Shift+Up" },
-        { ShortcutAction.ClipStart, "S" },
-        { ShortcutAction.ClipEnd, "E" },
+        // Frame step (approx. 1/30s) on arrow keys
+        { ShortcutAction.FrameBack, "Left" },
+        { ShortcutAction.FrameForward, "Right" },
+
+        // Seconds seek like common video tools
+        { ShortcutAction.SeekMinus1, "J" },
+        { ShortcutAction.SeekPlus1, "L" },
+        { ShortcutAction.SeekMinus5, "Shift+J" },
+        { ShortcutAction.SeekPlus5, "Shift+L" },
+
+        // Clip
+        { ShortcutAction.ClipStart, "I" },
+        { ShortcutAction.ClipEnd, "O" },
         { ShortcutAction.SaveTeamA, "A" },
         { ShortcutAction.SaveTeamB, "B" },
+
+        // Export
         { ShortcutAction.ExportAll, "X" },
+
+        // Focus custom tag box
         { ShortcutAction.FocusCustomTag, "T" },
     };
 
-    // Compatibility helpers (older call sites)
-    public void LoadOrCreateDefaults()
-    {
-        // Re-load from disk if present, otherwise defaults are created.
-        LoadOrCreate();
-    }
-
     private static string GetDefaultFilePath()
+
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         return Path.Combine(appData, "PlayCutWin", "shortcuts.json");

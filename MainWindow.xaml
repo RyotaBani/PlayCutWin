@@ -651,8 +651,14 @@
                                 <DataTemplate>
                                     <ToggleButton Style="{StaticResource OffenseTagToggle}"
                                                   Content="{Binding Name}"
-                                                  ToolTip="{Binding Description}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  ToolTip="{Binding Comment}">
+                                        <ToggleButton.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Edit tag comment…" Click="EditTagComment_Click"/>
+                                            </ContextMenu>
+                                        </ToggleButton.ContextMenu>
+                                    </ToggleButton>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -668,8 +674,14 @@
                                 <DataTemplate>
                                     <ToggleButton Style="{StaticResource DefenseTagToggle}"
                                                   Content="{Binding Name}"
-                                                  ToolTip="{Binding Description}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  ToolTip="{Binding Comment}">
+                                        <ToggleButton.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Edit tag comment…" Click="EditTagComment_Click"/>
+                                            </ContextMenu>
+                                        </ToggleButton.ContextMenu>
+                                    </ToggleButton>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

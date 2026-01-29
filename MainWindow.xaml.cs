@@ -45,6 +45,7 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
+            LoadTagComments();
             DataContext = VM;
 
             // Shortcuts (Mac-like): load user custom bindings.
@@ -278,23 +279,6 @@ namespace PlayCutWin
         private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(+1);
         private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(+5);
 
-        // Approximate frame step (assumes 30fps; good enough for review)
-        private void StepFrame(int direction)
-        {
-            if (Player.Source == null) return;
-            // If playing, pause first to make the step feel like "frame advance"
-            if (Player.CanPause)
-            {
-                Player.Pause();
-            }
-
-            const double frame = 1.0 / 30.0;
-            var t = Player.Position.TotalSeconds + (direction * frame);
-            if (t < 0) t = 0;
-            if (VM.DurationSeconds > 0 && t > VM.DurationSeconds) t = VM.DurationSeconds;
-            Player.Position = TimeSpan.FromSeconds(t);
-        }
-
         // ----------------------------
         // Clip
         // ----------------------------
@@ -381,7 +365,77 @@ namespace PlayCutWin
         // ----------------------------
         // Tags
         // ----------------------------
-        private void AddCustomTag_Click(object sender, RoutedEventArgs e)
+        
+        private void EditTagComment_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem mi) return;
+            // ContextMenu placement target is the ToggleButton; its DataContext is TagToggleModel
+            if (mi.Parent is not ContextMenu cm) return;
+            if (cm.PlacementTarget is not FrameworkElement fe) return;
+            if (fe.DataContext is not TagToggleModel tag) return;
+
+            // Simple input dialog (Mac app has inline UI; Windows keeps it lightweight)
+            var current = tag.Comment ?? "";
+            var input = Microsoft.VisualBasic.Interaction.InputBox(
+                $"Comment for tag: {tag.Name}",
+                "Edit Tag Comment",
+                current);
+
+            // If user cancels, InputBox returns empty string; we treat that as "set to empty".
+            tag.Comment = input ?? "";
+            SaveTagComments();
+        }
+
+        private string GetTagCommentsPath()
+        {
+            var dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "PlayCutWin");
+            Directory.CreateDirectory(dir);
+            return System.IO.Path.Combine(dir, "tags.json");
+        }
+
+        private void LoadTagComments()
+        {
+            try
+            {
+                var path = GetTagCommentsPath();
+                if (!File.Exists(path))
+                {
+                    SaveTagComments(); // create initial file
+                    return;
+                }
+
+                var json = File.ReadAllText(path);
+                var map = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                          ?? new Dictionary<string, string>();
+
+                foreach (var t in OffenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
+                foreach (var t in DefenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private void SaveTagComments()
+        {
+            try
+            {
+                var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var t in OffenseTags) map[t.Name] = t.Comment ?? "";
+                foreach (var t in DefenseTags) map[t.Name] = t.Comment ?? "";
+                var json = System.Text.Json.JsonSerializer.Serialize(map, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(GetTagCommentsPath(), json);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+private void AddCustomTag_Click(object sender, RoutedEventArgs e)
         {
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
@@ -867,15 +921,11 @@ namespace PlayCutWin
 
         private void OpenPreferences_Click(object sender, RoutedEventArgs e)
         {
-            var win = new PreferencesWindow(_shortcutManager, _vm.TagCatalog)
+            var win = new PreferencesWindow(_shortcutManager)
             {
                 Owner = this
             };
-            var result = win.ShowDialog();
-            if (result == true)
-            {
-                _vm.ReloadTagDefinitions();
-            }
+            win.ShowDialog();
         }
 
         private void ExecuteShortcutAction(ShortcutAction action)
@@ -902,12 +952,6 @@ namespace PlayCutWin
                     break;
                 case ShortcutAction.SeekPlus5:
                     SeekPlus5_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.StepFrameBack:
-                    StepFrame(-1);
-                    break;
-                case ShortcutAction.StepFrameForward:
-                    StepFrame(+1);
                     break;
                 case ShortcutAction.ClipStart:
                     ClipStart_Click(this, new RoutedEventArgs());
@@ -984,13 +1028,22 @@ namespace PlayCutWin
         public ICollectionView TeamAView => _teamAView;
         public ICollectionView TeamBView => _teamBView;
 
-        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>();
-        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>();
+        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
+            new[]
+            {
+                "Transition","Set","PnR","BLOB","SLOB","vs M/M","vs Zone","2nd Attack","3rd Attack more"
+            }.Select(x => new TagToggleModel { Name = x })
+        );
+
+        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>(
+            new[]
+            {
+                "M/M","Zone","Rebound","Steal"
+            }.Select(x => new TagToggleModel { Name = x })
+        );
 
         public MainWindowViewModel()
         {
-            LoadTagDefinitions();
-
             foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
@@ -1014,22 +1067,6 @@ namespace PlayCutWin
             };
 
             UpdateHeadersAndCurrentTagsText();
-        }
-
-        public void LoadTagDefinitions()
-        {
-            OffenseTags.Clear();
-            DefenseTags.Clear();
-
-            var catalog = Services.TagCatalog.LoadOrCreateDefaults();
-            foreach (var def in catalog.GetByCategory(Models.TagCategory.Offense))
-            {
-                OffenseTags.Add(new TagToggleModel { Name = def.Name, Description = def.Comment });
-            }
-            foreach (var def in catalog.GetByCategory(Models.TagCategory.Defense))
-            {
-                DefenseTags.Add(new TagToggleModel { Name = def.Name, Description = def.Comment });
-            }
         }
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1127,12 +1164,12 @@ namespace PlayCutWin
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private string _name = "";
-        private string _description = "";
         private bool _isSelected = false;
+        private string _comment = "";
 
         public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
-        public string Description { get => _description; set { _description = value ?? ""; OnPropertyChanged(); } }
         public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
+        public string Comment { get => _comment; set { _comment = value; OnPropertyChanged(); } }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -1192,4 +1229,6 @@ namespace PlayCutWin
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
-}
+}    private const double FrameStepSeconds = 1.0 / 30.0;
+
+

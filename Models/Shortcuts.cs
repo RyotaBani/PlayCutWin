@@ -5,18 +5,15 @@ namespace PlayCutWin.Models
 {
     public enum ShortcutAction
     {
-        LoadVideo,
-        OpenPreferences,
+    LoadVideo,
+    OpenPreferences,
         PlayPause,
         SeekMinus5,
         SeekMinus1,
         SeekPlus1,
         SeekPlus5,
-
-        // Frame stepping (Mac-like)
-        StepFrameBack,
-        StepFrameForward,
-
+        FrameBack,
+        FrameForward,
         ClipStart,
         ClipEnd,
         SaveTeamA,
@@ -32,15 +29,11 @@ namespace PlayCutWin.Models
 
         public string Label => Action switch
         {
-            ShortcutAction.LoadVideo => "Load Video",
-            ShortcutAction.OpenPreferences => "Preferences",
             ShortcutAction.PlayPause => "Play / Pause",
             ShortcutAction.SeekMinus5 => "Seek -5s",
             ShortcutAction.SeekMinus1 => "Seek -1s",
             ShortcutAction.SeekPlus1 => "Seek +1s",
             ShortcutAction.SeekPlus5 => "Seek +5s",
-            ShortcutAction.StepFrameBack => "Step Frame (Back)",
-            ShortcutAction.StepFrameForward => "Step Frame (Forward)",
             ShortcutAction.ClipStart => "Clip START",
             ShortcutAction.ClipEnd => "Clip END",
             ShortcutAction.SaveTeamA => "Save Team A",

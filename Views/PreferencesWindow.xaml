@@ -6,74 +6,36 @@
         Background="#121212" Foreground="#EAEAEA">
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TabControl Background="Transparent" BorderThickness="0">
-            <!-- === Shortcuts === -->
-            <TabItem Header="Shortcuts">
-                <Grid Margin="0,10,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Shortcuts" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,6"/>
+            <TextBlock Text="Click a shortcut cell and press keys (e.g. Ctrl+E)." Opacity="0.75"/>
+        </StackPanel>
 
-                    <StackPanel>
-                        <TextBlock Text="Shortcuts" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                        <TextBlock Text="Click a shortcut cell and press keys (e.g. Left, Space, Shift+Up)." Opacity="0.75"/>
-                    </StackPanel>
+        <Border Grid.Row="1" Margin="0,12,0,12" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Background="#161616">
+            <DataGrid ItemsSource="{Binding Items}" AutoGenerateColumns="False" CanUserAddRows="False"
+                      HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0"
+                      Background="Transparent" BorderThickness="0" Foreground="#EAEAEA">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Action" Binding="{Binding ActionLabel}" IsReadOnly="True" Width="*"/>
+                    <DataGridTemplateColumn Header="Shortcut" Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Gesture, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True"
+                                         Padding="8,6" Margin="2" Background="#101010" BorderBrush="#333" BorderThickness="1" 
+                                         PreviewKeyDown="GestureBox_PreviewKeyDown"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
 
-                    <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Background="#161616">
-                        <DataGrid ItemsSource="{Binding Items}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0"
-                                  Background="Transparent" BorderThickness="0" Foreground="#EAEAEA">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Action" Binding="{Binding ActionLabel}" IsReadOnly="True" Width="*"/>
-                                <DataGridTemplateColumn Header="Shortcut" Width="200">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBox Text="{Binding Gesture, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True"
-                                                     Padding="8,6" Margin="2" Background="#101010" BorderBrush="#333" BorderThickness="1" 
-                                                     PreviewKeyDown="GestureBox_PreviewKeyDown"/>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </Grid>
-            </TabItem>
-
-            <!-- === Tag Comments === -->
-            <TabItem Header="Tag Comments">
-                <Grid Margin="0,10,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <StackPanel>
-                        <TextBlock Text="Tag Comments" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                        <TextBlock Text="These comments appear as tooltips on each tag button." Opacity="0.75"/>
-                    </StackPanel>
-
-                    <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1" Background="#161616">
-                        <DataGrid ItemsSource="{Binding TagItems}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0"
-                                  Background="Transparent" BorderThickness="0" Foreground="#EAEAEA">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Category" Binding="{Binding Category}" IsReadOnly="True" Width="110"/>
-                                <DataGridTextColumn Header="Tag" Binding="{Binding Name}" IsReadOnly="True" Width="180"/>
-                                <DataGridTextColumn Header="Comment" Binding="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </Grid>
-            </TabItem>
-        </TabControl>
-
-        <DockPanel Grid.Row="1" Margin="0,12,0,0">
+        <DockPanel Grid.Row="2">
             <Button Content="Restore Defaults" Width="140" Height="34" Margin="0,0,8,0" Click="RestoreDefaults_Click"/>
             <DockPanel DockPanel.Dock="Right">
                 <Button Content="Cancel" Width="100" Height="34" Margin="0,0,8,0" Click="Cancel_Click"/>
