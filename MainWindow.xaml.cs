@@ -17,6 +17,8 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using PlayCutWin.Services;
+using PlayCutWin.Views;
 
 namespace PlayCutWin
 {
@@ -32,7 +34,30 @@ namespace PlayCutWin
 
 
 
-        // Export (guard for double-click / re-entry)
+        
+
+        // Shortcuts (user-editable)
+        private readonly ShortcutManager _shortcuts = new ShortcutManager();
+        private static readonly Dictionary<string, string> DefaultShortcuts = new()
+        {
+            ["TogglePlayPause"] = "Space",
+            ["SeekMinus1"] = "Left",
+            ["SeekPlus1"] = "Right",
+            ["SeekMinus5"] = "Shift+Left",
+            ["SeekPlus5"] = "Shift+Right",
+
+            ["LoadVideo"] = "Ctrl+O",
+            ["ImportCsv"] = "Ctrl+I",
+            ["ExportCsv"] = "Ctrl+Shift+E",
+            ["ExportAll"] = "Ctrl+E",
+
+            ["ClipStart"] = "Alt+S",
+            ["ClipEnd"] = "Alt+D",
+            ["SaveTeamA"] = "Alt+A",
+            ["SaveTeamB"] = "Alt+B",
+        };
+
+// Export (guard for double-click / re-entry)
         private bool _isExporting = false;
 
 // Speed button visuals
@@ -45,6 +70,10 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
+
+            // Load shortcuts (user can customize via Preferences)
+            _shortcuts.LoadOrCreateDefaults(DefaultShortcuts);
+
             DataContext = VM;
             PreviewKeyDown += MainWindow_PreviewKeyDown;
 
@@ -236,86 +265,17 @@ namespace PlayCutWin
         // ----------------------------
         private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (VM.IsExporting) return;
+            // When typing in TextBox, do not steal shortcuts (Mac-like).
+            if (IsTextInputFocused())
+                return;
 
-            // Don't steal keys while typing in text inputs
-            if (IsTextInputFocused()) return;
-
-            var mods = System.Windows.Input.Keyboard.Modifiers;
-            var key = (e.Key == System.Windows.Input.Key.System) ? e.SystemKey : e.Key;
-
-            bool ctrl = mods.HasFlag(System.Windows.Input.ModifierKeys.Control);
-            bool shift = mods.HasFlag(System.Windows.Input.ModifierKeys.Shift);
-            bool alt = mods.HasFlag(System.Windows.Input.ModifierKeys.Alt);
-
-            // Playback
-            if (!ctrl && !alt && key == System.Windows.Input.Key.Space)
+            if (_shortcuts.TryGetAction(e, out var action))
             {
-                TogglePlayPause();
-                e.Handled = true;
-                return;
-            }
-
-            // Seek
-            if (!ctrl && !alt && (key == System.Windows.Input.Key.Left || key == System.Windows.Input.Key.Right))
-            {
-                double delta = (key == System.Windows.Input.Key.Left) ? -1 : +1;
-                if (shift) delta = (key == System.Windows.Input.Key.Left) ? -5 : +5;
-                SeekBy(delta);
-                e.Handled = true;
-                return;
-            }
-
-            // File operations
-            if (ctrl && !alt && key == System.Windows.Input.Key.O) // Load Video
-            {
-                LoadVideo_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-            if (ctrl && !alt && key == System.Windows.Input.Key.I) // Import CSV
-            {
-                ImportCsv_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-            if (ctrl && shift && !alt && key == System.Windows.Input.Key.E) // Export CSV
-            {
-                ExportCsv_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-            if (ctrl && !shift && !alt && key == System.Windows.Input.Key.E) // Export All
-            {
-                ExportAll_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-
-            // Clip actions (Alt = explicit, avoid conflicts while browsing)
-            if (alt && !ctrl && key == System.Windows.Input.Key.S) // Clip START
-            {
-                ClipStart_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-            if (alt && !ctrl && key == System.Windows.Input.Key.D) // Clip END
-            {
-                ClipEnd_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-            if (alt && !ctrl && key == System.Windows.Input.Key.A) // Save Team A
-            {
-                SaveTeamA_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
-            if (alt && !ctrl && key == System.Windows.Input.Key.B) // Save Team B
-            {
-                SaveTeamB_Click(this, new System.Windows.RoutedEventArgs());
-                e.Handled = true;
-                return;
+                if (ExecuteShortcutAction(action))
+                {
+                    e.Handled = true;
+                    return;
+                }
             }
         }
 
