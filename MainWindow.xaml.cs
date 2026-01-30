@@ -55,7 +55,6 @@ namespace PlayCutWin
 
             // Shortcuts (Mac-like): load user custom bindings.
             _shortcutManager = new ShortcutManager();
-            _shortcutManager.LoadOrCreateDefaults();
 
             HighlightSpeedButtons(_currentSpeed);
 
@@ -423,8 +422,8 @@ namespace PlayCutWin
                 var map = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json)
                           ?? new Dictionary<string, string>();
 
-                foreach (var t in OffenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
-                foreach (var t in DefenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
+                foreach (var t in VM.OffenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
+                foreach (var t in VM.DefenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
             }
             catch
             {
@@ -437,8 +436,8 @@ namespace PlayCutWin
             try
             {
                 var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var t in OffenseTags) map[t.Name] = t.Comment ?? "";
-                foreach (var t in DefenseTags) map[t.Name] = t.Comment ?? "";
+                foreach (var t in VM.OffenseTags) map[t.Name] = t.Comment ?? "";
+                foreach (var t in VM.DefenseTags) map[t.Name] = t.Comment ?? "";
                 var json = System.Text.Json.JsonSerializer.Serialize(map, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(GetTagCommentsPath(), json);
             }
@@ -1001,9 +1000,6 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
                 case ShortcutAction.SeekPlus5:
                     SeekPlus5_Click(this, new RoutedEventArgs());
                     break;
-                case ShortcutAction.FrameForward:
-                    StepFrames(1);
-                    break;
                 case ShortcutAction.ClipStart:
                     ClipStart_Click(this, new RoutedEventArgs());
                     break;
@@ -1095,8 +1091,8 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
 
         public MainWindowViewModel()
         {
-            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            foreach (var t in VM.OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            foreach (var t in VM.DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 

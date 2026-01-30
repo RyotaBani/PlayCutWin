@@ -360,6 +360,13 @@
                                       MediaOpened="Player_MediaOpened"
                                       MediaFailed="Player_MediaFailed"
                                       />
+                        <TextBlock x:Name="VideoHint"
+                                   Text="Load video from the button →"
+                                   Foreground="#B0B0B0"
+                                   FontSize="14"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+
                     </Grid>
                 </Border>
             </Grid>
