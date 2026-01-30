@@ -10,16 +10,12 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-
-using PlayCutWin.Models;
-using PlayCutWin.Services;
 using PlayCutWin.Views;
 
 namespace PlayCutWin
@@ -28,17 +24,11 @@ namespace PlayCutWin
     {
         private readonly DispatcherTimer _timer;
 
-        private readonly ShortcutManager _shortcutManager;
-
         private bool _isDraggingTimeline = false;
 
         // seek-jump safety
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
-
-        // Frame step (Left/Right). Default assumes 30fps.
-        // If you want true frame-accurate stepping, we can later detect FPS via ffprobe.
-        private const double FrameStepSeconds = 1.0 / 30.0;
 
         // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
@@ -50,11 +40,7 @@ namespace PlayCutWin
         public MainWindow()
         {
             InitializeComponent();
-            LoadTagComments();
             DataContext = VM;
-
-            // Shortcuts (Mac-like): load user custom bindings.
-            _shortcutManager = new ShortcutManager();
 
             HighlightSpeedButtons(_currentSpeed);
 
@@ -221,14 +207,6 @@ namespace PlayCutWin
             SeekToSeconds(Player.Position.TotalSeconds + deltaSeconds, autoPlay: VM.IsPlaying);
         }
 
-        private void StepFrames(int frames)
-        {
-            // Frame stepping is approximate (defaults to 30fps).
-            // Works well for analysis scrubbing even when the exact fps is unknown.
-            const double assumedFps = 30.0;
-            SeekBy(frames / assumedFps);
-        }
-
         private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
             if (Player.Source == null) return;
@@ -377,77 +355,7 @@ namespace PlayCutWin
         // ----------------------------
         // Tags
         // ----------------------------
-        
-        private void EditTagComment_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not MenuItem mi) return;
-            // ContextMenu placement target is the ToggleButton; its DataContext is TagToggleModel
-            if (mi.Parent is not ContextMenu cm) return;
-            if (cm.PlacementTarget is not FrameworkElement fe) return;
-            if (fe.DataContext is not TagToggleModel tag) return;
-
-            // Simple input dialog (Mac app has inline UI; Windows keeps it lightweight)
-            var current = tag.Comment ?? "";
-            var input = Microsoft.VisualBasic.Interaction.InputBox(
-                $"Comment for tag: {tag.Name}",
-                "Edit Tag Comment",
-                current);
-
-            // If user cancels, InputBox returns empty string; we treat that as "set to empty".
-            tag.Comment = input ?? "";
-            SaveTagComments();
-        }
-
-        private string GetTagCommentsPath()
-        {
-            var dir = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PlayCutWin");
-            Directory.CreateDirectory(dir);
-            return System.IO.Path.Combine(dir, "tags.json");
-        }
-
-        private void LoadTagComments()
-        {
-            try
-            {
-                var path = GetTagCommentsPath();
-                if (!File.Exists(path))
-                {
-                    SaveTagComments(); // create initial file
-                    return;
-                }
-
-                var json = File.ReadAllText(path);
-                var map = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json)
-                          ?? new Dictionary<string, string>();
-
-                foreach (var t in VM.OffenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
-                foreach (var t in VM.DefenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-        private void SaveTagComments()
-        {
-            try
-            {
-                var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var t in VM.OffenseTags) map[t.Name] = t.Comment ?? "";
-                foreach (var t in VM.DefenseTags) map[t.Name] = t.Comment ?? "";
-                var json = System.Text.Json.JsonSerializer.Serialize(map, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(GetTagCommentsPath(), json);
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-private void AddCustomTag_Click(object sender, RoutedEventArgs e)
+        private void AddCustomTag_Click(object sender, RoutedEventArgs e)
         {
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
@@ -477,14 +385,14 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
         // ----------------------------
         // CSV / Export Clips
         // ----------------------------
-        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            ExportClipsInternal(VM.AllClips.ToList());
+            await ExportClipsInternalWithDialogAsync(VM.AllClips.ToList());
         }
 
-        private void ExportClips_Click(object sender, RoutedEventArgs e)
+        private async void ExportClips_Click(object sender, RoutedEventArgs e)
         {
-            ExportClipsInternal(VM.AllClips.ToList());
+            await ExportClipsInternalWithDialogAsync(VM.AllClips.ToList());
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e)
@@ -626,7 +534,7 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
         // ----------------------------
         // Video export (ffmpeg)
         // ----------------------------
-        private void ExportClipsInternal(List<ClipRow> clips)
+        private async Task ExportClipsInternalWithDialogAsync(List<ClipRow> clips)
         {
             if (clips == null || clips.Count == 0)
             {
@@ -658,74 +566,108 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
             var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_clips_{stamp}");
             Directory.CreateDirectory(sessionDir);
 
+            // Progress dialog
+            var dlg = new ExportProgressDialog
+            {
+                Owner = this,
+                Title = "Export Clips"
+            };
+
+            SetUiEnabled(false);
+            dlg.Show();
+
             int ok = 0;
             int fail = 0;
-            VM.StatusText = "Exporting clips...";
 
-	            for (int i = 0; i < clips.Count; i++)
-	            {
-	                var c = clips[i];
-	                if (c.End <= c.Start) { fail++; continue; }
+            var progress = new Progress<(int current, int total, string detail)>(p =>
+            {
+                dlg.SetProgress(p.current, p.total, p.detail);
+                VM.StatusText = p.detail;
+            });
 
-	                var safeTeam = (c.Team == "B") ? "B" : "A";
-	                var duration = Math.Max(0.01, c.End - c.Start);
-
-	                // Mac と同じく「タグごとにファイルを複製して保存」
-	                var tagList = (c.Tags != null && c.Tags.Count > 0) ? c.Tags : new List<string> { "NoTag" };
-	                foreach (var tag in tagList)
-	                {
-	                    var tagFolder = NormalizeTagFolderName(tag);
-	                    var tagFile = NormalizeTagFileName(tag);
-	                    var outDir = Path.Combine(sessionDir, safeTeam, tagFolder);
-	                    Directory.CreateDirectory(outDir);
-
-	                    var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
-	                    if (!string.IsNullOrWhiteSpace(tagFile)) file += "_" + tagFile;
-	                    file += ".mp4";
-
-	                    var outPath = Path.Combine(outDir, file);
-
-	                    var args = BuildFfmpegArgs(
-	                        inputPath: VM.LoadedVideoPath,
-	                        startSeconds: c.Start,
-	                        durationSeconds: duration,
-	                        outputPath: outPath);
-
-	                    VM.StatusText = $"Exporting {i + 1}/{clips.Count} ({tag})...";
-
-	                    var result = RunProcess(ffmpeg, args);
-	                    if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-	                    else
-	                    {
-	                        fail++;
-	                        Debug.WriteLine(result.stdErr);
-	                    }
-	                }
-	            }
+            try
+            {
+                await Task.Run(() =>
+                {
+                    ExportClipsCore(clips, ffmpeg, sessionDir, progress, ref ok, ref fail);
+                });
+            }
+            finally
+            {
+                dlg.Close();
+                SetUiEnabled(true);
+            }
 
             VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-	            MessageBox.Show($"Exported {ok} file(s) to:\n{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"Exported {ok} clip(s) to:\n{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-	    private static string NormalizeTagFolderName(string tag)
-	    {
-	        if (string.IsNullOrWhiteSpace(tag)) return "NoTag";
-	        // Folder: spaces and symbols -> underscore, keep readable
-	        var s = tag.Trim();
-	        s = s.Replace("/", "_").Replace("\\", "_");
-	        s = Regex.Replace(s, @"\s+", "_");
-	        s = SanitizeFileName(s);
-	        return string.IsNullOrWhiteSpace(s) ? "NoTag" : s;
-	    }
+        private void ExportClipsCore(
+            List<ClipRow> clips,
+            string ffmpeg,
+            string sessionDir,
+            IProgress<(int current, int total, string detail)> progress,
+            ref int ok,
+            ref int fail)
+        {
+            var teamADir = Path.Combine(sessionDir, "A");
+            var teamBDir = Path.Combine(sessionDir, "B");
+            Directory.CreateDirectory(teamADir);
+            Directory.CreateDirectory(teamBDir);
 
-	    private static string NormalizeTagFileName(string tag)
-	    {
-	        if (string.IsNullOrWhiteSpace(tag)) return string.Empty;
-	        var s = tag.Trim();
-	        s = s.Replace("/", "_").Replace("\\", "_");
-	        s = Regex.Replace(s, @"\s+", "_");
-	        return SanitizeFileName(s);
-	    }
+            for (int i = 0; i < clips.Count; i++)
+            {
+                var c = clips[i];
+                if (c.End <= c.Start) { fail++; continue; }
+
+                var safeTeam = (c.Team == "B") ? "B" : "A";
+                var teamDir = safeTeam == "B" ? teamBDir : teamADir;
+
+                var tags = (c.Tags ?? new List<string>()).Take(5).ToList();
+                var tagFolder = NormalizeTagFolderName(string.Join("_", tags));
+                var outDir = string.IsNullOrWhiteSpace(tagFolder) ? teamDir : Path.Combine(teamDir, tagFolder);
+                Directory.CreateDirectory(outDir);
+
+                var safeTags = SanitizeFileName(string.Join("-", tags));
+                var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
+                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
+                file += ".mp4";
+
+                var outPath = Path.Combine(outDir, file);
+                var duration = Math.Max(0.01, c.End - c.Start);
+
+                progress?.Report((i + 1, clips.Count, $"Exporting {i + 1}/{clips.Count}: {file}"));
+
+                var args = BuildFfmpegArgs(
+                    inputPath: VM.LoadedVideoPath,
+                    startSeconds: c.Start,
+                    durationSeconds: duration,
+                    outputPath: outPath);
+
+                var result = RunProcess(ffmpeg, args);
+                if (result.exitCode == 0 && File.Exists(outPath)) ok++;
+                else
+                {
+                    fail++;
+                    Debug.WriteLine(result.stdErr);
+                }
+            }
+        }
+
+        private string NormalizeTagFolderName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+            // Windows folder safe name
+            return SanitizeFileName(raw)
+                .Replace('-', '_')
+                .Replace(' ', '_')
+                .Trim('_');
+        }
+
+        private void SetUiEnabled(bool enabled)
+        {
+            if (RootGrid != null) RootGrid.IsEnabled = enabled;
+        }
 
         private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
         {
@@ -939,88 +881,6 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
             if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
             return ts.ToString(@"m\:ss");
         }
-        // =============================
-        // Mac-like Shortcuts / Preferences
-        // =============================
-
-        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            // Don't steal keystrokes while typing.
-            if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)
-                return;
-
-            var gesture = Services.ShortcutManager.ToGestureString(e);
-            if (gesture == null)
-                return;
-
-            if (_shortcutManager.TryGetAction(gesture, out var action))
-            {
-                e.Handled = true;
-                ExecuteShortcutAction(action);
-            }
-        }
-
-        private void OpenPreferences_Click(object sender, RoutedEventArgs e)
-        {
-            var win = new PreferencesWindow(_shortcutManager)
-            {
-                Owner = this
-            };
-            win.ShowDialog();
-        }
-
-        private void ExecuteShortcutAction(ShortcutAction action)
-        {
-            switch (action)
-            {
-                case ShortcutAction.LoadVideo:
-                    LoadVideo_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.OpenPreferences:
-                    OpenPreferences_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.PlayPause:
-                    PlayPause_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.SeekMinus5:
-                    SeekMinus5_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.FrameBack:
-                    StepFrames(-1);
-                    break;
-                case ShortcutAction.SeekMinus1:
-                    SeekMinus1_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.SeekPlus1:
-                    SeekPlus1_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.FrameForward:
-                    StepFrames(1);
-                    break;
-                case ShortcutAction.SeekPlus5:
-                    SeekPlus5_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.ClipStart:
-                    ClipStart_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.ClipEnd:
-                    ClipEnd_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.SaveTeamA:
-                    SaveTeamA_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.SaveTeamB:
-                    SaveTeamB_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.ExportAll:
-                    ExportAll_Click(this, new RoutedEventArgs());
-                    break;
-                case ShortcutAction.FocusCustomTag:
-                    try { CustomTagTextBox?.Focus(); } catch { /* ignore */ }
-                    break;
-            }
-        }
-
     }
 
     // ============================
@@ -1091,9 +951,8 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
 
         public MainWindowViewModel()
         {
-			// このViewModel自身のタグコレクションを監視
-			foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-			foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
@@ -1213,11 +1072,9 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
 
         private string _name = "";
         private bool _isSelected = false;
-        private string _comment = "";
 
         public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
         public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
-        public string Comment { get => _comment; set { _comment = value; OnPropertyChanged(); } }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
