@@ -1091,8 +1091,9 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
 
         public MainWindowViewModel()
         {
-            foreach (var t in VM.OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-            foreach (var t in VM.DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+			// このViewModel自身のタグコレクションを監視
+			foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+			foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
