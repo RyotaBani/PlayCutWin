@@ -26,8 +26,11 @@ public sealed class ShortcutManager
     public ShortcutManager()
     {
         _filePath = GetDefaultFilePath();
-        LoadOrCreate();
+        LoadOrCreateInternal();
     }
+
+    // Backward-compat: older call sites used this name.
+    public void LoadOrCreateDefaults() => LoadOrCreateInternal();
 
     // ------------------- Public API used by the app -------------------
 
@@ -91,7 +94,7 @@ public sealed class ShortcutManager
 
     // ------------------------- Internal logic -------------------------
 
-    private void LoadOrCreate()
+    private void LoadOrCreateInternal()
     {
         var defaults = DefaultBindings();
         _bindings = new Dictionary<ShortcutAction, string>(defaults);

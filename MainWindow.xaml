@@ -360,6 +360,15 @@
                                       MediaOpened="Player_MediaOpened"
                                       MediaFailed="Player_MediaFailed"
                                       />
+
+                        <!-- Mac版の "Load video from the button →" 相当のヒント -->
+                        <TextBlock x:Name="VideoHint"
+                                   Text="Load video from the button →"
+                                   Foreground="#CFCFCF"
+                                   Opacity="0.6"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
             </Grid>

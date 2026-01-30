@@ -414,8 +414,8 @@ namespace PlayCutWin
                 var map = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json)
                           ?? new Dictionary<string, string>();
 
-                foreach (var t in OffenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
-                foreach (var t in DefenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
+                foreach (var t in _vm.OffenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
+                foreach (var t in _vm.DefenseTags) if (map.TryGetValue(t.Name, out var c)) t.Comment = c;
             }
             catch
             {
@@ -428,8 +428,8 @@ namespace PlayCutWin
             try
             {
                 var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var t in OffenseTags) map[t.Name] = t.Comment ?? "";
-                foreach (var t in DefenseTags) map[t.Name] = t.Comment ?? "";
+                foreach (var t in _vm.OffenseTags) map[t.Name] = t.Comment ?? "";
+                foreach (var t in _vm.DefenseTags) map[t.Name] = t.Comment ?? "";
                 var json = System.Text.Json.JsonSerializer.Serialize(map, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(GetTagCommentsPath(), json);
             }
