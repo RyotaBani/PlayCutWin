@@ -61,7 +61,13 @@
         <!-- =========================
              Buttons
              ========================= -->
-        <Style x:Key="DarkButton" TargetType="primitives:ButtonBase">
+        <!--
+          Keep this style strictly for Button.
+          Using ButtonBase here can cause runtime XAML parse issues if the style is
+          applied to other ButtonBase-derived controls (e.g., ToggleButton) while the
+          template is designed for Button.
+        -->
+        <Style x:Key="DarkButton" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource BtnBg}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -97,7 +103,7 @@
         </Style>
 
         <!-- PlayerControlsView で使う（サイズを揃えた上段ボタン） -->
-        <Style x:Key="TopButton" TargetType="primitives:ButtonBase" BasedOn="{StaticResource DarkButton}">
+        <Style x:Key="TopButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="Margin" Value="0"/>
             <Setter Property="Padding" Value="12,8"/>
