@@ -813,17 +813,6 @@ private void AddCustomTag_Click(object sender, RoutedEventArgs e)
             return sb.ToString().Trim().Trim('_');
         }
 
-	        private static string NormalizeTagFolderName(string tag)
-	        {
-	            // e.g. "vs M/M" -> "vs_M_M"
-	            var t = (tag ?? "").Trim();
-	            if (t.Length == 0) return "NoTag";
-	            t = t.Replace(' ', '_');
-	            t = Regex.Replace(t, @"[^A-Za-z0-9_\-]+", "_");
-	            t = Regex.Replace(t, "_+", "_").Trim('_');
-	            return t.Length == 0 ? "NoTag" : t;
-	        }
-
         private static string FormatTimeForFile(double seconds)
         {
             if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "0_00";
