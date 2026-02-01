@@ -346,8 +346,8 @@
                                     <ToggleButton Style="{StaticResource OffenseTagToggle}"
                                                   Content="{Binding Name}"
                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Checked="TagToggle_Checked"
-                                                  Unchecked="TagToggle_Unchecked"/>
+                                                  Checked="Tag_Checked"
+                                                  Unchecked="Tag_Unchecked"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -364,8 +364,8 @@
                                     <ToggleButton Style="{StaticResource DefenseTagToggle}"
                                                   Content="{Binding Name}"
                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Checked="TagToggle_Checked"
-                                                  Unchecked="TagToggle_Unchecked"/>
+                                                  Checked="Tag_Checked"
+                                                  Unchecked="Tag_Unchecked"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -380,14 +380,13 @@
                         <TextBlock Text="Current Tags" Opacity="0.85" Margin="0,14,0,0"/>
                         <TextBlock Text="{Binding CurrentTagsText}" Opacity="0.8" TextWrapping="Wrap"/>
 
-                        <!-- Tag Note (per tag) -->
                         <TextBlock Text="Tag Note" Opacity="0.85" Margin="0,14,0,0"/>
-                        <TextBlock Text="{Binding SelectedTagName}" Opacity="0.75" Margin="0,4,0,6" TextTrimming="CharacterEllipsis"/>
-                        <TextBox Height="72"
+                        <TextBlock Text="{Binding SelectedTagName}" Opacity="0.75" Margin="0,2,0,6" TextTrimming="CharacterEllipsis"/>
+                        <TextBox Height="76"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  IsEnabled="{Binding HasSelectedTag}"
-                                 Text="{Binding SelectedTagNote, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Text="{Binding SelectedTag.Note, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Background="#0F0F0F"
                                  Foreground="#EAEAEA"
                                  BorderBrush="#2A2A2A"
