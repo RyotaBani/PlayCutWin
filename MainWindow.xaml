@@ -345,9 +345,7 @@
                                 <DataTemplate>
                                     <ToggleButton Style="{StaticResource OffenseTagToggle}"
                                                   Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Checked="Tag_Checked"
-                                                  Unchecked="Tag_Unchecked"/>
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -363,9 +361,7 @@
                                 <DataTemplate>
                                     <ToggleButton Style="{StaticResource DefenseTagToggle}"
                                                   Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Checked="Tag_Checked"
-                                                  Unchecked="Tag_Unchecked"/>
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -379,19 +375,6 @@
 
                         <TextBlock Text="Current Tags" Opacity="0.85" Margin="0,14,0,0"/>
                         <TextBlock Text="{Binding CurrentTagsText}" Opacity="0.8" TextWrapping="Wrap"/>
-
-                        <TextBlock Text="Tag Note" Opacity="0.85" Margin="0,14,0,0"/>
-                        <TextBlock Text="{Binding SelectedTagName}" Opacity="0.75" Margin="0,2,0,6" TextTrimming="CharacterEllipsis"/>
-                        <TextBox Height="76"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"
-                                 IsEnabled="{Binding HasSelectedTag}"
-                                 Text="{Binding SelectedTag.Note, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="#0F0F0F"
-                                 Foreground="#EAEAEA"
-                                 BorderBrush="#2A2A2A"
-                                 BorderThickness="1"
-                                 Padding="8"/>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

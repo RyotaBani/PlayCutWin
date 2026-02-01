@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -360,7 +361,15 @@ namespace PlayCutWin
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
 
-            VM.AddOrSelectOffenseTag(t);
+            if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
+            {
+                VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
+            }
+            else
+            {
+                var existing = VM.OffenseTags.First(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase));
+                existing.IsSelected = true;
+            }
 
             VM.CustomTagInput = "";
             VM.UpdateHeadersAndCurrentTagsText();
@@ -372,22 +381,6 @@ namespace PlayCutWin
             foreach (var t in VM.DefenseTags) t.IsSelected = false;
             VM.CustomTagInput = "";
             VM.UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void Tag_Checked(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-            {
-                VM.OnTagToggled(tag, isChecked: true);
-            }
-        }
-
-        private void Tag_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-            {
-                VM.OnTagToggled(tag, isChecked: false);
-            }
         }
 
         // ----------------------------
@@ -918,27 +911,6 @@ namespace PlayCutWin
         private string _clipsHeader = "Clips (Total 0)";
         private ClipRow? _selectedClip = null;
 
-        // Tag note persistence
-        private readonly Dictionary<string, string> _tagNotes;
-        private readonly DispatcherTimer _tagNotesSaveTimer;
-
-        private TagToggleModel? _selectedTag;
-        public TagToggleModel? SelectedTag
-        {
-            get => _selectedTag;
-            set
-            {
-                _selectedTag = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedTagName));
-                OnPropertyChanged(nameof(HasSelectedTag));
-            }
-        }
-
-        public bool HasSelectedTag => SelectedTag != null;
-
-        public string SelectedTagName => SelectedTag?.Name ?? "(No tag selected)";
-
         public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
         private string _selectedClipFilter = "All Clips";
@@ -980,22 +952,8 @@ namespace PlayCutWin
 
         public MainWindowViewModel()
         {
-            _tagNotes = PlayCutWin.Helpers.TagNoteStore.Load();
-
-            // Debounced save (typing in TextBox triggers frequent updates)
-            _tagNotesSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _tagNotesSaveTimer.Tick += (_, __) =>
-            {
-                _tagNotesSaveTimer.Stop();
-                PlayCutWin.Helpers.TagNoteStore.Save(_tagNotes);
-            };
-
             foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
             foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-
-            // Apply saved notes + hook persistence
-            foreach (var t in OffenseTags) AttachTagNotePersistence(t);
-            foreach (var t in DefenseTags) AttachTagNotePersistence(t);
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
@@ -1017,67 +975,6 @@ namespace PlayCutWin
             };
 
             UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void AttachTagNotePersistence(TagToggleModel tag)
-        {
-            if (_tagNotes.TryGetValue(tag.Name, out var note))
-            {
-                tag.Note = note ?? string.Empty;
-            }
-
-            tag.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(TagToggleModel.Note))
-                {
-                    var key = tag.Name;
-                    var value = tag.Note ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(value))
-                    {
-                        if (_tagNotes.ContainsKey(key)) _tagNotes.Remove(key);
-                    }
-                    else
-                    {
-                        _tagNotes[key] = value;
-                    }
-
-                    // debounce save
-                    _tagNotesSaveTimer.Stop();
-                    _tagNotesSaveTimer.Start();
-                }
-            };
-        }
-
-        public void OnTagToggled(TagToggleModel tag, bool isChecked)
-        {
-            if (isChecked)
-            {
-                SelectedTag = tag;
-                return;
-            }
-
-            if (SelectedTag == tag)
-            {
-                // Pick next selected tag if available
-                var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-                SelectedTag = next;
-            }
-        }
-
-        public void AddOrSelectOffenseTag(string tagName)
-        {
-            var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
-            {
-                existing.IsSelected = true;
-                SelectedTag = existing;
-                return;
-            }
-
-            var newTag = new TagToggleModel { Name = tagName, IsSelected = true };
-            OffenseTags.Add(newTag);
-            AttachTagNotePersistence(newTag);
-            SelectedTag = newTag;
         }
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1176,21 +1073,9 @@ namespace PlayCutWin
 
         private string _name = "";
         private bool _isSelected = false;
-        private string _note = "";
 
         public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
         public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
-
-        public string Note
-        {
-            get => _note;
-            set
-            {
-                if (_note == value) return;
-                _note = value;
-                OnPropertyChanged();
-            }
-        }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
