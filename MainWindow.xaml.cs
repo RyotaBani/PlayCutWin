@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -429,11 +430,11 @@ namespace PlayCutWin
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("team,start,end,tags,setplay,comment");
+                sb.AppendLine("team,start,end,tags,comment");
                 foreach (var c in clips)
                 {
                     var tags = string.Join("|", c.Tags ?? new List<string>());
-                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.SetPlay ?? "")},{EscapeCsv(c.Comment ?? "")}");
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.Comment ?? "")}");
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
@@ -472,9 +473,6 @@ namespace PlayCutWin
                 int endIdx = headerLower.IndexOf("end");
                 int durationIdx = headerLower.IndexOf("duration");
                 int tagsIdx = headerLower.IndexOf("tags");
-                int setPlayIdx = headerLower.IndexOf("setplay");
-                if (setPlayIdx < 0) setPlayIdx = headerLower.IndexOf("set_play");
-                if (setPlayIdx < 0) setPlayIdx = headerLower.IndexOf("set play");
                 int commentIdx = headerLower.IndexOf("comment");
 
                 if (teamIdx < 0 || startIdx < 0)
@@ -520,8 +518,6 @@ namespace PlayCutWin
                     string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
                     var tags = ParseTags(tagsRaw);
 
-                    string setPlay = setPlayIdx >= 0 ? GetSafe(cols, setPlayIdx) : string.Empty;
-
                     string comment = commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty;
 
                     VM.AllClips.Add(new ClipRow
@@ -530,7 +526,6 @@ namespace PlayCutWin
                         Start = startSec,
                         End = endSec,
                         Tags = tags,
-                        SetPlay = setPlay,
                         Comment = comment
                     });
                     imported++;
@@ -1142,14 +1137,10 @@ namespace PlayCutWin
                 _selectedClip = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSelectedClip));
-                OnPropertyChanged(nameof(HasSelectedClipSetTag));
             }
         }
 
         public bool HasSelectedClip => SelectedClip != null;
-
-        public bool HasSelectedClipSetTag
-            => SelectedClip != null && (SelectedClip.Tags?.Any(t => string.Equals(t, "Set", StringComparison.OrdinalIgnoreCase)) ?? false);
 
         public IEnumerable<string> GetSelectedTags()
         {
@@ -1215,7 +1206,6 @@ namespace PlayCutWin
         private double _end;
         private List<string> _tags = new();
         private string _comment = "";
-        private string _setPlay = "";
 
         public string Team
         {
@@ -1239,12 +1229,6 @@ namespace PlayCutWin
         {
             get => _tags;
             set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); }
-        }
-
-        public string SetPlay
-        {
-            get => _setPlay;
-            set { _setPlay = value ?? ""; OnPropertyChanged(); }
         }
 
         public string Comment
