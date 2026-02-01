@@ -232,6 +232,29 @@
 
                             <!-- Selected Clip Note (Mac-like) -->
                             <StackPanel Grid.Row="2" Margin="0,10,0,0">
+
+<!-- Set Play (Mac-like: enabled only when selected clip includes 'Set' tag) -->
+<StackPanel Margin="0,0,0,10">
+    <StackPanel.Style>
+        <Style TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasSelectedClipSetTag}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </StackPanel.Style>
+
+    <TextBlock Text="Set Play" FontWeight="SemiBold" Margin="0,0,0,6"/>
+    <TextBox Height="30"
+             Text="{Binding SelectedClip.SetPlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+             Background="#0F0F0F"
+             Foreground="#EAEAEA"
+             BorderBrush="#2A2A2A"
+             BorderThickness="1"
+             Padding="8"/>
+</StackPanel>
                                 <TextBlock Text="Clip Note" FontWeight="SemiBold" Margin="0,0,0,6"/>
                                 <TextBox Height="56"
                                          TextWrapping="Wrap"
@@ -345,7 +368,9 @@
                                 <DataTemplate>
                                     <ToggleButton Style="{StaticResource OffenseTagToggle}"
                                                   Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Checked="Tag_Checked"
+                                                  Unchecked="Tag_Unchecked"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -361,7 +386,9 @@
                                 <DataTemplate>
                                     <ToggleButton Style="{StaticResource DefenseTagToggle}"
                                                   Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Checked="Tag_Checked"
+                                                  Unchecked="Tag_Unchecked"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
