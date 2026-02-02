@@ -529,13 +529,55 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("team,start,end,tags,setplay,comment");
+                // Mac版 (BBVideoTagger) の play_by_play.csv に合わせた Schema=2
+                sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
+                var videoName = string.Empty;
+                try
+                {
+                    videoName = !string.IsNullOrWhiteSpace(VM.LoadedVideoPath) ? System.IO.Path.GetFileName(VM.LoadedVideoPath) : string.Empty;
+                }
+                catch { videoName = string.Empty; }
+
+                int no = 1;
                 foreach (var c in clips)
                 {
-                    var tags = string.Join("|", c.Tags ?? new List<string>());
-                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.SetPlay ?? "")},{EscapeCsv(c.Comment ?? "")}");
+                    // TeamKey: A/B
+                    var teamKey = (c.Team ?? "A").Trim().Equals("B", System.StringComparison.OrdinalIgnoreCase) ? "B" : "A";
+                    var teamSide = teamKey == "A" ? "Home" : "Away";
+                    var teamName = teamKey == "A" ? (VM.TeamAName ?? "Team A") : (VM.TeamBName ?? "Team B");
+
+                    var startSec = c.Start;
+                    var endSec = c.End;
+                    var durSec = System.Math.Max(0, endSec - startSec);
+
+                    var startText = FormatTime(startSec);
+                    var endText = FormatTime(endSec);
+
+                    // Mac版は "; " 区切り
+                    var tagsText = c.Tags == null || c.Tags.Count == 0 ? "" : string.Join("; ", c.Tags);
+
+                    sb.AppendLine(string.Join(",", new[]
+                    {
+                        "2",
+                        EscapeCsv(videoName),
+                        no.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        teamKey,
+                        teamSide,
+                        EscapeCsv(teamName),
+                        EscapeCsv(startText),
+                        EscapeCsv(endText),
+                        startSec.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                        endSec.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                        durSec.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                        EscapeCsv(tagsText),
+                        EscapeCsv(c.SetPlay ?? ""),
+                        EscapeCsv(c.Comment ?? "")
+                    }));
+                    no++;
                 }
-                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+
+                // Excelでも文字化けしにくい BOM付きUTF-8
+                File.WriteAllText(dlg.FileName, sb.ToString(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
             }
             catch (Exception ex)
@@ -567,6 +609,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
                 var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
 
+                // 旧形式: team,start,end,tags,setplay,comment
                 int teamIdx = headerLower.IndexOf("team");
                 int startIdx = headerLower.IndexOf("start");
                 int endIdx = headerLower.IndexOf("end");
@@ -575,9 +618,23 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 int setplayIdx = headerLower.IndexOf("setplay");
                 int commentIdx = headerLower.IndexOf("comment");
 
-                if (teamIdx < 0 || startIdx < 0)
+                // Mac版(Schema=2)形式
+                int schemaIdx = headerLower.IndexOf("schema");
+                int teamKeyIdx = headerLower.IndexOf("teamkey");
+                int teamSideIdx = headerLower.IndexOf("teamside");
+                int startSecIdx = headerLower.IndexOf("startsec");
+                int endSecIdx = headerLower.IndexOf("endsec");
+                int durationSecIdx = headerLower.IndexOf("durationsec");
+                int noteIdx = headerLower.IndexOf("note");
+
+                bool isSchema2 = schemaIdx >= 0 && teamKeyIdx >= 0 && (startSecIdx >= 0 || startIdx >= 0);
+
+                // team列が無い場合でも teamkey があればOK
+                if (teamIdx < 0) teamIdx = teamKeyIdx;
+
+                if (teamIdx < 0 || (startIdx < 0 && startSecIdx < 0))
                 {
-                    MessageBox.Show("CSV format not recognized. Need at least 'team' and 'start' columns.");
+                    MessageBox.Show("CSV format not recognized.\n\nNeed either:\n- team & start (old format)\n- TeamKey & StartSec (Schema=2)");
                     return;
                 }
 
@@ -599,17 +656,33 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 {
                     if (string.IsNullOrWhiteSpace(lines[i])) continue;
                     var cols = SplitCsv(lines[i]);
-                    if (cols.Count <= startIdx || cols.Count <= teamIdx) continue;
+                    if (teamIdx < 0 || teamIdx >= cols.Count) continue;
+                    if ((startSecIdx >= 0 && startSecIdx >= cols.Count) && (startIdx < 0 || startIdx >= cols.Count)) continue;
 
                     string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
+                    // Schema=2 の場合は TeamKey (A/B) が入る
                     string team = NormalizeTeamToAB(teamRaw);
 
-                    double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
-                    double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
+                    // Start/End 秒は StartSec/EndSec があれば最優先
+                    double startSec = 0;
+                    double endSec = 0;
+                    if (startSecIdx >= 0)
+                        startSec = ParseDoubleInvariant(GetSafe(cols, startSecIdx));
+                    if (endSecIdx >= 0)
+                        endSec = ParseDoubleInvariant(GetSafe(cols, endSecIdx));
 
-                    if (endSec <= 0 && durationIdx >= 0)
+                    if (startSec <= 0 && startIdx >= 0)
+                        startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
+
+                    if (endSec <= 0 && endIdx >= 0)
+                        endSec = ParseTimeToSeconds(GetSafe(cols, endIdx));
+
+                    if (endSec <= 0)
                     {
-                        var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
+                        // duration / DurationSec があれば補完
+                        double dur = 0;
+                        if (durationSecIdx >= 0) dur = ParseDoubleInvariant(GetSafe(cols, durationSecIdx));
+                        if (dur <= 0 && durationIdx >= 0) dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
                         if (dur > 0) endSec = startSec + dur;
                     }
 
@@ -619,7 +692,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                     var tags = ParseTags(tagsRaw);
 
                     string setPlay = setplayIdx >= 0 ? GetSafe(cols, setplayIdx) : string.Empty;
-                    string comment = commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty;
+                    // Schema=2 は Note 列（旧形式は comment）
+                    string comment = noteIdx >= 0 ? GetSafe(cols, noteIdx) : (commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty);
 
                     VM.AllClips.Add(new ClipRow
                     {
@@ -968,6 +1042,14 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             return 0;
         }
 
+        private static double ParseDoubleInvariant(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return 0;
+            if (double.TryParse(s.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) return v;
+            if (double.TryParse(s.Trim(), out v)) return v;
+            return 0;
+        }
+
         private static List<string> ParseTags(string tagsRaw)
         {
             var result = new List<string>();
@@ -1192,17 +1274,14 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
                 SelectedTag = next;
             }
-
-            UpdateHeadersAndCurrentTagsText();
-            UpdateSelectedTagNoteFromSelection();
-        }
+        
+            }
             catch
             {
                 // never crash from rapid clicks / selection race
             }
         
 
-        }
         public void AddOrSelectOffenseTag(string tagName)
         {
             var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
@@ -1440,13 +1519,13 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         public double Start
         {
             get => _start;
-            set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); }
+            set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); OnPropertyChanged(nameof(DurationSeconds)); OnPropertyChanged(nameof(DurationText)); }
         }
 
         public double End
         {
             get => _end;
-            set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); }
+            set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); OnPropertyChanged(nameof(DurationSeconds)); OnPropertyChanged(nameof(DurationText)); }
         }
 
         public List<string> Tags
@@ -1486,6 +1565,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         public string StartText => FormatTime(Start);
         public string EndText => FormatTime(End);
+        public double DurationSeconds => Math.Max(0, End - Start);
+        public string DurationText => $"{DurationSeconds:0.0} s";
         public string TagsText => Tags == null || Tags.Count == 0 ? "" : string.Join(", ", Tags);
         public bool HasSetTag => Tags != null && Tags.Any(t => string.Equals(t, "Set", StringComparison.OrdinalIgnoreCase));
 

@@ -21,24 +21,25 @@
             <Setter Property="Background" Value="{StaticResource Bg0}"/>
             <Setter Property="Foreground" Value="#EAEAEA"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="13"/>
+            <!-- Mac版に近い見え方：基準フォントを少し小さめにする -->
+            <Setter Property="FontSize" Value="12"/>
         </Style>
 
         <Style x:Key="H1" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#EAEAEA"/>
-            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
         <Style x:Key="H2" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#EAEAEA"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
 
         <Style x:Key="Small" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#BDBDBD"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="11"/>
         </Style>
 
         <!-- =========================
@@ -72,10 +73,11 @@
             <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="#EAEAEA"/>
-            <Setter Property="Padding" Value="10,6"/>
+            <!-- Mac版に近いサイズ感 -->
+            <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Margin" Value="4"/>
-            <Setter Property="MinWidth" Value="72"/>
-            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="MinWidth" Value="64"/>
+            <Setter Property="MinHeight" Value="26"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -217,17 +219,17 @@
         </Style>
 
         <!-- =========================
-             List (dark)
-             NOTE: Clips UI uses ListBox (card layout). Applying a ListView
-             TargetType style to a ListBox will crash at startup.
-             Keep the key name for backwards compatibility.
+             ListView (dark)
              ========================= -->
+        <!-- クリップカード表示は ListBox を使用する -->
         <Style x:Key="DarkListView" TargetType="ListBox">
             <Setter Property="Background" Value="#0F0F0F"/>
             <Setter Property="Foreground" Value="#EAEAEA"/>
             <Setter Property="BorderBrush" Value="#2A2A2A"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="2"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
         </Style>
 
         <!-- =========================
