@@ -1227,62 +1227,63 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         }
 
         public void OnTagToggled(TagToggleModel tag, bool isChecked)
+{
+    try
+    {
+        if (_suppressTagSync) return;
+
+        // Always track last interacted tag for Tag Note UI
+        if (isChecked) SelectedTag = tag;
+
+        // If a clip is selected, we are editing that clip's tags (Mac-like)
+        if (SelectedClip != null)
         {
-            try
+            var list = SelectedClip.Tags ?? new List<string>();
+
+            if (isChecked)
             {
-            if (_suppressTagSync) return;
-
-            // Always track last interacted tag for Tag Note UI
-            if (isChecked) SelectedTag = tag;
-
-            // If a clip is selected, we are editing that clip's tags (Mac-like)
-            if (SelectedClip != null)
+                if (!list.Contains(tag.Name)) list.Add(tag.Name);
+            }
+            else
             {
-                var list = SelectedClip.Tags ?? new List<string>();
-
-                if (isChecked)
-                {
-                    if (!list.Contains(tag.Name)) list.Add(tag.Name);
-                }
-                else
-                {
-                    list.RemoveAll(x => string.Equals(x, tag.Name, StringComparison.OrdinalIgnoreCase));
-                    // also remove its per-tag note
-                    if (SelectedClip.TagNotes.ContainsKey(tag.Name))
-                        SelectedClip.TagNotes.Remove(tag.Name);
-                }
-
-                // keep stable ordering (optional): offense then defense, then others
-                SelectedClip.Tags = list;
-                SelectedClip.NotifyTagsChanged();
-
-                // If current selected tag got unchecked, move selection to another checked tag
-                if (!isChecked && SelectedTag == tag)
-                {
-                    var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-                    SelectedTag = next;
-                }
-
-                UpdateHeadersAndCurrentTagsText();
-                UpdateSelectedTagNoteFromSelection();
-                return;
+                list.RemoveAll(x => string.Equals(x, tag.Name, StringComparison.OrdinalIgnoreCase));
+                // also remove its per-tag note
+                if (SelectedClip.TagNotes != null && SelectedClip.TagNotes.ContainsKey(tag.Name))
+                    SelectedClip.TagNotes.Remove(tag.Name);
             }
 
-            // No selected clip => tags are for the next clip you will save
+            SelectedClip.Tags = list;
+            SelectedClip.NotifyTagsChanged();
+
+            // If current selected tag got unchecked, move selection to another checked tag
             if (!isChecked && SelectedTag == tag)
             {
                 var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
                 SelectedTag = next;
             }
-        
-            }
-            catch
-            {
-                // never crash from rapid clicks / selection race
-            }
-        
 
-        public void AddOrSelectOffenseTag(string tagName)
+            UpdateHeadersAndCurrentTagsText();
+            UpdateSelectedTagNoteFromSelection();
+            return;
+        }
+
+        // No selected clip => tags are for the next clip you will save
+        if (!isChecked && SelectedTag == tag)
+        {
+            var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
+            SelectedTag = next;
+        }
+
+        UpdateHeadersAndCurrentTagsText();
+        UpdateSelectedTagNoteFromSelection();
+    }
+    catch
+    {
+        // never crash from rapid clicks / selection race
+    }
+}
+
+public void AddOrSelectOffenseTag(string tagName)
         {
             var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
             if (existing != null)
