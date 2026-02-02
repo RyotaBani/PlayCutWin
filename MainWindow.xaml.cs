@@ -919,6 +919,10 @@ namespace PlayCutWin
         private string _clipsHeader = "Clips (Total 0)";
         private ClipRow? _selectedClip = null;
 
+        // When syncing tag toggles from a selected clip, suppress tag->clip updates to avoid recursion.
+        private bool _suppressClipTagSync = false;
+
+
         // Tag note persistence
         private readonly Dictionary<string, string> _tagNotes;
         private readonly DispatcherTimer _tagNotesSaveTimer;
@@ -1051,19 +1055,41 @@ namespace PlayCutWin
 
         public void OnTagToggled(TagToggleModel tag, bool isChecked)
         {
+            // Tag note target: selecting a tag (checked) makes it the note editing target
             if (isChecked)
             {
                 SelectedTag = tag;
-                return;
             }
-
-            if (SelectedTag == tag)
+            else if (SelectedTag == tag)
             {
                 // Pick next selected tag if available
                 var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
                 SelectedTag = next;
             }
+
+            // If a clip is selected, toggles should edit THAT clip's tags.
+            if (SelectedClip != null && !_suppressClipTagSync)
+            {
+                var tags = SelectedClip.Tags?.ToList() ?? new System.Collections.Generic.List<string>();
+                var exists = tags.Any(t => string.Equals(t, tag.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (isChecked)
+                {
+                    if (!exists) tags.Add(tag.Name);
+                }
+                else
+                {
+                    tags = tags.Where(t => !string.Equals(t, tag.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
+
+                // Assign back to trigger INotifyPropertyChanged (TagsText refresh)
+                SelectedClip.Tags = tags;
+
+                // Keep header/current tag text in sync
+                UpdateHeadersAndCurrentTagsText();
+            }
         }
+
 
         public void AddOrSelectOffenseTag(string tagName)
         {
@@ -1079,6 +1105,54 @@ namespace PlayCutWin
             OffenseTags.Add(newTag);
             AttachTagNotePersistence(newTag);
             SelectedTag = newTag;
+        }
+
+
+
+        private TagToggleModel EnsureTagExists(string name)
+        {
+            var existing = OffenseTags.Concat(DefenseTags)
+                .FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) return existing;
+
+            // Unknown tags are treated as Offense custom tags (same as Mac behavior of freely adding tags)
+            var newTag = new TagToggleModel { Name = name, IsSelected = false };
+            OffenseTags.Add(newTag);
+            AttachTagNotePersistence(newTag);
+            return newTag;
+        }
+
+        public void SyncTogglesFromSelectedClip()
+        {
+            if (SelectedClip == null) return;
+
+            var clipTags = SelectedClip.Tags ?? new System.Collections.Generic.List<string>();
+
+            _suppressClipTagSync = true;
+            try
+            {
+                // Ensure every tag used by the clip exists in the toggle lists
+                foreach (var t in clipTags)
+                {
+                    if (string.IsNullOrWhiteSpace(t)) continue;
+                    EnsureTagExists(t.Trim());
+                }
+
+                // Apply selection state
+                foreach (var t in OffenseTags)
+                    t.IsSelected = clipTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
+
+                foreach (var t in DefenseTags)
+                    t.IsSelected = clipTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
+
+                // Pick a selected tag as the note target (if any)
+                SelectedTag = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
+            }
+            finally
+            {
+                _suppressClipTagSync = false;
+                UpdateHeadersAndCurrentTagsText();
+            }
         }
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1128,7 +1202,6 @@ namespace PlayCutWin
         public string CurrentTagsText { get => _currentTagsText; set { _currentTagsText = value; OnPropertyChanged(); } }
 
         public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
-
         public ClipRow? SelectedClip
         {
             get => _selectedClip;
@@ -1137,6 +1210,9 @@ namespace PlayCutWin
                 _selectedClip = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSelectedClip));
+
+                // Sync toggles to the selected clip so tags become editable for existing clips (Mac-like).
+                SyncTogglesFromSelectedClip();
             }
         }
 
