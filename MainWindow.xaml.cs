@@ -17,6 +17,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Threading.Tasks;
 using PlayCutWin.Views;
 
 namespace PlayCutWin
@@ -323,7 +324,7 @@ namespace PlayCutWin
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
             // Jump -> auto play (requested)
-            if (sender is ListView lv && lv.SelectedItem is ClipRow clip)
+            if (sender is Selector lv && lv.SelectedItem is ClipRow clip)
             {
                 SeekToSeconds(clip.Start, autoPlay: true);
             }
@@ -331,7 +332,7 @@ namespace PlayCutWin
 
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (sender is ListView lv)
+            if (sender is Selector lv)
             {
                 if (lv.SelectedItem is ClipRow c)
                 {
@@ -340,7 +341,62 @@ namespace PlayCutWin
             }
         }
 
-        private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
+        
+        private void ClipCard_EditTags_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is Button b && b.DataContext is ClipRow c)
+                {
+                    VM.SelectedClip = c;
+                    // No-op: selecting the clip is enough to edit tags via the tag panel.
+                }
+            }
+            catch { }
+        }
+
+        private void ClipCard_Jump_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is Button b && b.DataContext is ClipRow c)
+                {
+                    VM.SelectedClip = c;
+                    SeekToSeconds(c.Start, autoPlay: true);
+                }
+            }
+            catch { }
+        }
+
+        private void ClipCard_Delete_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is Button b && b.DataContext is ClipRow c)
+                {
+                    if (VM.AllClips.Contains(c))
+                        VM.AllClips.Remove(c);
+                    if (VM.SelectedClip == c) VM.SelectedClip = null;
+                    VM.UpdateHeadersAndCurrentTagsText();
+                }
+            }
+            catch { }
+        }
+
+        private async void ClipCard_Export_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is Button b && b.DataContext is ClipRow c)
+                {
+                    VM.SelectedClip = c;
+                    await ExportClipsInternalWithDialogAsync(new List<ClipRow> { c });
+                }
+            }
+            catch { }
+        }
+
+private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         {
             if (VM.SelectedClip == null) return;
 
@@ -473,11 +529,11 @@ namespace PlayCutWin
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("team,start,end,tags,comment");
+                sb.AppendLine("team,start,end,tags,setplay,comment");
                 foreach (var c in clips)
                 {
                     var tags = string.Join("|", c.Tags ?? new List<string>());
-                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.Comment ?? "")}");
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.SetPlay ?? "")},{EscapeCsv(c.Comment ?? "")}");
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
@@ -516,6 +572,7 @@ namespace PlayCutWin
                 int endIdx = headerLower.IndexOf("end");
                 int durationIdx = headerLower.IndexOf("duration");
                 int tagsIdx = headerLower.IndexOf("tags");
+                int setplayIdx = headerLower.IndexOf("setplay");
                 int commentIdx = headerLower.IndexOf("comment");
 
                 if (teamIdx < 0 || startIdx < 0)
@@ -561,6 +618,7 @@ namespace PlayCutWin
                     string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
                     var tags = ParseTags(tagsRaw);
 
+                    string setPlay = setplayIdx >= 0 ? GetSafe(cols, setplayIdx) : string.Empty;
                     string comment = commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty;
 
                     VM.AllClips.Add(new ClipRow
@@ -569,6 +627,7 @@ namespace PlayCutWin
                         Start = startSec,
                         End = endSec,
                         Tags = tags,
+                        SetPlay = setPlay,
                         Comment = comment
                     });
                     imported++;
@@ -1087,6 +1146,8 @@ namespace PlayCutWin
 
         public void OnTagToggled(TagToggleModel tag, bool isChecked)
         {
+            try
+            {
             if (_suppressTagSync) return;
 
             // Always track last interacted tag for Tag Note UI
@@ -1131,7 +1192,13 @@ namespace PlayCutWin
                 var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
                 SelectedTag = next;
             }
-        }
+        
+            }
+            catch
+            {
+                // never crash from rapid clicks / selection race
+            }
+        
 
         public void AddOrSelectOffenseTag(string tagName)
         {
@@ -1218,9 +1285,16 @@ namespace PlayCutWin
                 OnPropertyChanged(nameof(CanEditTagNote));
 
                 // When selecting a clip, tags become "edit selected clip" mode.
-                SyncTagTogglesWithSelectedClip(_selectedClip);
-                UpdateHeadersAndCurrentTagsText();
-                UpdateSelectedTagNoteFromSelection();
+                try
+                {
+                    SyncTagTogglesWithSelectedClip(_selectedClip);
+                    UpdateHeadersAndCurrentTagsText();
+                    UpdateSelectedTagNoteFromSelection();
+                }
+                catch
+                {
+                    // never crash from selection race
+                }
             }
         }
 
@@ -1293,9 +1367,16 @@ namespace PlayCutWin
             var tags = GetSelectedTags().ToList();
             CurrentTagsText = tags.Count == 0 ? "(No tags selected)" : string.Join(", ", tags);
 
-            _teamAView.Refresh();
-            _teamBView.Refresh();
-        }
+            try
+            {
+                _teamAView.Refresh();
+                _teamBView.Refresh();
+            }
+            catch
+            {
+                // ignore refresh timing issues
+            }
+}
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -1344,6 +1425,7 @@ namespace PlayCutWin
         private double _end;
         private List<string> _tags = new();
         private string _comment = "";
+        private string _setPlay = "";
         private Dictionary<string, string> _tagNotes = new();
 
         public string Team
@@ -1367,7 +1449,7 @@ namespace PlayCutWin
         public List<string> Tags
         {
             get => _tags;
-            set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); }
+            set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); OnPropertyChanged(nameof(HasSetTag)); }
         }
 
         /// <summary>
@@ -1384,6 +1466,7 @@ namespace PlayCutWin
         {
             OnPropertyChanged(nameof(Tags));
             OnPropertyChanged(nameof(TagsText));
+            OnPropertyChanged(nameof(HasSetTag));
         }
 
         public string Comment
@@ -1392,9 +1475,16 @@ namespace PlayCutWin
             set { _comment = value ?? ""; OnPropertyChanged(); }
         }
 
+        public string SetPlay
+        {
+            get => _setPlay;
+            set { _setPlay = value ?? ""; OnPropertyChanged(); }
+        }
+
         public string StartText => FormatTime(Start);
         public string EndText => FormatTime(End);
         public string TagsText => Tags == null || Tags.Count == 0 ? "" : string.Join(", ", Tags);
+        public bool HasSetTag => Tags != null && Tags.Any(t => string.Equals(t, "Set", StringComparison.OrdinalIgnoreCase));
 
         private static string FormatTime(double seconds)
         {

@@ -129,21 +129,74 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <ListView Grid.Row="1"
-                                                  ItemsSource="{Binding TeamAView}"
-                                                  SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
-                                                  SelectionChanged="ClipList_SelectionChanged"
-                                                  MouseDoubleClick="ClipList_DoubleClick"
-                                                  Style="{StaticResource DarkListView}">
-                                            <ListView.View>
-                                                <GridView>
-                                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="50"/>
-                                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="280"/>
-                                                </GridView>
-                                            </ListView.View>
-                                        </ListView>
+                                        <ListBox Grid.Row="1"
+         ItemsSource="{Binding TeamAView}"
+         SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+         SelectionChanged="ClipList_SelectionChanged"
+         MouseDoubleClick="ClipList_DoubleClick"
+         Style="{StaticResource DarkListView}">
+    <ListBox.ItemTemplate>
+        <DataTemplate>
+            <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Text="{Binding StartText}" FontWeight="SemiBold"/>
+                        <TextBlock Text=" - " Opacity="0.7"/>
+                        <TextBlock Text="{Binding EndText}" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <Button Style="{StaticResource DarkButton}" Content="Edit Tags" Padding="10,4"
+                                    Click="ClipCard_EditTags_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Jump" Padding="10,4"
+                                    Click="ClipCard_Jump_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Export" Padding="10,4"
+                                    Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                                    Click="ClipCard_Export_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Padding="10,4"
+                                    Click="ClipCard_Delete_Click" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Tag chips -->
+                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="10" BorderBrush="#B94A4A" BorderThickness="1" Padding="8,2" Margin="0,0,6,6" Background="#0B0B0B">
+                                    <TextBlock Text="{Binding}" FontSize="12"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Set Play (only when Set tag exists) -->
+                    <StackPanel Margin="0,2,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSetTag}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Set Play" Opacity="0.75" Margin="0,6,0,2"/>
+                        <TextBox Text="{Binding SetPlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Note" Opacity="0.75" Margin="0,8,0,2"/>
+                    <TextBox Text="{Binding Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </ListBox.ItemTemplate>
+</ListBox>
                                     </Grid>
 
                                     <!-- Team B -->
@@ -153,21 +206,74 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <ListView Grid.Row="1"
-                                                  ItemsSource="{Binding TeamBView}"
-                                                  SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
-                                                  SelectionChanged="ClipList_SelectionChanged"
-                                                  MouseDoubleClick="ClipList_DoubleClick"
-                                                  Style="{StaticResource DarkListView}">
-                                            <ListView.View>
-                                                <GridView>
-                                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="50"/>
-                                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="280"/>
-                                                </GridView>
-                                            </ListView.View>
-                                        </ListView>
+                                        <ListBox Grid.Row="1"
+         ItemsSource="{Binding TeamBView}"
+         SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+         SelectionChanged="ClipList_SelectionChanged"
+         MouseDoubleClick="ClipList_DoubleClick"
+         Style="{StaticResource DarkListView}">
+    <ListBox.ItemTemplate>
+        <DataTemplate>
+            <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Text="{Binding StartText}" FontWeight="SemiBold"/>
+                        <TextBlock Text=" - " Opacity="0.7"/>
+                        <TextBlock Text="{Binding EndText}" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <Button Style="{StaticResource DarkButton}" Content="Edit Tags" Padding="10,4"
+                                    Click="ClipCard_EditTags_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Jump" Padding="10,4"
+                                    Click="ClipCard_Jump_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Export" Padding="10,4"
+                                    Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                                    Click="ClipCard_Export_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Padding="10,4"
+                                    Click="ClipCard_Delete_Click" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Tag chips -->
+                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="10" BorderBrush="#B94A4A" BorderThickness="1" Padding="8,2" Margin="0,0,6,6" Background="#0B0B0B">
+                                    <TextBlock Text="{Binding}" FontSize="12"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Set Play (only when Set tag exists) -->
+                    <StackPanel Margin="0,2,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSetTag}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Set Play" Opacity="0.75" Margin="0,6,0,2"/>
+                        <TextBox Text="{Binding SetPlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Note" Opacity="0.75" Margin="0,8,0,2"/>
+                    <TextBox Text="{Binding Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </ListBox.ItemTemplate>
+</ListBox>
                                     </Grid>
                                 </Grid>
 
@@ -184,20 +290,73 @@
                                         </Style>
                                     </Grid.Style>
 
-                                    <ListView ItemsSource="{Binding TeamAView}"
-                                              SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
-                                              SelectionChanged="ClipList_SelectionChanged"
-                                              MouseDoubleClick="ClipList_DoubleClick"
-                                              Style="{StaticResource DarkListView}">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
-                                                <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                                <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                                <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
+                                    <ListBox ItemsSource="{Binding TeamAView}"
+         SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+         SelectionChanged="ClipList_SelectionChanged"
+         MouseDoubleClick="ClipList_DoubleClick"
+         Style="{StaticResource DarkListView}">
+    <ListBox.ItemTemplate>
+        <DataTemplate>
+            <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Text="{Binding StartText}" FontWeight="SemiBold"/>
+                        <TextBlock Text=" - " Opacity="0.7"/>
+                        <TextBlock Text="{Binding EndText}" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <Button Style="{StaticResource DarkButton}" Content="Edit Tags" Padding="10,4"
+                                    Click="ClipCard_EditTags_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Jump" Padding="10,4"
+                                    Click="ClipCard_Jump_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Export" Padding="10,4"
+                                    Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                                    Click="ClipCard_Export_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Padding="10,4"
+                                    Click="ClipCard_Delete_Click" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Tag chips -->
+                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="10" BorderBrush="#B94A4A" BorderThickness="1" Padding="8,2" Margin="0,0,6,6" Background="#0B0B0B">
+                                    <TextBlock Text="{Binding}" FontSize="12"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Set Play (only when Set tag exists) -->
+                    <StackPanel Margin="0,2,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSetTag}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Set Play" Opacity="0.75" Margin="0,6,0,2"/>
+                        <TextBox Text="{Binding SetPlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Note" Opacity="0.75" Margin="0,8,0,2"/>
+                    <TextBox Text="{Binding Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </ListBox.ItemTemplate>
+</ListBox>
                                 </Grid>
 
                                 <!-- Team B only -->
@@ -213,20 +372,73 @@
                                         </Style>
                                     </Grid.Style>
 
-                                    <ListView ItemsSource="{Binding TeamBView}"
-                                              SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
-                                              SelectionChanged="ClipList_SelectionChanged"
-                                              MouseDoubleClick="ClipList_DoubleClick"
-                                              Style="{StaticResource DarkListView}">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
-                                                <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
-                                                <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
-                                                <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
+                                    <ListBox ItemsSource="{Binding TeamBView}"
+         SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
+         SelectionChanged="ClipList_SelectionChanged"
+         MouseDoubleClick="ClipList_DoubleClick"
+         Style="{StaticResource DarkListView}">
+    <ListBox.ItemTemplate>
+        <DataTemplate>
+            <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Text="{Binding StartText}" FontWeight="SemiBold"/>
+                        <TextBlock Text=" - " Opacity="0.7"/>
+                        <TextBlock Text="{Binding EndText}" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <Button Style="{StaticResource DarkButton}" Content="Edit Tags" Padding="10,4"
+                                    Click="ClipCard_EditTags_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Jump" Padding="10,4"
+                                    Click="ClipCard_Jump_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Export" Padding="10,4"
+                                    Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                                    Click="ClipCard_Export_Click" />
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Padding="10,4"
+                                    Click="ClipCard_Delete_Click" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Tag chips -->
+                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="10" BorderBrush="#B94A4A" BorderThickness="1" Padding="8,2" Margin="0,0,6,6" Background="#0B0B0B">
+                                    <TextBlock Text="{Binding}" FontSize="12"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Set Play (only when Set tag exists) -->
+                    <StackPanel Margin="0,2,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSetTag}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Set Play" Opacity="0.75" Margin="0,6,0,2"/>
+                        <TextBox Text="{Binding SetPlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Note" Opacity="0.75" Margin="0,8,0,2"/>
+                    <TextBox Text="{Binding Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Background="#0F0F0F" Foreground="#EAEAEA" BorderBrush="#2A2A2A" BorderThickness="1" Padding="8"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </ListBox.ItemTemplate>
+</ListBox>
                                 </Grid>
                             </Grid>
 
