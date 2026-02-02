@@ -1192,14 +1192,17 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
                 SelectedTag = next;
             }
-        
-            }
+
+            UpdateHeadersAndCurrentTagsText();
+            UpdateSelectedTagNoteFromSelection();
+        }
             catch
             {
                 // never crash from rapid clicks / selection race
             }
         
 
+        }
         public void AddOrSelectOffenseTag(string tagName)
         {
             var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
