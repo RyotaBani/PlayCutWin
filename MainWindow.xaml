@@ -346,6 +346,7 @@
                                     <ToggleButton Style="{StaticResource OffenseTagToggle}"
                                                   Content="{Binding Name}"
                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Click="Tag_Click"
                                                   Checked="Tag_Checked"
                                                   Unchecked="Tag_Unchecked"/>
                                 </DataTemplate>
@@ -364,6 +365,7 @@
                                     <ToggleButton Style="{StaticResource DefenseTagToggle}"
                                                   Content="{Binding Name}"
                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Click="Tag_Click"
                                                   Checked="Tag_Checked"
                                                   Unchecked="Tag_Unchecked"/>
                                 </DataTemplate>
@@ -385,8 +387,8 @@
                         <TextBox Height="76"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
-                                 IsEnabled="{Binding HasSelectedTag}"
-                                 Text="{Binding SelectedTag.Note, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding CanEditTagNote}"
+                                 Text="{Binding SelectedTagNote, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Background="#0F0F0F"
                                  Foreground="#EAEAEA"
                                  BorderBrush="#2A2A2A"
