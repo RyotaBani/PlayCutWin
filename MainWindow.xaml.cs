@@ -1200,8 +1200,6 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             }
         
 
-        }
-
         public void AddOrSelectOffenseTag(string tagName)
         {
             var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));

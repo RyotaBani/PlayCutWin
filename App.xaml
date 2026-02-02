@@ -217,9 +217,12 @@
         </Style>
 
         <!-- =========================
-             ListView (dark)
+             List (dark)
+             NOTE: Clips UI uses ListBox (card layout). Applying a ListView
+             TargetType style to a ListBox will crash at startup.
+             Keep the key name for backwards compatibility.
              ========================= -->
-        <Style x:Key="DarkListView" TargetType="ListView">
+        <Style x:Key="DarkListView" TargetType="ListBox">
             <Setter Property="Background" Value="#0F0F0F"/>
             <Setter Property="Foreground" Value="#EAEAEA"/>
             <Setter Property="BorderBrush" Value="#2A2A2A"/>
