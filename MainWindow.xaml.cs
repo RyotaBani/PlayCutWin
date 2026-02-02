@@ -392,22 +392,6 @@ namespace PlayCutWin
             }
         }
 
-        private void Tag_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-                {
-                    // Allow selecting a tag for note editing even if it is already checked.
-                    VM.SelectedTag = tag;
-                }
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
         private void Tag_Checked(object sender, RoutedEventArgs e)
         {
             try
