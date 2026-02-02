@@ -12,12 +12,10 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using System.Threading.Tasks;
 using PlayCutWin.Views;
 
 namespace PlayCutWin
@@ -319,12 +317,14 @@ namespace PlayCutWin
 
             VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
             VM.UpdateHeadersAndCurrentTagsText();
+            _suppressTagUpdates = false;
+            RequestUpdateHeadersAndCurrentTagsText();
         }
 
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
             // Jump -> auto play (requested)
-            if (sender is Selector lv && lv.SelectedItem is ClipRow clip)
+            if (sender is ListView lv && lv.SelectedItem is ClipRow clip)
             {
                 SeekToSeconds(clip.Start, autoPlay: true);
             }
@@ -332,7 +332,7 @@ namespace PlayCutWin
 
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (sender is Selector lv)
+            if (sender is ListView lv)
             {
                 if (lv.SelectedItem is ClipRow c)
                 {
@@ -341,62 +341,7 @@ namespace PlayCutWin
             }
         }
 
-        
-        private void ClipCard_EditTags_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is Button b && b.DataContext is ClipRow c)
-                {
-                    VM.SelectedClip = c;
-                    // No-op: selecting the clip is enough to edit tags via the tag panel.
-                }
-            }
-            catch { }
-        }
-
-        private void ClipCard_Jump_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is Button b && b.DataContext is ClipRow c)
-                {
-                    VM.SelectedClip = c;
-                    SeekToSeconds(c.Start, autoPlay: true);
-                }
-            }
-            catch { }
-        }
-
-        private void ClipCard_Delete_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is Button b && b.DataContext is ClipRow c)
-                {
-                    if (VM.AllClips.Contains(c))
-                        VM.AllClips.Remove(c);
-                    if (VM.SelectedClip == c) VM.SelectedClip = null;
-                    VM.UpdateHeadersAndCurrentTagsText();
-                }
-            }
-            catch { }
-        }
-
-        private async void ClipCard_Export_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is Button b && b.DataContext is ClipRow c)
-                {
-                    VM.SelectedClip = c;
-                    await ExportClipsInternalWithDialogAsync(new List<ClipRow> { c });
-                }
-            }
-            catch { }
-        }
-
-private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
+        private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         {
             if (VM.SelectedClip == null) return;
 
@@ -417,7 +362,15 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
 
-            VM.AddOrSelectOffenseTag(t);
+            if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
+            {
+                VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
+            }
+            else
+            {
+                var existing = VM.OffenseTags.First(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase));
+                existing.IsSelected = true;
+            }
 
             VM.CustomTagInput = "";
             VM.UpdateHeadersAndCurrentTagsText();
@@ -425,69 +378,10 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         private void ClearTags_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                // If a clip is selected, clear that clip's tags.
-                if (VM.SelectedClip != null)
-                {
-                    VM.SelectedClip.Tags = new List<string>();
-                    VM.SelectedClip.TagNotes.Clear();
-                    VM.SelectedClip.NotifyTagsChanged();
-                    VM.SelectedTag = null;
-                }
-
-                // Clear toggle state
-                foreach (var t in VM.OffenseTags) t.IsSelected = false;
-                foreach (var t in VM.DefenseTags) t.IsSelected = false;
-                VM.CustomTagInput = "";
-                VM.UpdateHeadersAndCurrentTagsText();
-            }
-            catch
-            {
-                // never crash from UI spam (double-click etc.)
-            }
-        }
-
-        private void Tag_Checked(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-                    VM.OnTagToggled(tag, isChecked: true);
-            }
-            catch
-            {
-                // ignore (never crash on rapid click/double click)
-            }
-        }
-
-        private void Tag_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-                {
-                    // Selecting a tag should focus its note field even if the toggle state didn't change.
-                    VM.SelectedTag = tag;
-                }
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-        private void Tag_Unchecked(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-                    VM.OnTagToggled(tag, isChecked: false);
-            }
-            catch
-            {
-                // ignore
-            }
+            foreach (var t in VM.OffenseTags) t.IsSelected = false;
+            foreach (var t in VM.DefenseTags) t.IsSelected = false;
+            VM.CustomTagInput = "";
+            VM.UpdateHeadersAndCurrentTagsText();
         }
 
         // ----------------------------
@@ -529,55 +423,13 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             try
             {
                 var sb = new StringBuilder();
-                // Mac版 (BBVideoTagger) の play_by_play.csv に合わせた Schema=2
-                sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
-                var videoName = string.Empty;
-                try
-                {
-                    videoName = !string.IsNullOrWhiteSpace(VM.LoadedVideoPath) ? System.IO.Path.GetFileName(VM.LoadedVideoPath) : string.Empty;
-                }
-                catch { videoName = string.Empty; }
-
-                int no = 1;
+                sb.AppendLine("team,start,end,tags,comment");
                 foreach (var c in clips)
                 {
-                    // TeamKey: A/B
-                    var teamKey = (c.Team ?? "A").Trim().Equals("B", System.StringComparison.OrdinalIgnoreCase) ? "B" : "A";
-                    var teamSide = teamKey == "A" ? "Home" : "Away";
-                    var teamName = teamKey == "A" ? (VM.TeamAName ?? "Team A") : (VM.TeamBName ?? "Team B");
-
-                    var startSec = c.Start;
-                    var endSec = c.End;
-                    var durSec = System.Math.Max(0, endSec - startSec);
-
-                    var startText = FormatTime(startSec);
-                    var endText = FormatTime(endSec);
-
-                    // Mac版は "; " 区切り
-                    var tagsText = c.Tags == null || c.Tags.Count == 0 ? "" : string.Join("; ", c.Tags);
-
-                    sb.AppendLine(string.Join(",", new[]
-                    {
-                        "2",
-                        EscapeCsv(videoName),
-                        no.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        teamKey,
-                        teamSide,
-                        EscapeCsv(teamName),
-                        EscapeCsv(startText),
-                        EscapeCsv(endText),
-                        startSec.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
-                        endSec.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
-                        durSec.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
-                        EscapeCsv(tagsText),
-                        EscapeCsv(c.SetPlay ?? ""),
-                        EscapeCsv(c.Comment ?? "")
-                    }));
-                    no++;
+                    var tags = string.Join("|", c.Tags ?? new List<string>());
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.Comment ?? "")}");
                 }
-
-                // Excelでも文字化けしにくい BOM付きUTF-8
-                File.WriteAllText(dlg.FileName, sb.ToString(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
             }
             catch (Exception ex)
@@ -609,32 +461,16 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
                 var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
 
-                // 旧形式: team,start,end,tags,setplay,comment
                 int teamIdx = headerLower.IndexOf("team");
                 int startIdx = headerLower.IndexOf("start");
                 int endIdx = headerLower.IndexOf("end");
                 int durationIdx = headerLower.IndexOf("duration");
                 int tagsIdx = headerLower.IndexOf("tags");
-                int setplayIdx = headerLower.IndexOf("setplay");
                 int commentIdx = headerLower.IndexOf("comment");
 
-                // Mac版(Schema=2)形式
-                int schemaIdx = headerLower.IndexOf("schema");
-                int teamKeyIdx = headerLower.IndexOf("teamkey");
-                int teamSideIdx = headerLower.IndexOf("teamside");
-                int startSecIdx = headerLower.IndexOf("startsec");
-                int endSecIdx = headerLower.IndexOf("endsec");
-                int durationSecIdx = headerLower.IndexOf("durationsec");
-                int noteIdx = headerLower.IndexOf("note");
-
-                bool isSchema2 = schemaIdx >= 0 && teamKeyIdx >= 0 && (startSecIdx >= 0 || startIdx >= 0);
-
-                // team列が無い場合でも teamkey があればOK
-                if (teamIdx < 0) teamIdx = teamKeyIdx;
-
-                if (teamIdx < 0 || (startIdx < 0 && startSecIdx < 0))
+                if (teamIdx < 0 || startIdx < 0)
                 {
-                    MessageBox.Show("CSV format not recognized.\n\nNeed either:\n- team & start (old format)\n- TeamKey & StartSec (Schema=2)");
+                    MessageBox.Show("CSV format not recognized. Need at least 'team' and 'start' columns.");
                     return;
                 }
 
@@ -656,33 +492,17 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 {
                     if (string.IsNullOrWhiteSpace(lines[i])) continue;
                     var cols = SplitCsv(lines[i]);
-                    if (teamIdx < 0 || teamIdx >= cols.Count) continue;
-                    if ((startSecIdx >= 0 && startSecIdx >= cols.Count) && (startIdx < 0 || startIdx >= cols.Count)) continue;
+                    if (cols.Count <= startIdx || cols.Count <= teamIdx) continue;
 
                     string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
-                    // Schema=2 の場合は TeamKey (A/B) が入る
                     string team = NormalizeTeamToAB(teamRaw);
 
-                    // Start/End 秒は StartSec/EndSec があれば最優先
-                    double startSec = 0;
-                    double endSec = 0;
-                    if (startSecIdx >= 0)
-                        startSec = ParseDoubleInvariant(GetSafe(cols, startSecIdx));
-                    if (endSecIdx >= 0)
-                        endSec = ParseDoubleInvariant(GetSafe(cols, endSecIdx));
+                    double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
+                    double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
 
-                    if (startSec <= 0 && startIdx >= 0)
-                        startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
-
-                    if (endSec <= 0 && endIdx >= 0)
-                        endSec = ParseTimeToSeconds(GetSafe(cols, endIdx));
-
-                    if (endSec <= 0)
+                    if (endSec <= 0 && durationIdx >= 0)
                     {
-                        // duration / DurationSec があれば補完
-                        double dur = 0;
-                        if (durationSecIdx >= 0) dur = ParseDoubleInvariant(GetSafe(cols, durationSecIdx));
-                        if (dur <= 0 && durationIdx >= 0) dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
+                        var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
                         if (dur > 0) endSec = startSec + dur;
                     }
 
@@ -691,9 +511,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                     string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
                     var tags = ParseTags(tagsRaw);
 
-                    string setPlay = setplayIdx >= 0 ? GetSafe(cols, setplayIdx) : string.Empty;
-                    // Schema=2 は Note 列（旧形式は comment）
-                    string comment = noteIdx >= 0 ? GetSafe(cols, noteIdx) : (commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty);
+                    string comment = commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty;
 
                     VM.AllClips.Add(new ClipRow
                     {
@@ -701,7 +519,6 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                         Start = startSec,
                         End = endSec,
                         Tags = tags,
-                        SetPlay = setPlay,
                         Comment = comment
                     });
                     imported++;
@@ -1042,14 +859,6 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             return 0;
         }
 
-        private static double ParseDoubleInvariant(string s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return 0;
-            if (double.TryParse(s.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) return v;
-            if (double.TryParse(s.Trim(), out v)) return v;
-            return 0;
-        }
-
         private static List<string> ParseTags(string tagsRaw)
         {
             var result = new List<string>();
@@ -1103,63 +912,6 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         private string _clipsHeader = "Clips (Total 0)";
         private ClipRow? _selectedClip = null;
 
-        // Selected-clip tag editing + tag-note (per clip + per tag)
-        private bool _suppressTagSync = false;
-
-        private string _selectedTagNote = "";
-
-        private TagToggleModel? _selectedTag;
-        public TagToggleModel? SelectedTag
-        {
-            get => _selectedTag;
-            set
-            {
-                _selectedTag = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedTagName));
-                OnPropertyChanged(nameof(HasSelectedTag));
-                UpdateSelectedTagNoteFromSelection();
-                OnPropertyChanged(nameof(CanEditTagNote));
-            }
-        }
-
-        public bool HasSelectedTag => SelectedTag != null;
-
-        public string SelectedTagName => SelectedTag?.Name ?? "(No tag selected)";
-
-        public bool CanEditTagNote => HasSelectedClip && HasSelectedTag;
-
-        /// <summary>
-        /// Tag note bound to the UI. Stored per selected clip + selected tag.
-        /// </summary>
-        public string SelectedTagNote
-        {
-            get => _selectedTagNote;
-            set
-            {
-                if (_selectedTagNote == value) return;
-                _selectedTagNote = value ?? "";
-                OnPropertyChanged();
-
-                // Persist into selected clip (in-memory)
-                if (SelectedClip != null && SelectedTag != null)
-                {
-                    var key = SelectedTag.Name;
-                    var note = _selectedTagNote;
-
-                    if (string.IsNullOrWhiteSpace(note))
-                    {
-                        if (SelectedClip.TagNotes.ContainsKey(key))
-                            SelectedClip.TagNotes.Remove(key);
-                    }
-                    else
-                    {
-                        SelectedClip.TagNotes[key] = note;
-                    }
-                }
-            }
-        }
-
         public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
         private string _selectedClipFilter = "All Clips";
@@ -1173,7 +925,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(TeamAView));
                 OnPropertyChanged(nameof(TeamBView));
-                UpdateHeadersAndCurrentTagsText();
+                RequestUpdateHeadersAndCurrentTagsText();
             }
         }
 
@@ -1181,6 +933,30 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         private readonly ICollectionView _teamAView;
         private readonly ICollectionView _teamBView;
+
+        private bool _headersUpdateQueued = false;
+        private bool _suppressTagUpdates = false;
+        private readonly Dispatcher _dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+
+        private void RequestUpdateHeadersAndCurrentTagsText()
+        {
+            if (_suppressTagUpdates) return;
+            if (_headersUpdateQueued) return;
+            _headersUpdateQueued = true;
+
+            _dispatcher.BeginInvoke(new Action(() =>
+            {
+                _headersUpdateQueued = false;
+                try
+                {
+                    UpdateHeadersAndCurrentTagsTextCore();
+                }
+                catch
+                {
+                    // Never crash on UI refresh timing issues.
+                }
+            }), DispatcherPriority.Background);
+        }
 
         public ICollectionView TeamAView => _teamAView;
         public ICollectionView TeamBView => _teamBView;
@@ -1201,8 +977,9 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         public MainWindowViewModel()
         {
-            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            _suppressTagUpdates = true;
+            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
+            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
@@ -1226,94 +1003,11 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             UpdateHeadersAndCurrentTagsText();
         }
 
-        public void OnTagToggled(TagToggleModel tag, bool isChecked)
-{
-    try
-    {
-        if (_suppressTagSync) return;
-
-        // Always track last interacted tag for Tag Note UI
-        if (isChecked) SelectedTag = tag;
-
-        // If a clip is selected, we are editing that clip's tags (Mac-like)
-        if (SelectedClip != null)
-        {
-            var list = SelectedClip.Tags ?? new List<string>();
-
-            if (isChecked)
-            {
-                if (!list.Contains(tag.Name)) list.Add(tag.Name);
-            }
-            else
-            {
-                list.RemoveAll(x => string.Equals(x, tag.Name, StringComparison.OrdinalIgnoreCase));
-                // also remove its per-tag note
-                if (SelectedClip.TagNotes != null && SelectedClip.TagNotes.ContainsKey(tag.Name))
-                    SelectedClip.TagNotes.Remove(tag.Name);
-            }
-
-            SelectedClip.Tags = list;
-            SelectedClip.NotifyTagsChanged();
-
-            // If current selected tag got unchecked, move selection to another checked tag
-            if (!isChecked && SelectedTag == tag)
-            {
-                var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-                SelectedTag = next;
-            }
-
-            UpdateHeadersAndCurrentTagsText();
-            UpdateSelectedTagNoteFromSelection();
-            return;
-        }
-
-        // No selected clip => tags are for the next clip you will save
-        if (!isChecked && SelectedTag == tag)
-        {
-            var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-            SelectedTag = next;
-        }
-
-        UpdateHeadersAndCurrentTagsText();
-        UpdateSelectedTagNoteFromSelection();
-    }
-    catch
-    {
-        // never crash from rapid clicks / selection race
-    }
-}
-
-public void AddOrSelectOffenseTag(string tagName)
-        {
-            var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
-            {
-                existing.IsSelected = true;
-                SelectedTag = existing;
-
-                // If editing a selected clip, also apply it to that clip.
-                if (SelectedClip != null)
-                {
-                    OnTagToggled(existing, isChecked: true);
-                }
-                return;
-            }
-
-            var newTag = new TagToggleModel { Name = tagName, IsSelected = true };
-            OffenseTags.Add(newTag);
-            SelectedTag = newTag;
-
-            if (SelectedClip != null)
-            {
-                OnTagToggled(newTag, isChecked: true);
-            }
-        }
-
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            _teamAView.Refresh();
-            _teamBView.Refresh();
-            UpdateHeadersAndCurrentTagsText();
+            try { _teamAView.Refresh(); } catch { }
+            try { _teamBView.Refresh(); } catch { }
+            RequestUpdateHeadersAndCurrentTagsText();
             OnPropertyChanged(nameof(HasSelectedClip));
         }
 
@@ -1365,101 +1059,32 @@ public void AddOrSelectOffenseTag(string tagName)
                 _selectedClip = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSelectedClip));
-                OnPropertyChanged(nameof(CanEditTagNote));
-
-                // When selecting a clip, tags become "edit selected clip" mode.
-                try
-                {
-                    SyncTagTogglesWithSelectedClip(_selectedClip);
-                    UpdateHeadersAndCurrentTagsText();
-                    UpdateSelectedTagNoteFromSelection();
-                }
-                catch
-                {
-                    // never crash from selection race
-                }
             }
         }
 
         public bool HasSelectedClip => SelectedClip != null;
 
-        private void SyncTagTogglesWithSelectedClip(ClipRow? clip)
-        {
-            _suppressTagSync = true;
-            try
-            {
-                var clipTags = clip?.Tags ?? new List<string>();
-
-                foreach (var t in OffenseTags)
-                    t.IsSelected = clipTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
-                foreach (var t in DefenseTags)
-                    t.IsSelected = clipTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
-
-                // If a tag in the clip is not in presets (custom), add it to OffenseTags so it can be toggled.
-                foreach (var ct in clipTags)
-                {
-                    if (OffenseTags.Any(x => string.Equals(x.Name, ct, StringComparison.OrdinalIgnoreCase))) continue;
-                    if (DefenseTags.Any(x => string.Equals(x.Name, ct, StringComparison.OrdinalIgnoreCase))) continue;
-                    OffenseTags.Add(new TagToggleModel { Name = ct, IsSelected = true });
-                }
-
-                // Keep SelectedTag consistent
-                if (clip != null)
-                {
-                    var first = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-                    SelectedTag = first;
-                }
-            }
-            finally
-            {
-                _suppressTagSync = false;
-            }
-        }
-
-        private void UpdateSelectedTagNoteFromSelection()
-        {
-            if (SelectedClip == null || SelectedTag == null)
-            {
-                SelectedTagNote = "";
-                return;
-            }
-
-            if (SelectedClip.TagNotes.TryGetValue(SelectedTag.Name, out var note))
-                _selectedTagNote = note ?? "";
-            else
-                _selectedTagNote = "";
-
-            OnPropertyChanged(nameof(SelectedTagNote));
-        }
-
         public IEnumerable<string> GetSelectedTags()
         {
-            // If a clip is selected, show/edit that clip's tags.
-            if (SelectedClip != null)
-                return SelectedClip.Tags ?? Enumerable.Empty<string>();
-
-            // Otherwise, tags represent the next clip you will save.
             return OffenseTags.Where(x => x.IsSelected).Select(x => x.Name)
                 .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
         }
 
         public void UpdateHeadersAndCurrentTagsText()
         {
+            RequestUpdateHeadersAndCurrentTagsText();
+        }
+
+        private void UpdateHeadersAndCurrentTagsTextCore()
+        {
             ClipsHeader = $"Clips (Total {AllClips.Count})";
 
             var tags = GetSelectedTags().ToList();
             CurrentTagsText = tags.Count == 0 ? "(No tags selected)" : string.Join(", ", tags);
 
-            try
-            {
-                _teamAView.Refresh();
-                _teamBView.Refresh();
-            }
-            catch
-            {
-                // ignore refresh timing issues
-            }
-}
+            try { _teamAView.Refresh(); } catch { }
+            try { _teamBView.Refresh(); } catch { }
+        }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -1479,21 +1104,9 @@ public void AddOrSelectOffenseTag(string tagName)
 
         private string _name = "";
         private bool _isSelected = false;
-        private string _note = "";
 
         public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
         public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
-
-        public string Note
-        {
-            get => _note;
-            set
-            {
-                if (_note == value) return;
-                _note = value;
-                OnPropertyChanged();
-            }
-        }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -1508,8 +1121,6 @@ public void AddOrSelectOffenseTag(string tagName)
         private double _end;
         private List<string> _tags = new();
         private string _comment = "";
-        private string _setPlay = "";
-        private Dictionary<string, string> _tagNotes = new();
 
         public string Team
         {
@@ -1520,36 +1131,19 @@ public void AddOrSelectOffenseTag(string tagName)
         public double Start
         {
             get => _start;
-            set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); OnPropertyChanged(nameof(DurationSeconds)); OnPropertyChanged(nameof(DurationText)); }
+            set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); }
         }
 
         public double End
         {
             get => _end;
-            set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); OnPropertyChanged(nameof(DurationSeconds)); OnPropertyChanged(nameof(DurationText)); }
+            set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); }
         }
 
         public List<string> Tags
         {
             get => _tags;
-            set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); OnPropertyChanged(nameof(HasSetTag)); }
-        }
-
-        /// <summary>
-        /// Per-tag notes for this clip.
-        /// key: tag name, value: note text
-        /// </summary>
-        public Dictionary<string, string> TagNotes
-        {
-            get => _tagNotes;
-            set { _tagNotes = value ?? new Dictionary<string, string>(); OnPropertyChanged(); }
-        }
-
-        public void NotifyTagsChanged()
-        {
-            OnPropertyChanged(nameof(Tags));
-            OnPropertyChanged(nameof(TagsText));
-            OnPropertyChanged(nameof(HasSetTag));
+            set { _tags = value ?? new List<string>(); OnPropertyChanged(); OnPropertyChanged(nameof(TagsText)); }
         }
 
         public string Comment
@@ -1558,18 +1152,9 @@ public void AddOrSelectOffenseTag(string tagName)
             set { _comment = value ?? ""; OnPropertyChanged(); }
         }
 
-        public string SetPlay
-        {
-            get => _setPlay;
-            set { _setPlay = value ?? ""; OnPropertyChanged(); }
-        }
-
         public string StartText => FormatTime(Start);
         public string EndText => FormatTime(End);
-        public double DurationSeconds => Math.Max(0, End - Start);
-        public string DurationText => $"{DurationSeconds:0.0} s";
         public string TagsText => Tags == null || Tags.Count == 0 ? "" : string.Join(", ", Tags);
-        public bool HasSetTag => Tags != null && Tags.Any(t => string.Equals(t, "Set", StringComparison.OrdinalIgnoreCase));
 
         private static string FormatTime(double seconds)
         {
