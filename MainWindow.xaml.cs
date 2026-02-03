@@ -26,12 +26,6 @@ namespace PlayCutWin
     {
         private readonly DispatcherTimer _timer;
 
-        // Prevent refresh re-entrancy / tag-click crash.
-        // Some iterations referenced these members; keep them here so CI always compiles
-        // and so we can debounce refresh safely.
-        private bool _suppressTagUpdates = false;
-        private bool _headersUpdateQueued = false;
-
         private bool _isDraggingTimeline = false;
 
         // seek-jump safety
@@ -44,26 +38,6 @@ namespace PlayCutWin
         private double _currentSpeed = 1.0;
 
         public MainWindowViewModel VM { get; } = new MainWindowViewModel();
-
-        private void RequestUpdateHeadersAndCurrentTagsText()
-        {
-            if (_suppressTagUpdates) return;
-            if (_headersUpdateQueued) return;
-            _headersUpdateQueued = true;
-
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                _headersUpdateQueued = false;
-                try
-                {
-                    VM.UpdateHeadersAndCurrentTagsText();
-                }
-                catch
-                {
-                    // swallow refresh timing issues
-                }
-            }), DispatcherPriority.Background);
-        }
 
         public MainWindow()
         {
@@ -344,7 +318,7 @@ namespace PlayCutWin
             VM.AllClips.Add(item);
 
             VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
-            VM.UpdateHeadersAndCurrentTagsText();
+            VM.RequestUpdateHeadersAndCurrentTagsText();
         }
 
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
@@ -403,7 +377,7 @@ namespace PlayCutWin
                     if (VM.AllClips.Contains(c))
                         VM.AllClips.Remove(c);
                     if (VM.SelectedClip == c) VM.SelectedClip = null;
-                    VM.UpdateHeadersAndCurrentTagsText();
+                    VM.RequestUpdateHeadersAndCurrentTagsText();
                 }
             }
             catch { }
@@ -432,7 +406,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             if (VM.AllClips.Contains(target))
                 VM.AllClips.Remove(target);
 
-            VM.UpdateHeadersAndCurrentTagsText();
+            VM.RequestUpdateHeadersAndCurrentTagsText();
         }
 
         // ----------------------------
@@ -446,7 +420,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             VM.AddOrSelectOffenseTag(t);
 
             VM.CustomTagInput = "";
-            VM.UpdateHeadersAndCurrentTagsText();
+            VM.RequestUpdateHeadersAndCurrentTagsText();
         }
 
         private void ClearTags_Click(object sender, RoutedEventArgs e)
@@ -466,7 +440,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 foreach (var t in VM.OffenseTags) t.IsSelected = false;
                 foreach (var t in VM.DefenseTags) t.IsSelected = false;
                 VM.CustomTagInput = "";
-                VM.UpdateHeadersAndCurrentTagsText();
+                VM.RequestUpdateHeadersAndCurrentTagsText();
             }
             catch
             {
@@ -733,7 +707,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                     imported++;
                 }
 
-                VM.UpdateHeadersAndCurrentTagsText();
+                VM.RequestUpdateHeadersAndCurrentTagsText();
                 VM.StatusText = $"Imported {imported} clips.";
             }
             catch (Exception ex)
@@ -1131,7 +1105,10 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         // Selected-clip tag editing + tag-note (per clip + per tag)
         private bool _suppressTagSync = false;
-		private bool _headersUpdateQueued = false;
+
+        // Debounce UI refreshes triggered by rapid tag toggles (prevents re-entrant Refresh crashes)
+        private bool _suppressTagUpdates = false;
+        private bool _headersUpdateQueued = false;
 
         private string _selectedTagNote = "";
 
@@ -1200,7 +1177,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(TeamAView));
                 OnPropertyChanged(nameof(TeamBView));
-				RequestUpdateHeadersAndCurrentTagsText();
+                RequestUpdateHeadersAndCurrentTagsText();
             }
         }
 
@@ -1228,8 +1205,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         public MainWindowViewModel()
         {
-			foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
-			foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
+            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
+            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
@@ -1250,7 +1227,38 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 return string.Equals(c.Team, "B", StringComparison.OrdinalIgnoreCase);
             };
 
-            UpdateHeadersAndCurrentTagsText();
+            RequestUpdateHeadersAndCurrentTagsText();
+        }
+
+        /// <summary>
+        /// Schedules header/tag-text refresh on the Dispatcher to avoid re-entrant ICollectionView.Refresh crashes.
+        /// </summary>
+        public void RequestUpdateHeadersAndCurrentTagsText()
+        {
+            if (_suppressTagUpdates) return;
+            if (_headersUpdateQueued) return;
+            _headersUpdateQueued = true;
+
+            var disp = System.Windows.Application.Current?.Dispatcher;
+            if (disp == null)
+            {
+                _headersUpdateQueued = false;
+                UpdateHeadersAndCurrentTagsText();
+                return;
+            }
+
+            disp.BeginInvoke(new Action(() =>
+            {
+                _headersUpdateQueued = false;
+                try
+                {
+                    UpdateHeadersAndCurrentTagsText();
+                }
+                catch
+                {
+                    // never crash from refresh timing issues
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
         public void OnTagToggled(TagToggleModel tag, bool isChecked)
@@ -1289,7 +1297,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 SelectedTag = next;
             }
 
-            UpdateHeadersAndCurrentTagsText();
+            RequestUpdateHeadersAndCurrentTagsText();
             UpdateSelectedTagNoteFromSelection();
             return;
         }
@@ -1301,7 +1309,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             SelectedTag = next;
         }
 
-        UpdateHeadersAndCurrentTagsText();
+        RequestUpdateHeadersAndCurrentTagsText();
         UpdateSelectedTagNoteFromSelection();
     }
     catch
@@ -1338,9 +1346,15 @@ public void AddOrSelectOffenseTag(string tagName)
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            _teamAView.Refresh();
-            _teamBView.Refresh();
-            UpdateHeadersAndCurrentTagsText();
+            // Refresh views after collection updates (debounced to avoid re-entrancy)
+            try
+            {
+                _teamAView.Refresh();
+                _teamBView.Refresh();
+            }
+            catch { }
+
+            RequestUpdateHeadersAndCurrentTagsText();
             OnPropertyChanged(nameof(HasSelectedClip));
         }
 
@@ -1398,7 +1412,7 @@ public void AddOrSelectOffenseTag(string tagName)
                 try
                 {
                     SyncTagTogglesWithSelectedClip(_selectedClip);
-                    UpdateHeadersAndCurrentTagsText();
+                    RequestUpdateHeadersAndCurrentTagsText();
                     UpdateSelectedTagNoteFromSelection();
                 }
                 catch
@@ -1470,31 +1484,34 @@ public void AddOrSelectOffenseTag(string tagName)
                 .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
         }
 
-		/// <summary>
-		/// Debounced/safe version of UpdateHeadersAndCurrentTagsText.
-		/// Tag toggles can fire while WPF is processing input/selection;
-		/// refreshing views immediately can cause re-entrancy crashes.
-		/// </summary>
-		public void RequestUpdateHeadersAndCurrentTagsText()
-		{
-			if (_suppressTagSync) return;
-			if (_headersUpdateQueued) return;
-			_headersUpdateQueued = true;
+        /// <summary>
+        /// Schedules a single UI refresh for headers/current-tags and views.
+        /// This avoids re-entrant ICollectionView.Refresh crashes during rapid tag toggles.
+        /// </summary>
+        public void RequestUpdateHeadersAndCurrentTagsText()
+        {
+            if (_suppressTagUpdates) return;
+            if (_headersUpdateQueued) return;
+            _headersUpdateQueued = true;
 
-			try
-			{
-				Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
-				{
-					_headersUpdateQueued = false;
-					UpdateHeadersAndCurrentTagsText();
-				}), DispatcherPriority.Background);
-			}
-			catch
-			{
-				_headersUpdateQueued = false;
-				// ignore
-			}
-		}
+            try
+            {
+                // Run after input processing to avoid re-entrancy.
+                System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Background,
+                    new Action(() =>
+                    {
+                        _headersUpdateQueued = false;
+                        UpdateHeadersAndCurrentTagsText();
+                    }));
+            }
+            catch
+            {
+                // If dispatcher isn't available, just fallback.
+                _headersUpdateQueued = false;
+                try { UpdateHeadersAndCurrentTagsText(); } catch { }
+            }
+        }
 
         public void UpdateHeadersAndCurrentTagsText()
         {
@@ -1512,7 +1529,7 @@ public void AddOrSelectOffenseTag(string tagName)
             {
                 // ignore refresh timing issues
             }
-}
+        }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
