@@ -318,7 +318,7 @@ namespace PlayCutWin
             VM.AllClips.Add(item);
 
             VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
-            VM.RequestUpdateHeadersAndCurrentTagsText();
+            VM.UpdateHeadersAndCurrentTagsText();
         }
 
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
@@ -377,7 +377,7 @@ namespace PlayCutWin
                     if (VM.AllClips.Contains(c))
                         VM.AllClips.Remove(c);
                     if (VM.SelectedClip == c) VM.SelectedClip = null;
-                    VM.RequestUpdateHeadersAndCurrentTagsText();
+                    VM.UpdateHeadersAndCurrentTagsText();
                 }
             }
             catch { }
@@ -406,7 +406,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             if (VM.AllClips.Contains(target))
                 VM.AllClips.Remove(target);
 
-            VM.RequestUpdateHeadersAndCurrentTagsText();
+            VM.UpdateHeadersAndCurrentTagsText();
         }
 
         // ----------------------------
@@ -420,7 +420,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             VM.AddOrSelectOffenseTag(t);
 
             VM.CustomTagInput = "";
-            VM.RequestUpdateHeadersAndCurrentTagsText();
+            VM.UpdateHeadersAndCurrentTagsText();
         }
 
         private void ClearTags_Click(object sender, RoutedEventArgs e)
@@ -440,7 +440,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 foreach (var t in VM.OffenseTags) t.IsSelected = false;
                 foreach (var t in VM.DefenseTags) t.IsSelected = false;
                 VM.CustomTagInput = "";
-                VM.RequestUpdateHeadersAndCurrentTagsText();
+                VM.UpdateHeadersAndCurrentTagsText();
             }
             catch
             {
@@ -707,7 +707,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                     imported++;
                 }
 
-                VM.RequestUpdateHeadersAndCurrentTagsText();
+                VM.UpdateHeadersAndCurrentTagsText();
                 VM.StatusText = $"Imported {imported} clips.";
             }
             catch (Exception ex)
@@ -1106,9 +1106,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         // Selected-clip tag editing + tag-note (per clip + per tag)
         private bool _suppressTagSync = false;
 
-        // Debounce UI refreshes triggered by rapid tag toggles (prevents re-entrant Refresh crashes)
-        private bool _suppressTagUpdates = false;
-        private bool _headersUpdateQueued = false;
+	        // Coalesce rapid UI updates (tag clicks / selection changes) to avoid re-entrancy crashes.
+	        private bool _headersUpdateQueued = false;
 
         private string _selectedTagNote = "";
 
@@ -1177,7 +1176,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(TeamAView));
                 OnPropertyChanged(nameof(TeamBView));
-                RequestUpdateHeadersAndCurrentTagsText();
+                UpdateHeadersAndCurrentTagsText();
             }
         }
 
@@ -1205,8 +1204,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
 
         public MainWindowViewModel()
         {
-            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
-            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => RequestUpdateHeadersAndCurrentTagsText();
+            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
+            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
@@ -1227,38 +1226,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 return string.Equals(c.Team, "B", StringComparison.OrdinalIgnoreCase);
             };
 
-            RequestUpdateHeadersAndCurrentTagsText();
-        }
-
-        /// <summary>
-        /// Schedules header/tag-text refresh on the Dispatcher to avoid re-entrant ICollectionView.Refresh crashes.
-        /// </summary>
-        public void RequestUpdateHeadersAndCurrentTagsText()
-        {
-            if (_suppressTagUpdates) return;
-            if (_headersUpdateQueued) return;
-            _headersUpdateQueued = true;
-
-            var disp = System.Windows.Application.Current?.Dispatcher;
-            if (disp == null)
-            {
-                _headersUpdateQueued = false;
-                UpdateHeadersAndCurrentTagsText();
-                return;
-            }
-
-            disp.BeginInvoke(new Action(() =>
-            {
-                _headersUpdateQueued = false;
-                try
-                {
-                    UpdateHeadersAndCurrentTagsText();
-                }
-                catch
-                {
-                    // never crash from refresh timing issues
-                }
-            }), System.Windows.Threading.DispatcherPriority.Background);
+            UpdateHeadersAndCurrentTagsText();
         }
 
         public void OnTagToggled(TagToggleModel tag, bool isChecked)
@@ -1297,8 +1265,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 SelectedTag = next;
             }
 
-            RequestUpdateHeadersAndCurrentTagsText();
-            UpdateSelectedTagNoteFromSelection();
+	            RequestUpdateHeadersAndCurrentTagsText();
             return;
         }
 
@@ -1309,8 +1276,7 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             SelectedTag = next;
         }
 
-        RequestUpdateHeadersAndCurrentTagsText();
-        UpdateSelectedTagNoteFromSelection();
+	        RequestUpdateHeadersAndCurrentTagsText();
     }
     catch
     {
@@ -1346,15 +1312,7 @@ public void AddOrSelectOffenseTag(string tagName)
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            // Refresh views after collection updates (debounced to avoid re-entrancy)
-            try
-            {
-                _teamAView.Refresh();
-                _teamBView.Refresh();
-            }
-            catch { }
-
-            RequestUpdateHeadersAndCurrentTagsText();
+	            RequestUpdateHeadersAndCurrentTagsText();
             OnPropertyChanged(nameof(HasSelectedClip));
         }
 
@@ -1411,9 +1369,8 @@ public void AddOrSelectOffenseTag(string tagName)
                 // When selecting a clip, tags become "edit selected clip" mode.
                 try
                 {
-                    SyncTagTogglesWithSelectedClip(_selectedClip);
-                    RequestUpdateHeadersAndCurrentTagsText();
-                    UpdateSelectedTagNoteFromSelection();
+	                    SyncTagTogglesWithSelectedClip(_selectedClip);
+	                    RequestUpdateHeadersAndCurrentTagsText();
                 }
                 catch
                 {
@@ -1484,11 +1441,44 @@ public void AddOrSelectOffenseTag(string tagName)
                 .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
         }
 
-        /// <summary>
-        /// Schedules a single UI refresh for headers/current-tags and views.
-        /// This avoids re-entrant ICollectionView.Refresh crashes during rapid tag toggles.
-        /// </summary>
-                public void UpdateHeadersAndCurrentTagsText()
+	        /// <summary>
+	        /// Schedules a single UI refresh for headers / current tags text.
+	        /// This prevents crashes caused by rapid tag clicking and collection view refresh re-entrancy.
+	        /// </summary>
+	        public void RequestUpdateHeadersAndCurrentTagsText()
+	        {
+	            if (_headersUpdateQueued) return;
+	            _headersUpdateQueued = true;
+
+	            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+	            if (dispatcher == null)
+	            {
+	                _headersUpdateQueued = false;
+	                SafeUpdateHeadersAndTags();
+	                return;
+	            }
+
+	            dispatcher.BeginInvoke(new Action(() =>
+	            {
+	                _headersUpdateQueued = false;
+	                SafeUpdateHeadersAndTags();
+	            }), System.Windows.Threading.DispatcherPriority.Background);
+	        }
+
+	        private void SafeUpdateHeadersAndTags()
+	        {
+	            try
+	            {
+	                UpdateHeadersAndCurrentTagsText();
+	                UpdateSelectedTagNoteFromSelection();
+	            }
+	            catch
+	            {
+	                // never crash UI
+	            }
+	        }
+
+        public void UpdateHeadersAndCurrentTagsText()
         {
             ClipsHeader = $"Clips (Total {AllClips.Count})";
 
@@ -1504,7 +1494,7 @@ public void AddOrSelectOffenseTag(string tagName)
             {
                 // ignore refresh timing issues
             }
-        }
+}
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
