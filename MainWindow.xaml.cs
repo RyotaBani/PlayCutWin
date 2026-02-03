@@ -1488,32 +1488,7 @@ public void AddOrSelectOffenseTag(string tagName)
         /// Schedules a single UI refresh for headers/current-tags and views.
         /// This avoids re-entrant ICollectionView.Refresh crashes during rapid tag toggles.
         /// </summary>
-        public void RequestUpdateHeadersAndCurrentTagsText()
-        {
-            if (_suppressTagUpdates) return;
-            if (_headersUpdateQueued) return;
-            _headersUpdateQueued = true;
-
-            try
-            {
-                // Run after input processing to avoid re-entrancy.
-                System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                    System.Windows.Threading.DispatcherPriority.Background,
-                    new Action(() =>
-                    {
-                        _headersUpdateQueued = false;
-                        UpdateHeadersAndCurrentTagsText();
-                    }));
-            }
-            catch
-            {
-                // If dispatcher isn't available, just fallback.
-                _headersUpdateQueued = false;
-                try { UpdateHeadersAndCurrentTagsText(); } catch { }
-            }
-        }
-
-        public void UpdateHeadersAndCurrentTagsText()
+                public void UpdateHeadersAndCurrentTagsText()
         {
             ClipsHeader = $"Clips (Total {AllClips.Count})";
 
