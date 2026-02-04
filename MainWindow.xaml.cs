@@ -337,6 +337,11 @@ namespace PlayCutWin
                 if (lv.SelectedItem is ClipRow c)
                 {
                     VM.SelectedClip = c;
+
+                    // Auto Jump + Play on single click/selection (Mac-like).
+                    // Avoid hijacking focus when the user is editing text inside a card.
+                    if (Keyboard.FocusedElement is TextBox) return;
+                    SeekToSeconds(c.Start, autoPlay: true);
                 }
             }
         }
@@ -1106,9 +1111,6 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
         // Selected-clip tag editing + tag-note (per clip + per tag)
         private bool _suppressTagSync = false;
 
-	        // Coalesce rapid UI updates (tag clicks / selection changes) to avoid re-entrancy crashes.
-	        private bool _headersUpdateQueued = false;
-
         private string _selectedTagNote = "";
 
         private TagToggleModel? _selectedTag;
@@ -1265,7 +1267,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
                 SelectedTag = next;
             }
 
-	            RequestUpdateHeadersAndCurrentTagsText();
+            UpdateHeadersAndCurrentTagsText();
+            UpdateSelectedTagNoteFromSelection();
             return;
         }
 
@@ -1276,7 +1279,8 @@ private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
             SelectedTag = next;
         }
 
-	        RequestUpdateHeadersAndCurrentTagsText();
+        UpdateHeadersAndCurrentTagsText();
+        UpdateSelectedTagNoteFromSelection();
     }
     catch
     {
@@ -1312,7 +1316,9 @@ public void AddOrSelectOffenseTag(string tagName)
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-	            RequestUpdateHeadersAndCurrentTagsText();
+            _teamAView.Refresh();
+            _teamBView.Refresh();
+            UpdateHeadersAndCurrentTagsText();
             OnPropertyChanged(nameof(HasSelectedClip));
         }
 
@@ -1369,8 +1375,9 @@ public void AddOrSelectOffenseTag(string tagName)
                 // When selecting a clip, tags become "edit selected clip" mode.
                 try
                 {
-	                    SyncTagTogglesWithSelectedClip(_selectedClip);
-	                    RequestUpdateHeadersAndCurrentTagsText();
+                    SyncTagTogglesWithSelectedClip(_selectedClip);
+                    UpdateHeadersAndCurrentTagsText();
+                    UpdateSelectedTagNoteFromSelection();
                 }
                 catch
                 {
@@ -1440,43 +1447,6 @@ public void AddOrSelectOffenseTag(string tagName)
             return OffenseTags.Where(x => x.IsSelected).Select(x => x.Name)
                 .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
         }
-
-	        /// <summary>
-	        /// Schedules a single UI refresh for headers / current tags text.
-	        /// This prevents crashes caused by rapid tag clicking and collection view refresh re-entrancy.
-	        /// </summary>
-	        public void RequestUpdateHeadersAndCurrentTagsText()
-	        {
-	            if (_headersUpdateQueued) return;
-	            _headersUpdateQueued = true;
-
-	            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-	            if (dispatcher == null)
-	            {
-	                _headersUpdateQueued = false;
-	                SafeUpdateHeadersAndTags();
-	                return;
-	            }
-
-	            dispatcher.BeginInvoke(new Action(() =>
-	            {
-	                _headersUpdateQueued = false;
-	                SafeUpdateHeadersAndTags();
-	            }), System.Windows.Threading.DispatcherPriority.Background);
-	        }
-
-	        private void SafeUpdateHeadersAndTags()
-	        {
-	            try
-	            {
-	                UpdateHeadersAndCurrentTagsText();
-	                UpdateSelectedTagNoteFromSelection();
-	            }
-	            catch
-	            {
-	                // never crash UI
-	            }
-	        }
 
         public void UpdateHeadersAndCurrentTagsText()
         {
