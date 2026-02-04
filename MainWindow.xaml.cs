@@ -332,37 +332,72 @@ namespace PlayCutWin
             // Keep handler for compatibility, but do nothing.
             e.Handled = true;
         }
+
+        private ClipRow _pendingAutoJumpClip = null;
+        private System.Windows.Threading.DispatcherTimer _autoJumpTimer = null;
+        private DateTime _lastAutoJumpAtUtc = DateTime.MinValue;
+
+        
+        private void ClipList_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            // Swallow double-click to avoid re-entry (SelectionChanged + internal double-click behavior)
+            e.Handled = true;
         }
 
-        private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             try
             {
-                // Editing Note/SetPlay TextBox should not trigger auto jump
+                // Don't auto-jump while editing text
                 if (Keyboard.FocusedElement is TextBox) return;
-                if (_isAutoJumping) return;
 
                 if (sender is Selector lv && lv.SelectedItem is ClipRow c)
                 {
                     VM.SelectedClip = c;
 
-                    var now = DateTime.UtcNow;
+                    // Cancel & reschedule (debounce) to avoid double-click / spam / re-entry crashes
+                    _pendingAutoJumpClip = c;
 
-                    // Ignore rapid repeated selection (double click / spam click)
-                    if (ReferenceEquals(_lastAutoJumpClip, c) && (now - _lastAutoJumpAtUtc).TotalMilliseconds < 350)
-                        return;
+                    if (_autoJumpTimer == null)
+                    {
+                        _autoJumpTimer = new System.Windows.Threading.DispatcherTimer();
+                        _autoJumpTimer.Interval = TimeSpan.FromMilliseconds(120);
+                        _autoJumpTimer.Tick += (s, _) =>
+                        {
+                            _autoJumpTimer.Stop();
+                            var clip = _pendingAutoJumpClip;
+                            if (clip == null) return;
 
-                    _lastAutoJumpClip = c;
-                    _lastAutoJumpAtUtc = now;
+                            // If media not ready, do nothing (prevents crashes before MediaOpened)
+                            if (Player == null || Player.Source == null || !Player.NaturalDuration.HasTimeSpan)
+                                return;
 
-                    _isAutoJumping = true;
+                            var now = DateTime.UtcNow;
+                            if ((now - _lastAutoJumpAtUtc).TotalMilliseconds < 150)
+                                return;
 
-                    // Jump -> auto play (requested)
-                    SeekToSeconds(c.Start, autoPlay: true);
+                            _lastAutoJumpAtUtc = now;
 
-                    // Release guard shortly after to allow next selection
-                    Dispatcher.BeginInvoke(new Action(() => { _isAutoJumping = false; }), DispatcherPriority.Background);
+                            try
+                            {
+                                SeekToSeconds(clip.Start, autoPlay: true);
+                            }
+                            catch
+                            {
+                                // never crash
+                            }
+                        };
+                    }
+
+                    _autoJumpTimer.Stop();
+                    _autoJumpTimer.Start();
                 }
+            }
+            catch
+            {
+                // never crash
+            }
+        }
             }
             catch
             {
