@@ -32,6 +32,11 @@ namespace PlayCutWin
         private double? _pendingJumpSeconds = null;
         private bool _pendingAutoPlayAfterJump = false;
 
+        // Auto jump/play guards (prevent double-click/rapid re-entry crashes)
+        private ClipRow _lastAutoJumpClip = null;
+        private DateTime _lastAutoJumpAtUtc = DateTime.MinValue;
+        private bool _isAutoJumping = false;
+
         // Speed button visuals
         private static readonly SolidColorBrush SpeedNormalBrush = new((Color)ColorConverter.ConvertFromString("#2A2A2A"));
         private static readonly SolidColorBrush SpeedSelectedBrush = new((Color)ColorConverter.ConvertFromString("#0A84FF"));
@@ -323,21 +328,48 @@ namespace PlayCutWin
 
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
-            // Jump -> auto play (requested)
-            if (sender is Selector lv && lv.SelectedItem is ClipRow clip)
-            {
-                SeekToSeconds(clip.Start, autoPlay: true);
-            }
+            // Disabled: double click caused re-entry (SelectionChanged + DoubleClick).
+            // Keep handler for compatibility, but do nothing.
+            e.Handled = true;
+        }
         }
 
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (sender is Selector lv)
+            try
             {
-                if (lv.SelectedItem is ClipRow c)
+                // Editing Note/SetPlay TextBox should not trigger auto jump
+                if (Keyboard.FocusedElement is TextBox) return;
+                if (_isAutoJumping) return;
+
+                if (sender is Selector lv && lv.SelectedItem is ClipRow c)
                 {
                     VM.SelectedClip = c;
+
+                    var now = DateTime.UtcNow;
+
+                    // Ignore rapid repeated selection (double click / spam click)
+                    if (ReferenceEquals(_lastAutoJumpClip, c) && (now - _lastAutoJumpAtUtc).TotalMilliseconds < 350)
+                        return;
+
+                    _lastAutoJumpClip = c;
+                    _lastAutoJumpAtUtc = now;
+
+                    _isAutoJumping = true;
+
+                    // Jump -> auto play (requested)
+                    SeekToSeconds(c.Start, autoPlay: true);
+
+                    // Release guard shortly after to allow next selection
+                    Dispatcher.BeginInvoke(new Action(() => { _isAutoJumping = false; }), DispatcherPriority.Background);
                 }
+            }
+            catch
+            {
+                // never crash
+                _isAutoJumping = false;
+            }
+        }
             }
         }
 

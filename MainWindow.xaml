@@ -134,7 +134,7 @@
          ItemsSource="{Binding TeamAView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
+        
          Style="{StaticResource DarkListView}">
     <ListBox.ItemTemplate>
         <DataTemplate>
@@ -215,7 +215,7 @@
          ItemsSource="{Binding TeamBView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
+        
          Style="{StaticResource DarkListView}">
     <ListBox.ItemTemplate>
         <DataTemplate>
@@ -299,7 +299,7 @@
                                     <ListBox ItemsSource="{Binding TeamAView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
+        
          Style="{StaticResource DarkListView}">
     <ListBox.ItemTemplate>
         <DataTemplate>
@@ -382,7 +382,7 @@
                                     <ListBox ItemsSource="{Binding TeamBView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
+        
          Style="{StaticResource DarkListView}">
     <ListBox.ItemTemplate>
         <DataTemplate>
