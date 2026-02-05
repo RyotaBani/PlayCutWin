@@ -131,7 +131,6 @@
                                         <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
                                         <ListView Grid.Row="1"
                                                   ItemsSource="{Binding TeamAView}"
-                                                  SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
                                                   Style="{StaticResource DarkListView}">
@@ -155,7 +154,6 @@
                                         <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
                                         <ListView Grid.Row="1"
                                                   ItemsSource="{Binding TeamBView}"
-                                                  SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
                                                   Style="{StaticResource DarkListView}">
@@ -185,7 +183,6 @@
                                     </Grid.Style>
 
                                     <ListView ItemsSource="{Binding TeamAView}"
-                                              SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
                                               Style="{StaticResource DarkListView}">
@@ -214,7 +211,6 @@
                                     </Grid.Style>
 
                                     <ListView ItemsSource="{Binding TeamBView}"
-                                              SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
                                               SelectionChanged="ClipList_SelectionChanged"
                                               MouseDoubleClick="ClipList_DoubleClick"
                                               Style="{StaticResource DarkListView}">
