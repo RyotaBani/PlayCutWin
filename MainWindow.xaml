@@ -133,8 +133,8 @@
          ItemsSource="{Binding TeamAView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
-         Style="{StaticResource DarkListView}">
+        
+         Style="{StaticResource DarkListView}" PreviewMouseDoubleClick="ClipList_PreviewMouseDoubleClick">
     <ListBox.ItemTemplate>
         <DataTemplate>
             <!-- Mac版に近いカード感：余白を詰め、上段右に duration + アクション -->
@@ -214,8 +214,8 @@
          ItemsSource="{Binding TeamBView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
-         Style="{StaticResource DarkListView}">
+        
+         Style="{StaticResource DarkListView}" PreviewMouseDoubleClick="ClipList_PreviewMouseDoubleClick">
     <ListBox.ItemTemplate>
         <DataTemplate>
             <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="8" Margin="0,0,0,8">
@@ -298,8 +298,8 @@
                                     <ListBox ItemsSource="{Binding TeamAView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
-         Style="{StaticResource DarkListView}">
+        
+         Style="{StaticResource DarkListView}" PreviewMouseDoubleClick="ClipList_PreviewMouseDoubleClick">
     <ListBox.ItemTemplate>
         <DataTemplate>
             <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="8" Margin="0,0,0,8">
@@ -381,8 +381,8 @@
                                     <ListBox ItemsSource="{Binding TeamBView}"
          SelectedItem="{Binding SelectedClip, Mode=TwoWay}"
          SelectionChanged="ClipList_SelectionChanged"
-         MouseDoubleClick="ClipList_DoubleClick"
-         Style="{StaticResource DarkListView}">
+        
+         Style="{StaticResource DarkListView}" PreviewMouseDoubleClick="ClipList_PreviewMouseDoubleClick">
     <ListBox.ItemTemplate>
         <DataTemplate>
             <Border Background="#101010" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="10" Padding="8" Margin="0,0,0,8">
