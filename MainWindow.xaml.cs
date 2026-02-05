@@ -311,7 +311,8 @@ namespace PlayCutWin
                 Start = start,
                 End = end,
                 Tags = tags,
-                Comment = ""
+                Comment = "",
+                SetPlay = ""
             };
 
             VM.AllClips.Add(item);
@@ -422,11 +423,11 @@ namespace PlayCutWin
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("team,start,end,tags,comment");
+                sb.AppendLine("team,start,end,tags,comment,setplay");
                 foreach (var c in clips)
                 {
                     var tags = string.Join("|", c.Tags ?? new List<string>());
-                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.Comment ?? "")}");
+                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.Comment ?? "")},{EscapeCsv(c.SetPlay ?? "")}");
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
@@ -466,6 +467,7 @@ namespace PlayCutWin
                 int durationIdx = headerLower.IndexOf("duration");
                 int tagsIdx = headerLower.IndexOf("tags");
                 int commentIdx = headerLower.IndexOf("comment");
+                int setPlayIdx = headerLower.IndexOf("setplay");
 
                 if (teamIdx < 0 || startIdx < 0)
                 {
@@ -511,6 +513,7 @@ namespace PlayCutWin
                     var tags = ParseTags(tagsRaw);
 
                     string comment = commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty;
+                    string setPlay = setPlayIdx >= 0 ? GetSafe(cols, setPlayIdx) : string.Empty;
 
                     VM.AllClips.Add(new ClipRow
                     {
@@ -518,7 +521,8 @@ namespace PlayCutWin
                         Start = startSec,
                         End = endSec,
                         Tags = tags,
-                        Comment = comment
+                        Comment = comment,
+                        SetPlay = setPlay
                     });
                     imported++;
                 }
@@ -1035,6 +1039,7 @@ namespace PlayCutWin
                 _selectedClip = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSelectedClip));
+                OnPropertyChanged(nameof(SelectedClipHasSetTag));
 
                 // When a clip is selected, the tag toggles represent that clip's tags (Mac-like editing).
                 SyncTogglesFromSelectedClip();
@@ -1043,6 +1048,16 @@ namespace PlayCutWin
         }
 
         public bool HasSelectedClip => SelectedClip != null;
+
+        // Mac-like: show Set Play input only when the selected clip includes "Set" tag.
+        public bool SelectedClipHasSetTag
+        {
+            get
+            {
+                if (SelectedClip?.Tags == null) return false;
+                return SelectedClip.Tags.Any(t => string.Equals(t?.Trim(), "Set", StringComparison.OrdinalIgnoreCase));
+            }
+        }
 
         public IEnumerable<string> GetSelectedTags()
         {
@@ -1092,6 +1107,7 @@ namespace PlayCutWin
             var tags = GetSelectedTags().ToList();
             // Replace list to ensure TagsText refresh & ListView update.
             SelectedClip.Tags = tags;
+            OnPropertyChanged(nameof(SelectedClipHasSetTag));
         }
 
         public void UpdateHeadersAndCurrentTagsText()
@@ -1140,6 +1156,7 @@ namespace PlayCutWin
         private double _end;
         private List<string> _tags = new();
         private string _comment = "";
+        private string _setPlay = "";
 
         public string Team
         {
@@ -1169,6 +1186,12 @@ namespace PlayCutWin
         {
             get => _comment;
             set { _comment = value ?? ""; OnPropertyChanged(); }
+        }
+
+        public string SetPlay
+        {
+            get => _setPlay;
+            set { _setPlay = value ?? ""; OnPropertyChanged(); }
         }
 
         public string StartText => FormatTime(Start);
