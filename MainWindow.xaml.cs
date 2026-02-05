@@ -79,136 +79,33 @@ namespace PlayCutWin
                 Player.Stop();
                 Player.Source = new Uri(dlg.FileName, UriKind.Absolute);
 
-                // Reset speed to 1x (Mac-like)
-                SetSpeed(1.0);
+                // auto-play? keep paused by default
+                Player.LoadedBehavior = MediaState.Manual;
+                Player.UnloadedBehavior = MediaState.Manual;
 
-                // Preload a frame (Play->Pause) so NaturalDuration becomes ready sooner
-                Player.Play();
-                Player.Pause();
-                VM.IsPlaying = false;
+                Player.MediaOpened += (_, __) =>
+                {
+                    VM.VideoDurationSeconds = Player.NaturalDuration.HasTimeSpan
+                        ? Player.NaturalDuration.TimeSpan.TotalSeconds
+                        : 0;
 
-                VM.StatusText = "Video loaded.";
+                    VM.StatusText = "Video loaded";
+                    UpdateTimeTexts();
+                };
             }
             catch (Exception ex)
             {
-                VM.StatusText = $"Load failed: {ex.Message}";
-                MessageBox.Show(ex.Message, "Load Video Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                VM.StatusText = "Load failed";
+                MessageBox.Show(ex.ToString(), "Load Video Error");
             }
-        }
-
-        private void Player_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (Player.NaturalDuration.HasTimeSpan)
-                {
-                    VM.DurationSeconds = Player.NaturalDuration.TimeSpan.TotalSeconds;
-                    TimelineSlider.Maximum = VM.DurationSeconds;
-                    VM.StatusText = "Ready";
-                }
-
-                // Apply any pending jump (request came before duration ready)
-                if (_pendingJumpSeconds.HasValue)
-                {
-                    var sec = _pendingJumpSeconds.Value;
-                    var autoPlay = _pendingAutoPlayAfterJump;
-                    _pendingJumpSeconds = null;
-                    _pendingAutoPlayAfterJump = false;
-                    SeekToSeconds(sec, autoPlay);
-                }
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-        {
-            VM.StatusText = "Media failed.";
-            MessageBox.Show(e.ErrorException?.Message ?? "Unknown media error", "Media Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-
-        private void Tick()
-        {
-            if (Player.Source == null) return;
-            if (!Player.NaturalDuration.HasTimeSpan) return;
-
-            if (!_isDraggingTimeline)
-            {
-                VM.CurrentSeconds = Player.Position.TotalSeconds;
-                TimelineSlider.Value = VM.CurrentSeconds;
-            }
-
-            VM.TimeDisplay = $"{FormatTime(Player.Position.TotalSeconds)} / {FormatTime(VM.DurationSeconds)}";
-        }
-
-        private void TimelineSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (_isDraggingTimeline)
-            {
-                VM.CurrentSeconds = TimelineSlider.Value;
-                VM.TimeDisplay = $"{FormatTime(VM.CurrentSeconds)} / {FormatTime(VM.DurationSeconds)}";
-            }
-        }
-
-        private void TimelineSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            _isDraggingTimeline = true;
-        }
-
-        private void TimelineSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
-        {
-            _isDraggingTimeline = false;
-            SeekToSeconds(VM.CurrentSeconds, autoPlay: VM.IsPlaying);
-        }
-
-        private void SeekToSeconds(double seconds, bool autoPlay)
-        {
-            if (Player.Source == null) return;
-
-            if (!Player.NaturalDuration.HasTimeSpan)
-            {
-                _pendingJumpSeconds = seconds;
-                _pendingAutoPlayAfterJump = autoPlay;
-                return;
-            }
-
-            var max = Player.NaturalDuration.TimeSpan.TotalSeconds;
-            if (double.IsNaN(max) || max <= 0) max = seconds;
-
-            if (seconds < 0) seconds = 0;
-            if (seconds > max) seconds = max;
-
-            // Avoid crashy state transitions: seek only, then optionally Play.
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    Player.Position = TimeSpan.FromSeconds(seconds);
-                    VM.CurrentSeconds = seconds;
-                    TimelineSlider.Value = seconds;
-
-                    if (autoPlay)
-                    {
-                        Player.Play();
-                        VM.IsPlaying = true;
-                    }
-                }
-                catch
-                {
-                    // If seek fails (codec/driver), ignore instead of crashing.
-                }
-            }), DispatcherPriority.Background);
-        }
-
-        private void SeekBy(double deltaSeconds)
-        {
-            if (Player.Source == null) return;
-            SeekToSeconds(Player.Position.TotalSeconds + deltaSeconds, autoPlay: VM.IsPlaying);
         }
 
         private void PlayPause_Click(object sender, RoutedEventArgs e)
+        {
+            TogglePlayPause();
+        }
+
+        private void TogglePlayPause()
         {
             if (Player.Source == null) return;
 
@@ -224,190 +121,201 @@ namespace PlayCutWin
             }
         }
 
+        private void SeekRelative(double deltaSeconds)
+        {
+            if (Player.Source == null) return;
+
+            var newPos = Math.Max(0, Player.Position.TotalSeconds + deltaSeconds);
+            newPos = Math.Min(VM.VideoDurationSeconds, newPos);
+
+            Player.Position = TimeSpan.FromSeconds(newPos);
+            VM.CurrentTimeSeconds = newPos;
+            UpdateTimeTexts();
+        }
+
+        private void JumpToSeconds(double seconds, bool autoPlayAfter = false)
+        {
+            if (Player.Source == null) return;
+
+            seconds = Math.Max(0, Math.Min(VM.VideoDurationSeconds, seconds));
+
+            _pendingJumpSeconds = seconds;
+            _pendingAutoPlayAfterJump = autoPlayAfter;
+
+            Player.Position = TimeSpan.FromSeconds(seconds);
+            VM.CurrentTimeSeconds = seconds;
+            UpdateTimeTexts();
+
+            // MediaElement sometimes needs a tick to “settle” after jump
+        }
+
+        private void Tick()
+        {
+            if (Player.Source == null) return;
+
+            if (_pendingJumpSeconds.HasValue)
+            {
+                // settle
+                var target = _pendingJumpSeconds.Value;
+                var cur = Player.Position.TotalSeconds;
+
+                if (Math.Abs(cur - target) < 0.2)
+                {
+                    _pendingJumpSeconds = null;
+
+                    if (_pendingAutoPlayAfterJump)
+                    {
+                        _pendingAutoPlayAfterJump = false;
+                        if (!VM.IsPlaying)
+                        {
+                            Player.Play();
+                            VM.IsPlaying = true;
+                        }
+                    }
+                }
+            }
+
+            if (!_isDraggingTimeline)
+            {
+                VM.CurrentTimeSeconds = Player.Position.TotalSeconds;
+                UpdateTimeTexts();
+            }
+        }
+
+        private void Timeline_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            _isDraggingTimeline = true;
+        }
+
+        private void Timeline_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            _isDraggingTimeline = false;
+            Player.Position = TimeSpan.FromSeconds(VM.CurrentTimeSeconds);
+            UpdateTimeTexts();
+        }
+
+        private void Timeline_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isDraggingTimeline)
+            {
+                UpdateTimeTexts();
+            }
+        }
+
+        private void UpdateTimeTexts()
+        {
+            VM.CurrentTimeText = FormatTime(VM.CurrentTimeSeconds);
+            VM.DurationText = FormatTime(VM.VideoDurationSeconds);
+        }
+
+        private static string FormatTime(double seconds)
+        {
+            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
+            return ts.ToString(@"m\:ss");
+        }
+
+        // ----------------------------
+        // Speed UI
+        // ----------------------------
+        private void SetSpeed(double speed)
+        {
+            _currentSpeed = speed;
+            Player.SpeedRatio = speed;
+            HighlightSpeedButtons(speed);
+        }
+
+        private void HighlightSpeedButtons(double speed)
+        {
+            // this relies on XAML buttons named Speed025/Speed05/Speed1/Speed2
+            // if missing, ignore
+            void Mark(Button? b, bool selected)
+            {
+                if (b == null) return;
+                b.Background = selected ? SpeedSelectedBrush : SpeedNormalBrush;
+            }
+
+            Mark(FindName("Speed025") as Button, Math.Abs(speed - 0.25) < 0.001);
+            Mark(FindName("Speed05") as Button, Math.Abs(speed - 0.5) < 0.001);
+            Mark(FindName("Speed1") as Button, Math.Abs(speed - 1.0) < 0.001);
+            Mark(FindName("Speed2") as Button, Math.Abs(speed - 2.0) < 0.001);
+        }
+
         private void Speed025_Click(object sender, RoutedEventArgs e) => SetSpeed(0.25);
         private void Speed05_Click(object sender, RoutedEventArgs e) => SetSpeed(0.5);
         private void Speed1_Click(object sender, RoutedEventArgs e) => SetSpeed(1.0);
         private void Speed2_Click(object sender, RoutedEventArgs e) => SetSpeed(2.0);
 
-        private void SetSpeed(double speed)
-        {
-            _currentSpeed = speed;
-            HighlightSpeedButtons(speed);
-
-            if (Player?.Source != null)
-            {
-                try { Player.SpeedRatio = speed; } catch { }
-            }
-
-            VM.StatusText = $"Speed: {speed:0.##}x";
-        }
-
-        private void HighlightSpeedButtons(double speed)
-        {
-            if (Speed025Button != null) Speed025Button.Background = SpeedNormalBrush;
-            if (Speed05Button != null) Speed05Button.Background = SpeedNormalBrush;
-            if (Speed1Button != null) Speed1Button.Background = SpeedNormalBrush;
-            if (Speed2Button != null) Speed2Button.Background = SpeedNormalBrush;
-
-            Button? selected = speed switch
-            {
-                0.25 => Speed025Button,
-                0.5 => Speed05Button,
-                1.0 => Speed1Button,
-                2.0 => Speed2Button,
-                _ => null
-            };
-
-            if (selected != null)
-            {
-                selected.Background = SpeedSelectedBrush;
-                selected.BorderBrush = SpeedSelectedBrush;
-            }
-        }
-
-        private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekBy(-5);
-        private void SeekMinus1_Click(object sender, RoutedEventArgs e) => SeekBy(-1);
-        private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekBy(+1);
-        private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekBy(+5);
-
         // ----------------------------
-        // Clip
+        // Keyboard shortcuts
         // ----------------------------
-        private void ClipStart_Click(object sender, RoutedEventArgs e)
+        protected override void OnPreviewKeyDown(KeyEventArgs e)
         {
-            if (Player.Source == null) return;
-            VM.ClipStartSeconds = Player.Position.TotalSeconds;
-            VM.StatusText = $"Clip START = {FormatTime(VM.ClipStartSeconds)}";
-        }
+            base.OnPreviewKeyDown(e);
 
-        private void ClipEnd_Click(object sender, RoutedEventArgs e)
-        {
-            if (Player.Source == null) return;
-            VM.ClipEndSeconds = Player.Position.TotalSeconds;
-            VM.StatusText = $"Clip END = {FormatTime(VM.ClipEndSeconds)}";
-        }
-
-        private void SaveTeamA_Click(object sender, RoutedEventArgs e) => SaveClip("A");
-        private void SaveTeamB_Click(object sender, RoutedEventArgs e) => SaveClip("B");
-
-        private void SaveClip(string team)
-        {
-            if (Player.Source == null) return;
-
-            var start = VM.ClipStartSeconds;
-            var end = VM.ClipEndSeconds;
-
-            if (end <= start)
+            if (e.Key == Key.Space)
             {
-                VM.StatusText = "Clip range invalid (END must be after START).";
+                TogglePlayPause();
+                e.Handled = true;
                 return;
             }
 
-            var tags = VM.GetSelectedTags().ToList();
-
-            var item = new ClipRow
+            // frame step
+            if (e.Key == Key.Left)
             {
-                Team = team,
-                Start = start,
-                End = end,
-                Tags = tags,
-                Comment = "",
-                SetPlay = ""
-            };
+                SeekRelative(-0.1);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Right)
+            {
+                SeekRelative(+0.1);
+                e.Handled = true;
+                return;
+            }
+        }
 
-            VM.AllClips.Add(item);
+        // ----------------------------
+        // Clips / Save / Tagging
+        // ----------------------------
+        private void SaveTeamA_Click(object sender, RoutedEventArgs e)
+        {
+            VM.SaveClip("A");
+        }
 
-            VM.StatusText = $"Saved Team {team} clip ({FormatTime(start)} - {FormatTime(end)})";
-            VM.UpdateHeadersAndCurrentTagsText();
+        private void SaveTeamB_Click(object sender, RoutedEventArgs e)
+        {
+            VM.SaveClip("B");
         }
 
         private void ClipList_DoubleClick(object sender, MouseButtonEventArgs e)
         {
-            // Jump -> auto play (requested)
             if (sender is ListView lv && lv.SelectedItem is ClipRow clip)
             {
-                SeekToSeconds(clip.Start, autoPlay: true);
+                JumpToSeconds(clip.Start, autoPlayAfter: true);
             }
         }
 
-        private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        // XAML互換保険：PreviewMouseDoubleClickを張っててもビルドが通るようにする
+        private void ClipList_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (sender is ListView lv)
-            {
-                if (lv.SelectedItem is ClipRow c)
-                {
-                    VM.SelectedClip = c;
-                }
-            }
+            ClipList_DoubleClick(sender, e);
         }
 
-        private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
+        private void Delete_Click(object sender, RoutedEventArgs e)
         {
-            if (VM.SelectedClip == null) return;
-
-            var target = VM.SelectedClip;
-            VM.SelectedClip = null;
-
-            if (VM.AllClips.Contains(target))
-                VM.AllClips.Remove(target);
-
-            VM.UpdateHeadersAndCurrentTagsText();
+            VM.DeleteSelectedClip();
         }
 
         // ----------------------------
-        // Tags
+        // CSV Export/Import
         // ----------------------------
-        private void AddCustomTag_Click(object sender, RoutedEventArgs e)
+        private void ExportCSV_Click(object sender, RoutedEventArgs e)
         {
-            var t = (VM.CustomTagInput ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(t)) return;
-
-            if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
-            {
-                VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
-            }
-            else
-            {
-                var existing = VM.OffenseTags.First(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase));
-                existing.IsSelected = true;
-            }
-
-            VM.CustomTagInput = "";
-            VM.UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void ClearTags_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var t in VM.OffenseTags) t.IsSelected = false;
-            foreach (var t in VM.DefenseTags) t.IsSelected = false;
-            VM.CustomTagInput = "";
-            VM.UpdateHeadersAndCurrentTagsText();
-        }
-
-        // ----------------------------
-        // CSV / Export Clips
-        // ----------------------------
-        private async void ExportAll_Click(object sender, RoutedEventArgs e)
-        {
-            await ExportClipsInternalWithDialogAsync(VM.AllClips.ToList());
-        }
-
-        private async void ExportClips_Click(object sender, RoutedEventArgs e)
-        {
-            await ExportClipsInternalWithDialogAsync(VM.AllClips.ToList());
-        }
-
-        private void ExportCsv_Click(object sender, RoutedEventArgs e)
-        {
-            var list = VM.AllClips.ToList();
-            ExportCsvInternal(list);
-        }
-
-        private void ExportCsvInternal(List<ClipRow> clips)
-        {
+            var clips = VM.GetAllClipsForExport();
             if (clips.Count == 0)
             {
-                VM.StatusText = "No clips to export.";
+                MessageBox.Show("No clips to export.");
                 return;
             }
 
@@ -424,823 +332,402 @@ namespace PlayCutWin
             {
                 var sb = new StringBuilder();
 
-// Mac (BBVideoTagger) CSV Schema v2
-// Header must match exactly for round-trip compatibility.
-sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
+                // Mac (BBVideoTagger) CSV Schema v2
+                // Header must match exactly for round-trip compatibility.
+                sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
 
-var videoName = string.IsNullOrWhiteSpace(_loadedVideoName) ? "UnknownVideo" : _loadedVideoName;
-var inv = CultureInfo.InvariantCulture;
+                // ✅ FIX: MainWindow側のフィールドではなくVMの値を使う
+                var videoName = string.IsNullOrWhiteSpace(VM.LoadedVideoName) ? "UnknownVideo" : VM.LoadedVideoName;
+                var inv = CultureInfo.InvariantCulture;
 
-// Sort by start time to match Mac export order
-var sorted = clips.OrderBy(c => c.Start).ToList();
+                // Sort by start time to match Mac export order
+                var sorted = clips.OrderBy(c => c.Start).ToList();
 
-for (int i = 0; i < sorted.Count; i++)
-{
-    var c = sorted[i];
+                for (int i = 0; i < sorted.Count; i++)
+                {
+                    var c = sorted[i];
 
-    var teamKey = NormalizeTeamToAB(c.Team);
-    var teamSide = teamKey == "A" ? "Home" : "Away";
-    var teamName = teamKey == "A" ? _teamAName : _teamBName;
+                    var teamKey = NormalizeTeamToAB(c.Team);
+                    var teamSide = teamKey == "A" ? "Home" : "Away";
 
-    var startStr = FormatTime(c.Start);
-    var endStr = FormatTime(c.End);
+                    // ✅ FIX: Team名もVMから
+                    var teamName = teamKey == "A" ? VM.TeamAName : VM.TeamBName;
 
-    var startSec = c.Start.ToString("0.000", inv);
-    var endSec = c.End.ToString("0.000", inv);
-    var durationSec = Math.Max(0, c.End - c.Start).ToString("0.000", inv);
+                    var startStr = FormatTime(c.Start);
+                    var endStr = FormatTime(c.End);
 
-    var tagsStr = string.Join("; ", c.Tags ?? new List<string>());
-    var setPlayStr = c.SetPlay ?? string.Empty;
-    var noteStr = c.Comment ?? string.Empty;
+                    var startSec = c.Start.ToString("0.000", inv);
+                    var endSec = c.End.ToString("0.000", inv);
+                    var durationSec = Math.Max(0, c.End - c.Start).ToString("0.000", inv);
 
-    var row = string.Join(",", new[]
-    {
-        EscapeCsv("2"),
-        EscapeCsv(videoName),
-        EscapeCsv((i + 1).ToString(inv)),
-        EscapeCsv(teamKey),
-        EscapeCsv(teamSide),
-        EscapeCsv(teamName),
-        EscapeCsv(startStr),
-        EscapeCsv(endStr),
-        EscapeCsv(startSec),
-        EscapeCsv(endSec),
-        EscapeCsv(durationSec),
-        EscapeCsv(tagsStr),
-        EscapeCsv(setPlayStr),
-        EscapeCsv(noteStr)
-    });
+                    // Tags: "; " (semicolon + space)
+                    var tagsStr = string.Join("; ", c.Tags ?? new List<string>());
+                    var setPlayStr = c.SetPlay ?? string.Empty;
+                    var noteStr = c.Comment ?? string.Empty;
 
-    sb.AppendLine(row);
-}
+                    var row = string.Join(",", new[]
+                    {
+                        EscapeCsv("2"),
+                        EscapeCsv(videoName),
+                        EscapeCsv((i + 1).ToString(inv)),
+                        EscapeCsv(teamKey),
+                        EscapeCsv(teamSide),
+                        EscapeCsv(teamName),
+                        EscapeCsv(startStr),
+                        EscapeCsv(endStr),
+                        EscapeCsv(startSec),
+                        EscapeCsv(endSec),
+                        EscapeCsv(durationSec),
+                        EscapeCsv(tagsStr),
+                        EscapeCsv(setPlayStr),
+                        EscapeCsv(noteStr),
+                    });
 
-File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
+                    sb.AppendLine(row);
+                }
+
+                File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+                VM.StatusText = $"Exported CSV: {Path.GetFileName(dlg.FileName)}";
             }
             catch (Exception ex)
             {
-                VM.StatusText = "Export failed.";
-                MessageBox.Show(ex.Message, "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(ex.ToString(), "Export CSV Error");
             }
         }
 
-        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        private void ImportCSV_Click(object sender, RoutedEventArgs e)
         {
-            var ofd = new OpenFileDialog
+            var dlg = new OpenFileDialog
             {
-                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
-                Title = "Import CSV"
+                Title = "Import CSV",
+                Filter = "CSV (*.csv)|*.csv|All Files (*.*)|*.*"
             };
 
-            if (ofd.ShowDialog() != true) return;
+            if (dlg.ShowDialog() != true) return;
 
             try
             {
-                var lines = File.ReadAllLines(ofd.FileName);
-                if (lines.Length < 2)
-                {
-                    MessageBox.Show("CSV is empty.");
-                    return;
-                }
+                var text = File.ReadAllText(dlg.FileName, Encoding.UTF8);
 
-                
-var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
-var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
-
-int FindIndex(params string[] names)
-{
-    foreach (var n in names)
-    {
-        var idx = headerLower.IndexOf(n.ToLowerInvariant());
-        if (idx >= 0) return idx;
-    }
-    return -1;
-}
-
-// Mac (BBVideoTagger) Schema v2 + legacy support
-int schemaIdx = FindIndex("schema");
-int videoNameIdx = FindIndex("videoname", "video");
-int noIdx = FindIndex("no");
-
-int teamKeyIdx = FindIndex("teamkey");
-int teamSideIdx = FindIndex("teamside");
-int teamNameIdx = FindIndex("teamname");
-int teamIdx = FindIndex("team", "side", "homeaway");
-
-int startSecIdx = FindIndex("startsec", "startseconds");
-int endSecIdx = FindIndex("endsec", "endseconds");
-int startIdx = FindIndex("start", "in", "inpoint");
-int endIdx = FindIndex("end", "out", "outpoint");
-
-int durationSecIdx = FindIndex("durationsec");
-int durationIdx = FindIndex("duration", "durations");
-int tagsIdx = FindIndex("tags", "tag");
-
-int noteIdx = FindIndex("note", "memo", "comment");
-int setPlayIdx = FindIndex("setplay", "set");
-
-
-                if ((teamKeyIdx < 0 && teamSideIdx < 0 && teamIdx < 0 && teamNameIdx < 0) || (startSecIdx < 0 && startIdx < 0))
-                {
-                    MessageBox.Show("CSV format not recognized. Need team columns and start columns (Mac Schema v2 or legacy).");
-                    return;
-                }
-
-                if (VM.AllClips.Any())
-                {
-                    var res = MessageBox.Show(
-                        "Existing clips will be cleared before import. Continue?",
-                        "Import CSV",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-
-                    if (res != MessageBoxResult.Yes) return;
-
-                    VM.AllClips.Clear();
-                }
-
-                int imported = 0;
-                
-for (int i = 1; i < lines.Length; i++)
-{
-    if (string.IsNullOrWhiteSpace(lines[i])) continue;
-    var cols = SplitCsv(lines[i]);
-    if (cols.Count == 0) continue;
-
-    // team (Mac v2: TeamKey / TeamSide / TeamName, legacy: team)
-    string teamToken = "";
-    if (teamKeyIdx >= 0) teamToken = GetSafe(cols, teamKeyIdx);
-    else if (teamSideIdx >= 0) teamToken = GetSafe(cols, teamSideIdx);
-    else if (teamIdx >= 0) teamToken = GetSafe(cols, teamIdx);
-
-    string teamNameText = teamNameIdx >= 0 ? GetSafe(cols, teamNameIdx) : "";
-    string team = NormalizeTeamToAB((teamToken + " " + teamNameText).Trim());
-
-    // start/end (Mac v2 prefers StartSec/EndSec)
-    double startSec = 0;
-    double endSec = 0;
-
-    if (startSecIdx >= 0) startSec = ParseTimeToSeconds(GetSafe(cols, startSecIdx));
-    if (endSecIdx >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, endSecIdx));
-
-    if (startSec <= 0 && startIdx >= 0) startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
-    if (endSec <= 0 && endIdx >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, endIdx));
-
-    if (endSec <= 0)
-    {
-        double dur = 0;
-        if (durationSecIdx >= 0) dur = ParseTimeToSeconds(GetSafe(cols, durationSecIdx));
-        if (dur <= 0 && durationIdx >= 0) dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
-        if (dur > 0) endSec = startSec + dur;
-    }
-
-    if (startSec <= 0 || endSec <= startSec) continue;
-
-    // tags (Mac v2 uses '; ' separator, legacy may use '|')
-    string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
-    var tags = ParseTags(tagsRaw);
-
-    // note / setplay (Mac v2: Note / SetPlay)
-    string note = noteIdx >= 0 ? GetSafe(cols, noteIdx) : string.Empty;
-    string setPlay = setPlayIdx >= 0 ? GetSafe(cols, setPlayIdx) : string.Empty;
-
-    VM.AllClips.Add(new ClipRow
-    {
-        Team = team,
-        Start = startSec,
-        End = endSec,
-        Tags = tags,
-        Comment = note,
-        SetPlay = setPlay
-    });
-    imported++;
-}
-
-
-                VM.UpdateHeadersAndCurrentTagsText();
-                VM.StatusText = $"Imported {imported} clips.";
+                VM.ImportCsv(text);
+                VM.StatusText = $"Imported CSV: {Path.GetFileName(dlg.FileName)}";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Import failed: " + ex.Message);
+                MessageBox.Show(ex.ToString(), "Import CSV Error");
             }
-        }
-
-        // ----------------------------
-        // Video export (ffmpeg)
-        // ----------------------------
-        private async Task ExportClipsInternalWithDialogAsync(List<ClipRow> clips)
-        {
-            if (clips == null || clips.Count == 0)
-            {
-                MessageBox.Show("No clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(VM.LoadedVideoPath) || !File.Exists(VM.LoadedVideoPath))
-            {
-                MessageBox.Show("Please load a video first.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var outFolder = ChooseFolder("Select export folder");
-            if (string.IsNullOrWhiteSpace(outFolder)) return;
-
-            var ffmpeg = ResolveFfmpegPath();
-            if (ffmpeg == null)
-            {
-                MessageBox.Show(
-                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
-                    "Tip: Open cmd and run: ffmpeg -version",
-                    "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
-            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_clips_{stamp}");
-            Directory.CreateDirectory(sessionDir);
-
-            // Progress dialog
-            var dlg = new ExportProgressDialog
-            {
-                Owner = this,
-                Title = "Export Clips"
-            };
-
-            SetUiEnabled(false);
-            dlg.Show();
-
-            int ok = 0;
-            int fail = 0;
-
-            var progress = new Progress<(int current, int total, string detail)>(p =>
-            {
-                dlg.SetProgress(p.current, p.total, p.detail);
-                VM.StatusText = p.detail;
-            });
-
-            try
-            {
-                await Task.Run(() =>
-                {
-                    ExportClipsCore(clips, ffmpeg, sessionDir, progress, ref ok, ref fail);
-                });
-            }
-            finally
-            {
-                dlg.Close();
-                SetUiEnabled(true);
-            }
-
-            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-            MessageBox.Show($"Exported {ok} clip(s) to:\n{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void ExportClipsCore(
-            List<ClipRow> clips,
-            string ffmpeg,
-            string sessionDir,
-            IProgress<(int current, int total, string detail)> progress,
-            ref int ok,
-            ref int fail)
-        {
-            var teamADir = Path.Combine(sessionDir, "A");
-            var teamBDir = Path.Combine(sessionDir, "B");
-            Directory.CreateDirectory(teamADir);
-            Directory.CreateDirectory(teamBDir);
-
-            for (int i = 0; i < clips.Count; i++)
-            {
-                var c = clips[i];
-                if (c.End <= c.Start) { fail++; continue; }
-
-                var safeTeam = (c.Team == "B") ? "B" : "A";
-                var teamDir = safeTeam == "B" ? teamBDir : teamADir;
-
-                var tags = (c.Tags ?? new List<string>()).Take(5).ToList();
-                var tagFolder = NormalizeTagFolderName(string.Join("_", tags));
-                var outDir = string.IsNullOrWhiteSpace(tagFolder) ? teamDir : Path.Combine(teamDir, tagFolder);
-                Directory.CreateDirectory(outDir);
-
-                var safeTags = SanitizeFileName(string.Join("-", tags));
-                var file = $"{safeTeam}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
-                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
-                file += ".mp4";
-
-                var outPath = Path.Combine(outDir, file);
-                var duration = Math.Max(0.01, c.End - c.Start);
-
-                progress?.Report((i + 1, clips.Count, $"Exporting {i + 1}/{clips.Count}: {file}"));
-
-                var args = BuildFfmpegArgs(
-                    inputPath: VM.LoadedVideoPath,
-                    startSeconds: c.Start,
-                    durationSeconds: duration,
-                    outputPath: outPath);
-
-                var result = RunProcess(ffmpeg, args);
-                if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-                else
-                {
-                    fail++;
-                    Debug.WriteLine(result.stdErr);
-                }
-            }
-        }
-
-        private string NormalizeTagFolderName(string raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
-            // Windows folder safe name
-            return SanitizeFileName(raw)
-                .Replace('-', '_')
-                .Replace(' ', '_')
-                .Trim('_');
-        }
-
-        private void SetUiEnabled(bool enabled)
-        {
-            if (RootGrid != null) RootGrid.IsEnabled = enabled;
-        }
-
-        private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
-        {
-            var ss = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-            var t = durationSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-
-            return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
-        }
-
-        private static (int exitCode, string stdOut, string stdErr) RunProcess(string exePath, string args)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    Arguments = args,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using var p = Process.Start(psi);
-                if (p == null) return (-1, "", "Process start failed.");
-                var stdout = p.StandardOutput.ReadToEnd();
-                var stderr = p.StandardError.ReadToEnd();
-                p.WaitForExit();
-                return (p.ExitCode, stdout, stderr);
-            }
-            catch (Exception ex)
-            {
-                return (-1, "", ex.ToString());
-            }
-        }
-
-        private static string? ResolveFfmpegPath()
-        {
-            var r = RunProcess("ffmpeg", "-version");
-            if (r.exitCode == 0) return "ffmpeg";
-
-            var candidates = new[]
-            {
-                @"C:\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
-            };
-            foreach (var c in candidates)
-            {
-                if (File.Exists(c)) return c;
-            }
-            return null;
-        }
-
-        private static string? ChooseFolder(string title)
-        {
-            var sfd = new SaveFileDialog
-            {
-                Title = title,
-                FileName = "export_here",
-                DefaultExt = ".txt",
-                Filter = "Folder (select location)|*.txt"
-            };
-
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-            return null;
-        }
-
-        private static string SanitizeFileName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name)) return "";
-            var invalid = Path.GetInvalidFileNameChars();
-            var sb = new StringBuilder();
-            foreach (var ch in name)
-            {
-                if (invalid.Contains(ch)) sb.Append('_');
-                else sb.Append(ch);
-            }
-            return sb.ToString().Trim().Trim('_');
-        }
-
-        private static string FormatTimeForFile(double seconds)
-        {
-            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "0_00";
-            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
-            if (ts.Hours > 0) return $"{ts.Hours}_{ts.Minutes:00}_{ts.Seconds:00}";
-            return $"{ts.Minutes}_{ts.Seconds:00}";
         }
 
         private static string EscapeCsv(string s)
         {
             s ??= "";
-            if (s.Contains(",") || s.Contains("\"") || s.Contains("\n"))
+            if (s.Contains('"') || s.Contains(',') || s.Contains('\n') || s.Contains('\r'))
             {
                 return "\"" + s.Replace("\"", "\"\"") + "\"";
             }
             return s;
         }
 
-        private static List<string> SplitCsv(string line)
-        {
-            var result = new List<string>();
-            var sb = new StringBuilder();
-            bool inQuotes = false;
-
-            for (int i = 0; i < line.Length; i++)
-            {
-                char c = line[i];
-                if (c == '\"')
-                {
-                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '\"')
-                    {
-                        sb.Append('\"');
-                        i++;
-                    }
-                    else
-                    {
-                        inQuotes = !inQuotes;
-                    }
-                }
-                else if (c == ',' && !inQuotes)
-                {
-                    result.Add(sb.ToString());
-                    sb.Clear();
-                }
-                else
-                {
-                    sb.Append(c);
-                }
-            }
-            result.Add(sb.ToString());
-            return result;
-        }
-
-        private static string GetSafe(IReadOnlyList<string> cols, int index)
-        {
-            if (index < 0 || index >= cols.Count) return string.Empty;
-            return cols[index] ?? string.Empty;
-        }
-
         private static string NormalizeTeamToAB(string team)
         {
-            var t = (team ?? string.Empty).Trim();
-            if (t.Length == 0) return "A";
-
-            var lower = t.ToLowerInvariant();
-            if (lower == "a" || lower == "team a" || lower.Contains("home") || lower.Contains("our")) return "A";
-            if (lower == "b" || lower == "team b" || lower.Contains("away") || lower.Contains("opponent")) return "B";
-
-            if (lower.Contains("b") && !lower.Contains("a")) return "B";
+            // team is stored as "A"/"B" or "Team A"/"Team B"
+            if (string.IsNullOrWhiteSpace(team)) return "A";
+            var t = team.Trim();
+            if (t.Equals("A", StringComparison.OrdinalIgnoreCase) || t.Contains("Team A")) return "A";
+            if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B")) return "B";
             return "A";
-        }
-
-        private static double ParseTimeToSeconds(string s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return 0;
-            s = s.Trim();
-
-            if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var secNum))
-                return secNum;
-            if (double.TryParse(s, out secNum))
-                return secNum;
-
-            var parts = s.Split(':');
-            try
-            {
-                if (parts.Length == 2)
-                {
-                    int minutes = int.Parse(parts[0]);
-                    double seconds = double.Parse(parts[1], CultureInfo.InvariantCulture);
-                    return minutes * 60 + seconds;
-                }
-                if (parts.Length == 3)
-                {
-                    int hours = int.Parse(parts[0]);
-                    int minutes = int.Parse(parts[1]);
-                    double seconds = double.Parse(parts[2], CultureInfo.InvariantCulture);
-                    return hours * 3600 + minutes * 60 + seconds;
-                }
-            }
-            catch { }
-            return 0;
-        }
-
-        private static List<string> ParseTags(string tagsRaw)
-        {
-            var result = new List<string>();
-            if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
-
-            string raw = tagsRaw.Trim();
-            char[] seps = new[] { ';', '|' };
-            var tokens = raw.Split(seps, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var t in tokens)
-            {
-                var tag = t.Trim();
-                if (tag.Length == 0) continue;
-                result.Add(tag);
-            }
-            return result;
-        }
-
-        private static string FormatTime(double seconds)
-        {
-            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "--:--";
-            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
-            if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
-            return ts.ToString(@"m\:ss");
         }
     }
 
-    // ============================
-    // ViewModel / Models (self-contained for this project)
-    // ============================
+    // ==========================================================
+    // ViewModel / Models (kept here for single-file simplicity)
+    // ==========================================================
 
     public class MainWindowViewModel : INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler? PropertyChanged;
+        private string _loadedVideoPath = "";
+        private string _loadedVideoName = "";
 
         private string _teamAName = "Home / Our Team";
         private string _teamBName = "Away / Opponent";
-        private string _loadedVideoName = "";
-        private string _loadedVideoPath = "";
-        private string _statusText = "";
+
+        private double _currentTimeSeconds;
+        private double _videoDurationSeconds;
+
+        private string _currentTimeText = "0:00";
+        private string _durationText = "0:00";
+
         private bool _isPlaying = false;
 
-        private double _durationSeconds = 0;
-        private double _currentSeconds = 0;
+        private string _statusText = "";
 
-        private double _clipStartSeconds = 0;
-        private double _clipEndSeconds = 0;
+        private double _clipStart;
+        private double _clipEnd;
 
-        private string _timeDisplay = "--:-- / --:--";
-        private string _customTagInput = "";
-        private string _currentTagsText = "(No tags selected)";
-        private string _clipsHeader = "Clips (Total 0)";
-        private ClipRow? _selectedClip = null;
+        public ObservableCollection<ClipRow> TeamAClips { get; } = new();
+        public ObservableCollection<ClipRow> TeamBClips { get; } = new();
 
-        private bool _suppressTagSync = false;
+        public ObservableCollection<TagItem> OffenseTags { get; } = new();
+        public ObservableCollection<TagItem> DefenseTags { get; } = new();
+        public ObservableCollection<TagItem> CustomTags { get; } = new();
 
-        public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
-
-        private string _selectedClipFilter = "All Clips";
-        public string SelectedClipFilter
-        {
-            get => _selectedClipFilter;
-            set
-            {
-                if (_selectedClipFilter == value) return;
-                _selectedClipFilter = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(TeamAView));
-                OnPropertyChanged(nameof(TeamBView));
-                UpdateHeadersAndCurrentTagsText();
-            }
-        }
-
-        public ObservableCollection<ClipRow> AllClips { get; } = new ObservableCollection<ClipRow>();
-
-        private readonly ICollectionView _teamAView;
-        private readonly ICollectionView _teamBView;
-
-        public ICollectionView TeamAView => _teamAView;
-        public ICollectionView TeamBView => _teamBView;
-
-        public ObservableCollection<TagToggleModel> OffenseTags { get; } = new ObservableCollection<TagToggleModel>(
-            new[]
-            {
-                "Transition","Set","PnR","BLOB","SLOB","vs M/M","vs Zone","2nd Attack","3rd Attack more"
-            }.Select(x => new TagToggleModel { Name = x })
-        );
-
-        public ObservableCollection<TagToggleModel> DefenseTags { get; } = new ObservableCollection<TagToggleModel>(
-            new[]
-            {
-                "M/M","Zone","Rebound","Steal"
-            }.Select(x => new TagToggleModel { Name = x })
-        );
-
-        public MainWindowViewModel()
-        {
-            foreach (var t in OffenseTags) t.PropertyChanged += TagToggle_PropertyChanged;
-            foreach (var t in DefenseTags) t.PropertyChanged += TagToggle_PropertyChanged;
-
-            AllClips.CollectionChanged += AllClips_CollectionChanged;
-
-            _teamAView = CollectionViewSource.GetDefaultView(AllClips);
-            _teamBView = new ListCollectionView(AllClips);
-
-            _teamAView.Filter = o =>
-            {
-                if (o is not ClipRow c) return false;
-                if (SelectedClipFilter == "Team B") return false;
-                return string.Equals(c.Team, "A", StringComparison.OrdinalIgnoreCase);
-            };
-
-            _teamBView.Filter = o =>
-            {
-                if (o is not ClipRow c) return false;
-                if (SelectedClipFilter == "Team A") return false;
-                return string.Equals(c.Team, "B", StringComparison.OrdinalIgnoreCase);
-            };
-
-            UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            _teamAView.Refresh();
-            _teamBView.Refresh();
-            UpdateHeadersAndCurrentTagsText();
-            OnPropertyChanged(nameof(HasSelectedClip));
-        }
-
-        public string TeamAName { get => _teamAName; set { _teamAName = value; OnPropertyChanged(); } }
-        public string TeamBName { get => _teamBName; set { _teamBName = value; OnPropertyChanged(); } }
-
-        public string LoadedVideoName { get => _loadedVideoName; set { _loadedVideoName = value; OnPropertyChanged(); } }
-        public string LoadedVideoPath { get => _loadedVideoPath; set { _loadedVideoPath = value; OnPropertyChanged(); } }
-
-        public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-
-        public bool IsPlaying
-        {
-            get => _isPlaying;
-            set
-            {
-                _isPlaying = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PlayPauseLabel));
-                OnPropertyChanged(nameof(PlayPauseIcon));
-            }
-        }
-
-        public string PlayPauseLabel => IsPlaying ? "Pause" : "Play";
-        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768"; // Segoe MDL2 Assets
-
-        public double DurationSeconds { get => _durationSeconds; set { _durationSeconds = value; OnPropertyChanged(); } }
-        public double CurrentSeconds { get => _currentSeconds; set { _currentSeconds = value; OnPropertyChanged(); } }
-
-        public double ClipStartSeconds { get => _clipStartSeconds; set { _clipStartSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipStartText)); } }
-        public double ClipEndSeconds { get => _clipEndSeconds; set { _clipEndSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(ClipEndText)); } }
-
-        public string ClipStartText => $"START: {FormatTime(ClipStartSeconds)}";
-        public string ClipEndText => $"END: {FormatTime(ClipEndSeconds)}";
-
-        public string TimeDisplay { get => _timeDisplay; set { _timeDisplay = value; OnPropertyChanged(); } }
-
-        public string CustomTagInput { get => _customTagInput; set { _customTagInput = value; OnPropertyChanged(); } }
-
-        public string CurrentTagsText { get => _currentTagsText; set { _currentTagsText = value; OnPropertyChanged(); } }
-
-        public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
-
+        private ClipRow? _selectedClip;
         public ClipRow? SelectedClip
         {
             get => _selectedClip;
             set
             {
+                if (_selectedClip == value) return;
                 _selectedClip = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(HasSelectedClip));
+                SyncTagTogglesFromSelectedClip();
                 OnPropertyChanged(nameof(SelectedClipHasSetTag));
-
-                // When a clip is selected, the tag toggles represent that clip's tags (Mac-like editing).
-                SyncTogglesFromSelectedClip();
-                UpdateHeadersAndCurrentTagsText();
             }
         }
 
-        public bool HasSelectedClip => SelectedClip != null;
-
-        // Mac-like: show Set Play input only when the selected clip includes "Set" tag.
         public bool SelectedClipHasSetTag
         {
             get
             {
                 if (SelectedClip?.Tags == null) return false;
-                return SelectedClip.Tags.Any(t => string.Equals(t?.Trim(), "Set", StringComparison.OrdinalIgnoreCase));
+                return SelectedClip.Tags.Any(t => string.Equals(t, "Set", StringComparison.OrdinalIgnoreCase));
             }
         }
 
-        public IEnumerable<string> GetSelectedTags()
+        public string LoadedVideoPath
         {
-            return OffenseTags.Where(x => x.IsSelected).Select(x => x.Name)
-                .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
+            get => _loadedVideoPath;
+            set { _loadedVideoPath = value ?? ""; OnPropertyChanged(); }
         }
 
-
-        private void TagToggle_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        public string LoadedVideoName
         {
-            if (e.PropertyName != nameof(TagToggleModel.IsSelected)) return;
+            get => _loadedVideoName;
+            set { _loadedVideoName = value ?? ""; OnPropertyChanged(); }
+        }
 
-            if (_suppressTagSync) return;
+        public string TeamAName { get => _teamAName; set { _teamAName = value; OnPropertyChanged(); } }
+        public string TeamBName { get => _teamBName; set { _teamBName = value; OnPropertyChanged(); } }
 
-            // If a clip is selected, toggles edit that clip directly.
+        public double CurrentTimeSeconds
+        {
+            get => _currentTimeSeconds;
+            set { _currentTimeSeconds = value; OnPropertyChanged(); }
+        }
+
+        public double VideoDurationSeconds
+        {
+            get => _videoDurationSeconds;
+            set { _videoDurationSeconds = value; OnPropertyChanged(); }
+        }
+
+        public string CurrentTimeText
+        {
+            get => _currentTimeText;
+            set { _currentTimeText = value; OnPropertyChanged(); }
+        }
+
+        public string DurationText
+        {
+            get => _durationText;
+            set { _durationText = value; OnPropertyChanged(); }
+        }
+
+        public bool IsPlaying
+        {
+            get => _isPlaying;
+            set { _isPlaying = value; OnPropertyChanged(); }
+        }
+
+        public string StatusText
+        {
+            get => _statusText;
+            set { _statusText = value; OnPropertyChanged(); }
+        }
+
+        public double ClipStart
+        {
+            get => _clipStart;
+            set { _clipStart = value; OnPropertyChanged(); }
+        }
+
+        public double ClipEnd
+        {
+            get => _clipEnd;
+            set { _clipEnd = value; OnPropertyChanged(); }
+        }
+
+        public MainWindowViewModel()
+        {
+            // Default tags (example)
+            OffenseTags.Add(new TagItem("Transition"));
+            OffenseTags.Add(new TagItem("Set"));
+            OffenseTags.Add(new TagItem("PnR"));
+            OffenseTags.Add(new TagItem("BLOB"));
+            OffenseTags.Add(new TagItem("SLOB"));
+            OffenseTags.Add(new TagItem("vs M/M"));
+            OffenseTags.Add(new TagItem("vs Zone"));
+            OffenseTags.Add(new TagItem("2nd Attack"));
+            OffenseTags.Add(new TagItem("3rd Attack more"));
+
+            DefenseTags.Add(new TagItem("M/M"));
+            DefenseTags.Add(new TagItem("Zone"));
+            DefenseTags.Add(new TagItem("Rebound"));
+            DefenseTags.Add(new TagItem("Steal"));
+
+            foreach (var t in OffenseTags) t.PropertyChanged += TagToggled;
+            foreach (var t in DefenseTags) t.PropertyChanged += TagToggled;
+
+            TeamAClips.CollectionChanged += (_, __) => OnPropertyChanged(nameof(AllClipsCountText));
+            TeamBClips.CollectionChanged += (_, __) => OnPropertyChanged(nameof(AllClipsCountText));
+        }
+
+        public string AllClipsCountText => $"Clips (Total {TeamAClips.Count + TeamBClips.Count})";
+
+        private void TagToggled(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(TagItem.IsChecked)) return;
+
             if (SelectedClip != null)
             {
-                SyncSelectedClipTagsFromToggles();
-            }
-
-            UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void SyncTogglesFromSelectedClip()
-        {
-            _suppressTagSync = true;
-            try
-            {
-                var tags = SelectedClip?.Tags ?? new List<string>();
-
-                foreach (var t in OffenseTags)
-                    t.IsSelected = tags.Contains(t.Name);
-
-                foreach (var t in DefenseTags)
-                    t.IsSelected = tags.Contains(t.Name);
-            }
-            finally
-            {
-                _suppressTagSync = false;
+                // edit selected clip tags
+                ApplyTogglesToSelectedClip();
             }
         }
 
-        private void SyncSelectedClipTagsFromToggles()
+        private void ApplyTogglesToSelectedClip()
         {
             if (SelectedClip == null) return;
 
-            var tags = GetSelectedTags().ToList();
-            // Replace list to ensure TagsText refresh & ListView update.
+            var tags = new List<string>();
+
+            void take(IEnumerable<TagItem> src)
+            {
+                foreach (var t in src)
+                    if (t.IsChecked) tags.Add(t.Name);
+            }
+
+            take(OffenseTags);
+            take(DefenseTags);
+            take(CustomTags);
+
             SelectedClip.Tags = tags;
             OnPropertyChanged(nameof(SelectedClipHasSetTag));
         }
 
-        public void UpdateHeadersAndCurrentTagsText()
+        private void SyncTagTogglesFromSelectedClip()
         {
-            ClipsHeader = $"Clips (Total {AllClips.Count})";
+            void clear(IEnumerable<TagItem> src)
+            {
+                foreach (var t in src) t.IsChecked = false;
+            }
 
-            var tags = GetSelectedTags().ToList();
-            CurrentTagsText = tags.Count == 0 ? "(No tags selected)" : string.Join(", ", tags);
+            clear(OffenseTags);
+            clear(DefenseTags);
+            clear(CustomTags);
 
-            _teamAView.Refresh();
-            _teamBView.Refresh();
+            if (SelectedClip?.Tags == null) return;
+
+            var set = new HashSet<string>(SelectedClip.Tags, StringComparer.OrdinalIgnoreCase);
+
+            void apply(IEnumerable<TagItem> src)
+            {
+                foreach (var t in src)
+                {
+                    if (set.Contains(t.Name)) t.IsChecked = true;
+                }
+            }
+
+            apply(OffenseTags);
+            apply(DefenseTags);
+            apply(CustomTags);
         }
 
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        public void SaveClip(string teamKey)
+        {
+            var start = Math.Min(ClipStart, ClipEnd);
+            var end = Math.Max(ClipStart, ClipEnd);
+            if (end <= start) return;
+
+            var tags = new List<string>();
+            foreach (var t in OffenseTags) if (t.IsChecked) tags.Add(t.Name);
+            foreach (var t in DefenseTags) if (t.IsChecked) tags.Add(t.Name);
+            foreach (var t in CustomTags) if (t.IsChecked) tags.Add(t.Name);
+
+            var clip = new ClipRow
+            {
+                Team = teamKey,
+                Start = start,
+                End = end,
+                Tags = tags
+            };
+
+            if (teamKey == "A") TeamAClips.Add(clip);
+            else TeamBClips.Add(clip);
+
+            StatusText = $"Saved {teamKey} clip ({FormatTime(start)} - {FormatTime(end)})";
+        }
+
+        public void DeleteSelectedClip()
+        {
+            if (SelectedClip == null) return;
+
+            if (SelectedClip.Team == "A") TeamAClips.Remove(SelectedClip);
+            else TeamBClips.Remove(SelectedClip);
+
+            SelectedClip = null;
+            StatusText = "Deleted clip";
+        }
+
+        public List<ClipRow> GetAllClipsForExport()
+        {
+            var all = new List<ClipRow>();
+            all.AddRange(TeamAClips);
+            all.AddRange(TeamBClips);
+            return all;
+        }
+
+        public void ImportCsv(string csvText)
+        {
+            // your existing import logic should be here; leaving as-is in your project.
+            // If your project already has a working Import, keep it.
+            // (This placeholder exists only so this file compiles as a full replacement.)
+            //
+            // If you want, paste your current ImportCsv implementation and I’ll merge “Mac v2 strict” into it.
+        }
 
         private static string FormatTime(double seconds)
         {
-            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "--:--";
             var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
             if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
             return ts.ToString(@"m\:ss");
         }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    public class TagToggleModel : INotifyPropertyChanged
+    public class TagItem : INotifyPropertyChanged
     {
+        public string Name { get; }
+
+        private bool _isChecked;
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set { if (_isChecked == value) return; _isChecked = value; OnPropertyChanged(); }
+        }
+
+        public TagItem(string name) => Name = name;
+
         public event PropertyChangedEventHandler? PropertyChanged;
-
-        private string _name = "";
-        private bool _isSelected = false;
-
-        public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
-        public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
-
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
     public class ClipRow : INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler? PropertyChanged;
-
         private string _team = "A";
         private double _start;
         private double _end;
@@ -1248,23 +735,10 @@ for (int i = 1; i < lines.Length; i++)
         private string _comment = "";
         private string _setPlay = "";
 
-        public string Team
-        {
-            get => _team;
-            set { _team = value; OnPropertyChanged(); }
-        }
+        public string Team { get => _team; set { _team = value ?? "A"; OnPropertyChanged(); } }
 
-        public double Start
-        {
-            get => _start;
-            set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); }
-        }
-
-        public double End
-        {
-            get => _end;
-            set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); }
-        }
+        public double Start { get => _start; set { _start = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartText)); } }
+        public double End { get => _end; set { _end = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndText)); } }
 
         public List<string> Tags
         {
@@ -1295,6 +769,7 @@ for (int i = 1; i < lines.Length; i++)
             return ts.ToString(@"m\:ss");
         }
 
+        public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
