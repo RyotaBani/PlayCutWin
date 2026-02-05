@@ -655,7 +655,22 @@ namespace PlayCutWin
         {
             get => _statusText;
             set { _statusText = value; OnPropertyChanged(); }
+        
+
+        private bool _hasSelectedClip;
+        public bool HasSelectedClip
+        {
+            get => _hasSelectedClip;
+            set { _hasSelectedClip = value; OnPropertyChanged(); }
         }
+
+        private string _customTagInput = string.Empty;
+        public string CustomTagInput
+        {
+            get => _customTagInput;
+            set { _customTagInput = value ?? string.Empty; OnPropertyChanged(); }
+        }
+}
 
         public double ClipStart
         {
@@ -726,6 +741,22 @@ namespace PlayCutWin
             SelectedClip.Tags = tags;
             OnPropertyChanged(nameof(SelectedClipHasSetTag));
         }
+
+        public void AttachTag(TagItem item)
+        {
+            if (item == null) return;
+
+            // Toggle selection state
+            item.IsChecked = !item.IsChecked;
+
+            // If a clip is selected, reflect immediately
+            if (SelectedClip != null)
+            {
+                ApplyTogglesToSelectedClip();
+                OnPropertyChanged(nameof(SelectedClipHasSetTag));
+            }
+        }
+
 
         private void SyncTagTogglesFromSelectedClip()
         {
@@ -824,18 +855,40 @@ namespace PlayCutWin
     {
         public string Name { get; }
 
+        // Optional grouping (compat with PlayCutWin.Models.TagItem usage)
+        public PlayCutWin.Models.TagGroup Group { get; }
+
         private bool _isChecked;
         public bool IsChecked
         {
             get => _isChecked;
-            set { if (_isChecked == value) return; _isChecked = value; OnPropertyChanged(); }
+            set
+            {
+                if (_isChecked == value) return;
+                _isChecked = value;
+                OnPropertyChanged(nameof(IsChecked));
+                OnPropertyChanged(nameof(IsSelected));
+            }
         }
 
-        public TagItem(string name) => Name = name;
+        // Alias
+        public bool IsSelected
+        {
+            get => IsChecked;
+            set => IsChecked = value;
+        }
+
+        public TagItem(string name) : this(name, PlayCutWin.Models.TagGroup.Offense) { }
+
+        public TagItem(string name, PlayCutWin.Models.TagGroup group)
+        {
+            Name = name;
+            Group = group;
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        private void OnPropertyChanged(string prop)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
     }
 
     public class ClipRow : INotifyPropertyChanged
