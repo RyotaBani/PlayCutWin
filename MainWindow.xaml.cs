@@ -329,13 +329,6 @@ namespace PlayCutWin
             }
         }
 
-        // Backward-compatible handler name for older XAML that wires PreviewMouseDoubleClick.
-        // (GitHub Actions can fail if the XAML references this name but code-behind doesn't have it.)
-        private void ClipList_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            ClipList_DoubleClick(sender, e);
-        }
-
         private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is ListView lv)
@@ -368,7 +361,15 @@ namespace PlayCutWin
             var t = (VM.CustomTagInput ?? "").Trim();
             if (string.IsNullOrWhiteSpace(t)) return;
 
-            VM.AddOrSelectOffenseTag(t);
+            if (!VM.OffenseTags.Any(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase)))
+            {
+                VM.OffenseTags.Add(new TagToggleModel { Name = t, IsSelected = true });
+            }
+            else
+            {
+                var existing = VM.OffenseTags.First(x => string.Equals(x.Name, t, StringComparison.OrdinalIgnoreCase));
+                existing.IsSelected = true;
+            }
 
             VM.CustomTagInput = "";
             VM.UpdateHeadersAndCurrentTagsText();
@@ -380,22 +381,6 @@ namespace PlayCutWin
             foreach (var t in VM.DefenseTags) t.IsSelected = false;
             VM.CustomTagInput = "";
             VM.UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void Tag_Checked(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-            {
-                VM.OnTagToggled(tag, isChecked: true);
-            }
-        }
-
-        private void Tag_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleButton btn && btn.DataContext is TagToggleModel tag)
-            {
-                VM.OnTagToggled(tag, isChecked: false);
-            }
         }
 
         // ----------------------------
@@ -926,30 +911,7 @@ namespace PlayCutWin
         private string _clipsHeader = "Clips (Total 0)";
         private ClipRow? _selectedClip = null;
 
-        // When syncing tag toggles from a selected clip, suppress tag->clip updates to avoid recursion.
-        private bool _suppressClipTagSync = false;
-
-
-        // Tag note persistence
-        private readonly Dictionary<string, string> _tagNotes;
-        private readonly DispatcherTimer _tagNotesSaveTimer;
-
-        private TagToggleModel? _selectedTag;
-        public TagToggleModel? SelectedTag
-        {
-            get => _selectedTag;
-            set
-            {
-                _selectedTag = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedTagName));
-                OnPropertyChanged(nameof(HasSelectedTag));
-            }
-        }
-
-        public bool HasSelectedTag => SelectedTag != null;
-
-        public string SelectedTagName => SelectedTag?.Name ?? "(No tag selected)";
+        private bool _suppressTagSync = false;
 
         public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
 
@@ -992,22 +954,8 @@ namespace PlayCutWin
 
         public MainWindowViewModel()
         {
-            _tagNotes = PlayCutWin.Helpers.TagNoteStore.Load();
-
-            // Debounced save (typing in TextBox triggers frequent updates)
-            _tagNotesSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _tagNotesSaveTimer.Tick += (_, __) =>
-            {
-                _tagNotesSaveTimer.Stop();
-                PlayCutWin.Helpers.TagNoteStore.Save(_tagNotes);
-            };
-
-            foreach (var t in OffenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-            foreach (var t in DefenseTags) t.PropertyChanged += (_, __) => UpdateHeadersAndCurrentTagsText();
-
-            // Apply saved notes + hook persistence
-            foreach (var t in OffenseTags) AttachTagNotePersistence(t);
-            foreach (var t in DefenseTags) AttachTagNotePersistence(t);
+            foreach (var t in OffenseTags) t.PropertyChanged += TagToggle_PropertyChanged;
+            foreach (var t in DefenseTags) t.PropertyChanged += TagToggle_PropertyChanged;
 
             AllClips.CollectionChanged += AllClips_CollectionChanged;
 
@@ -1029,137 +977,6 @@ namespace PlayCutWin
             };
 
             UpdateHeadersAndCurrentTagsText();
-        }
-
-        private void AttachTagNotePersistence(TagToggleModel tag)
-        {
-            if (_tagNotes.TryGetValue(tag.Name, out var note))
-            {
-                tag.Note = note ?? string.Empty;
-            }
-
-            tag.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(TagToggleModel.Note))
-                {
-                    var key = tag.Name;
-                    var value = tag.Note ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(value))
-                    {
-                        if (_tagNotes.ContainsKey(key)) _tagNotes.Remove(key);
-                    }
-                    else
-                    {
-                        _tagNotes[key] = value;
-                    }
-
-                    // debounce save
-                    _tagNotesSaveTimer.Stop();
-                    _tagNotesSaveTimer.Start();
-                }
-            };
-        }
-
-        public void OnTagToggled(TagToggleModel tag, bool isChecked)
-        {
-            // Tag note target: selecting a tag (checked) makes it the note editing target
-            if (isChecked)
-            {
-                SelectedTag = tag;
-            }
-            else if (SelectedTag == tag)
-            {
-                // Pick next selected tag if available
-                var next = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-                SelectedTag = next;
-            }
-
-            // If a clip is selected, toggles should edit THAT clip's tags.
-            if (SelectedClip != null && !_suppressClipTagSync)
-            {
-                var tags = SelectedClip.Tags?.ToList() ?? new System.Collections.Generic.List<string>();
-                var exists = tags.Any(t => string.Equals(t, tag.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (isChecked)
-                {
-                    if (!exists) tags.Add(tag.Name);
-                }
-                else
-                {
-                    tags = tags.Where(t => !string.Equals(t, tag.Name, StringComparison.OrdinalIgnoreCase)).ToList();
-                }
-
-                // Assign back to trigger INotifyPropertyChanged (TagsText refresh)
-                SelectedClip.Tags = tags;
-
-                // Keep header/current tag text in sync
-                UpdateHeadersAndCurrentTagsText();
-            }
-        }
-
-
-        public void AddOrSelectOffenseTag(string tagName)
-        {
-            var existing = OffenseTags.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
-            {
-                existing.IsSelected = true;
-                SelectedTag = existing;
-                return;
-            }
-
-            var newTag = new TagToggleModel { Name = tagName, IsSelected = true };
-            OffenseTags.Add(newTag);
-            AttachTagNotePersistence(newTag);
-            SelectedTag = newTag;
-        }
-
-
-
-        private TagToggleModel EnsureTagExists(string name)
-        {
-            var existing = OffenseTags.Concat(DefenseTags)
-                .FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (existing != null) return existing;
-
-            // Unknown tags are treated as Offense custom tags (same as Mac behavior of freely adding tags)
-            var newTag = new TagToggleModel { Name = name, IsSelected = false };
-            OffenseTags.Add(newTag);
-            AttachTagNotePersistence(newTag);
-            return newTag;
-        }
-
-        public void SyncTogglesFromSelectedClip()
-        {
-            if (SelectedClip == null) return;
-
-            var clipTags = SelectedClip.Tags ?? new System.Collections.Generic.List<string>();
-
-            _suppressClipTagSync = true;
-            try
-            {
-                // Ensure every tag used by the clip exists in the toggle lists
-                foreach (var t in clipTags)
-                {
-                    if (string.IsNullOrWhiteSpace(t)) continue;
-                    EnsureTagExists(t.Trim());
-                }
-
-                // Apply selection state
-                foreach (var t in OffenseTags)
-                    t.IsSelected = clipTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
-
-                foreach (var t in DefenseTags)
-                    t.IsSelected = clipTags.Any(x => string.Equals(x, t.Name, StringComparison.OrdinalIgnoreCase));
-
-                // Pick a selected tag as the note target (if any)
-                SelectedTag = OffenseTags.Concat(DefenseTags).FirstOrDefault(x => x.IsSelected);
-            }
-            finally
-            {
-                _suppressClipTagSync = false;
-                UpdateHeadersAndCurrentTagsText();
-            }
         }
 
         private void AllClips_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1209,6 +1026,7 @@ namespace PlayCutWin
         public string CurrentTagsText { get => _currentTagsText; set { _currentTagsText = value; OnPropertyChanged(); } }
 
         public string ClipsHeader { get => _clipsHeader; set { _clipsHeader = value; OnPropertyChanged(); } }
+
         public ClipRow? SelectedClip
         {
             get => _selectedClip;
@@ -1218,8 +1036,9 @@ namespace PlayCutWin
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSelectedClip));
 
-                // Sync toggles to the selected clip so tags become editable for existing clips (Mac-like).
+                // When a clip is selected, the tag toggles represent that clip's tags (Mac-like editing).
                 SyncTogglesFromSelectedClip();
+                UpdateHeadersAndCurrentTagsText();
             }
         }
 
@@ -1229,6 +1048,50 @@ namespace PlayCutWin
         {
             return OffenseTags.Where(x => x.IsSelected).Select(x => x.Name)
                 .Concat(DefenseTags.Where(x => x.IsSelected).Select(x => x.Name));
+        }
+
+
+        private void TagToggle_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(TagToggleModel.IsSelected)) return;
+
+            if (_suppressTagSync) return;
+
+            // If a clip is selected, toggles edit that clip directly.
+            if (SelectedClip != null)
+            {
+                SyncSelectedClipTagsFromToggles();
+            }
+
+            UpdateHeadersAndCurrentTagsText();
+        }
+
+        private void SyncTogglesFromSelectedClip()
+        {
+            _suppressTagSync = true;
+            try
+            {
+                var tags = SelectedClip?.Tags ?? new List<string>();
+
+                foreach (var t in OffenseTags)
+                    t.IsSelected = tags.Contains(t.Name);
+
+                foreach (var t in DefenseTags)
+                    t.IsSelected = tags.Contains(t.Name);
+            }
+            finally
+            {
+                _suppressTagSync = false;
+            }
+        }
+
+        private void SyncSelectedClipTagsFromToggles()
+        {
+            if (SelectedClip == null) return;
+
+            var tags = GetSelectedTags().ToList();
+            // Replace list to ensure TagsText refresh & ListView update.
+            SelectedClip.Tags = tags;
         }
 
         public void UpdateHeadersAndCurrentTagsText()
@@ -1260,21 +1123,9 @@ namespace PlayCutWin
 
         private string _name = "";
         private bool _isSelected = false;
-        private string _note = "";
 
         public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
         public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
-
-        public string Note
-        {
-            get => _note;
-            set
-            {
-                if (_note == value) return;
-                _note = value;
-                OnPropertyChanged();
-            }
-        }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
