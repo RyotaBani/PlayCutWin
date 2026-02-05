@@ -423,13 +423,58 @@ namespace PlayCutWin
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("team,start,end,tags,comment,setplay");
-                foreach (var c in clips)
-                {
-                    var tags = string.Join("|", c.Tags ?? new List<string>());
-                    sb.AppendLine($"{c.Team},{c.Start.ToString("0.###", CultureInfo.InvariantCulture)},{c.End.ToString("0.###", CultureInfo.InvariantCulture)},{EscapeCsv(tags)},{EscapeCsv(c.Comment ?? "")},{EscapeCsv(c.SetPlay ?? "")}");
-                }
-                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+
+// Mac (BBVideoTagger) CSV Schema v2
+// Header must match exactly for round-trip compatibility.
+sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
+
+var videoName = string.IsNullOrWhiteSpace(_loadedVideoName) ? "UnknownVideo" : _loadedVideoName;
+var inv = CultureInfo.InvariantCulture;
+
+// Sort by start time to match Mac export order
+var sorted = clips.OrderBy(c => c.Start).ToList();
+
+for (int i = 0; i < sorted.Count; i++)
+{
+    var c = sorted[i];
+
+    var teamKey = NormalizeTeamToAB(c.Team);
+    var teamSide = teamKey == "A" ? "Home" : "Away";
+    var teamName = teamKey == "A" ? _teamAName : _teamBName;
+
+    var startStr = FormatTime(c.Start);
+    var endStr = FormatTime(c.End);
+
+    var startSec = c.Start.ToString("0.000", inv);
+    var endSec = c.End.ToString("0.000", inv);
+    var durationSec = Math.Max(0, c.End - c.Start).ToString("0.000", inv);
+
+    var tagsStr = string.Join("; ", c.Tags ?? new List<string>());
+    var setPlayStr = c.SetPlay ?? string.Empty;
+    var noteStr = c.Comment ?? string.Empty;
+
+    var row = string.Join(",", new[]
+    {
+        EscapeCsv("2"),
+        EscapeCsv(videoName),
+        EscapeCsv((i + 1).ToString(inv)),
+        EscapeCsv(teamKey),
+        EscapeCsv(teamSide),
+        EscapeCsv(teamName),
+        EscapeCsv(startStr),
+        EscapeCsv(endStr),
+        EscapeCsv(startSec),
+        EscapeCsv(endSec),
+        EscapeCsv(durationSec),
+        EscapeCsv(tagsStr),
+        EscapeCsv(setPlayStr),
+        EscapeCsv(noteStr)
+    });
+
+    sb.AppendLine(row);
+}
+
+File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 VM.StatusText = $"Exported: {Path.GetFileName(dlg.FileName)}";
             }
             catch (Exception ex)
@@ -458,20 +503,46 @@ namespace PlayCutWin
                     return;
                 }
 
-                var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
-                var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
+                
+var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
+var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
 
-                int teamIdx = headerLower.IndexOf("team");
-                int startIdx = headerLower.IndexOf("start");
-                int endIdx = headerLower.IndexOf("end");
-                int durationIdx = headerLower.IndexOf("duration");
-                int tagsIdx = headerLower.IndexOf("tags");
-                int commentIdx = headerLower.IndexOf("comment");
-                int setPlayIdx = headerLower.IndexOf("setplay");
+int FindIndex(params string[] names)
+{
+    foreach (var n in names)
+    {
+        var idx = headerLower.IndexOf(n.ToLowerInvariant());
+        if (idx >= 0) return idx;
+    }
+    return -1;
+}
 
-                if (teamIdx < 0 || startIdx < 0)
+// Mac (BBVideoTagger) Schema v2 + legacy support
+int schemaIdx = FindIndex("schema");
+int videoNameIdx = FindIndex("videoname", "video");
+int noIdx = FindIndex("no");
+
+int teamKeyIdx = FindIndex("teamkey");
+int teamSideIdx = FindIndex("teamside");
+int teamNameIdx = FindIndex("teamname");
+int teamIdx = FindIndex("team", "side", "homeaway");
+
+int startSecIdx = FindIndex("startsec", "startseconds");
+int endSecIdx = FindIndex("endsec", "endseconds");
+int startIdx = FindIndex("start", "in", "inpoint");
+int endIdx = FindIndex("end", "out", "outpoint");
+
+int durationSecIdx = FindIndex("durationsec");
+int durationIdx = FindIndex("duration", "durations");
+int tagsIdx = FindIndex("tags", "tag");
+
+int noteIdx = FindIndex("note", "memo", "comment");
+int setPlayIdx = FindIndex("setplay", "set");
+
+
+                if ((teamKeyIdx < 0 && teamSideIdx < 0 && teamIdx < 0 && teamNameIdx < 0) || (startSecIdx < 0 && startIdx < 0))
                 {
-                    MessageBox.Show("CSV format not recognized. Need at least 'team' and 'start' columns.");
+                    MessageBox.Show("CSV format not recognized. Need team columns and start columns (Mac Schema v2 or legacy).");
                     return;
                 }
 
@@ -489,43 +560,62 @@ namespace PlayCutWin
                 }
 
                 int imported = 0;
-                for (int i = 1; i < lines.Length; i++)
-                {
-                    if (string.IsNullOrWhiteSpace(lines[i])) continue;
-                    var cols = SplitCsv(lines[i]);
-                    if (cols.Count <= startIdx || cols.Count <= teamIdx) continue;
+                
+for (int i = 1; i < lines.Length; i++)
+{
+    if (string.IsNullOrWhiteSpace(lines[i])) continue;
+    var cols = SplitCsv(lines[i]);
+    if (cols.Count == 0) continue;
 
-                    string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
-                    string team = NormalizeTeamToAB(teamRaw);
+    // team (Mac v2: TeamKey / TeamSide / TeamName, legacy: team)
+    string teamToken = "";
+    if (teamKeyIdx >= 0) teamToken = GetSafe(cols, teamKeyIdx);
+    else if (teamSideIdx >= 0) teamToken = GetSafe(cols, teamSideIdx);
+    else if (teamIdx >= 0) teamToken = GetSafe(cols, teamIdx);
 
-                    double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
-                    double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
+    string teamNameText = teamNameIdx >= 0 ? GetSafe(cols, teamNameIdx) : "";
+    string team = NormalizeTeamToAB((teamToken + " " + teamNameText).Trim());
 
-                    if (endSec <= 0 && durationIdx >= 0)
-                    {
-                        var dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
-                        if (dur > 0) endSec = startSec + dur;
-                    }
+    // start/end (Mac v2 prefers StartSec/EndSec)
+    double startSec = 0;
+    double endSec = 0;
 
-                    if (endSec <= startSec) continue;
+    if (startSecIdx >= 0) startSec = ParseTimeToSeconds(GetSafe(cols, startSecIdx));
+    if (endSecIdx >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, endSecIdx));
 
-                    string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
-                    var tags = ParseTags(tagsRaw);
+    if (startSec <= 0 && startIdx >= 0) startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
+    if (endSec <= 0 && endIdx >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, endIdx));
 
-                    string comment = commentIdx >= 0 ? GetSafe(cols, commentIdx) : string.Empty;
-                    string setPlay = setPlayIdx >= 0 ? GetSafe(cols, setPlayIdx) : string.Empty;
+    if (endSec <= 0)
+    {
+        double dur = 0;
+        if (durationSecIdx >= 0) dur = ParseTimeToSeconds(GetSafe(cols, durationSecIdx));
+        if (dur <= 0 && durationIdx >= 0) dur = ParseTimeToSeconds(GetSafe(cols, durationIdx));
+        if (dur > 0) endSec = startSec + dur;
+    }
 
-                    VM.AllClips.Add(new ClipRow
-                    {
-                        Team = team,
-                        Start = startSec,
-                        End = endSec,
-                        Tags = tags,
-                        Comment = comment,
-                        SetPlay = setPlay
-                    });
-                    imported++;
-                }
+    if (startSec <= 0 || endSec <= startSec) continue;
+
+    // tags (Mac v2 uses '; ' separator, legacy may use '|')
+    string tagsRaw = tagsIdx >= 0 ? GetSafe(cols, tagsIdx) : string.Empty;
+    var tags = ParseTags(tagsRaw);
+
+    // note / setplay (Mac v2: Note / SetPlay)
+    string note = noteIdx >= 0 ? GetSafe(cols, noteIdx) : string.Empty;
+    string setPlay = setPlayIdx >= 0 ? GetSafe(cols, setPlayIdx) : string.Empty;
+
+    VM.AllClips.Add(new ClipRow
+    {
+        Team = team,
+        Start = startSec,
+        End = endSec,
+        Tags = tags,
+        Comment = note,
+        SetPlay = setPlay
+    });
+    imported++;
+}
+
 
                 VM.UpdateHeadersAndCurrentTagsText();
                 VM.StatusText = $"Imported {imported} clips.";
