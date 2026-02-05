@@ -437,7 +437,118 @@ namespace PlayCutWin
             if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B")) return "B";
             return "A";
         }
-    }
+    
+        // ===== Compatibility handlers for MainWindow.xaml event names =====
+
+        private void ClipList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ListView lv)
+            {
+                VM.SelectedClip = lv.SelectedItem as ClipRow;
+                VM.HasSelectedClip = VM.SelectedClip != null;
+            }
+        }
+
+        private void DeleteSelectedClip_Click(object sender, RoutedEventArgs e)
+        {
+            // Forward to existing delete if present
+            try { Delete_Click(sender, e); } catch { VM.DeleteSelectedClip(); }
+        }
+
+        private void ImportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            // Forward to existing handler name
+            ImportCSV_Click(sender, e);
+        }
+
+        private void ExportCsv_Click(object sender, RoutedEventArgs e)
+        {
+            ExportCSV_Click(sender, e);
+        }
+
+        private void ExportAll_Click(object sender, RoutedEventArgs e)
+        {
+            // If you later add real ExportAll, replace this.
+            MessageBox.Show("Export All は次で実装（現状はCSV出力のみ）", "Export",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void Player_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            // Keep duration text in sync (LoadVideo_Click also subscribes; this is safe)
+            if (Player.NaturalDuration.HasTimeSpan)
+            {
+                VM.VideoDurationSeconds = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                UpdateTimeTexts();
+            }
+        }
+
+        private void Player_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            MessageBox.Show(e.ErrorException?.ToString() ?? "Media failed.", "Media Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+
+        private void TimelineSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            Timeline_PreviewMouseDown(sender, e);
+        }
+
+        private void TimelineSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            Timeline_PreviewMouseUp(sender, e);
+        }
+
+        private void SeekMinus5_Click(object sender, RoutedEventArgs e) => SeekRelative(-5);
+        private void SeekMinus1_Click(object sender, RoutedEventArgs e) => SeekRelative(-1);
+        private void SeekPlus1_Click(object sender, RoutedEventArgs e) => SeekRelative(+1);
+        private void SeekPlus5_Click(object sender, RoutedEventArgs e) => SeekRelative(+5);
+
+        private void ClipStart_Click(object sender, RoutedEventArgs e)
+        {
+            if (Player.Source == null) return;
+            VM.ClipStart = Player.Position.TotalSeconds;
+            VM.StatusText = $"START: {FormatTime(VM.ClipStart)}";
+        }
+
+        private void ClipEnd_Click(object sender, RoutedEventArgs e)
+        {
+            if (Player.Source == null) return;
+            VM.ClipEnd = Player.Position.TotalSeconds;
+            VM.StatusText = $"END: {FormatTime(VM.ClipEnd)}";
+        }
+
+        private void AddCustomTag_Click(object sender, RoutedEventArgs e)
+        {
+            var name = (VM.CustomTagInput ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            if (VM.CustomTags.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                VM.CustomTagInput = "";
+                return;
+            }
+
+            var item = new TagItem(name);
+            VM.AttachTag(item);
+            VM.CustomTags.Add(item);
+            VM.CustomTagInput = "";
+        }
+
+        private void ClearTags_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var t in VM.OffenseTags) t.IsChecked = false;
+            foreach (var t in VM.DefenseTags) t.IsChecked = false;
+            foreach (var t in VM.CustomTags) t.IsChecked = false;
+
+            // Apply to selected clip if any
+            if (VM.SelectedClip != null)
+            {
+                // triggers tag change via TagToggled subscriptions
+                VM.StatusText = "Tags cleared";
+            }
+        }
+}
 
     // ==========================================================
     // ViewModel / Models (kept here for single-file simplicity)
@@ -479,6 +590,7 @@ namespace PlayCutWin
             {
                 if (_selectedClip == value) return;
                 _selectedClip = value;
+                HasSelectedClip = _selectedClip != null;
                 OnPropertyChanged();
                 SyncTagTogglesFromSelectedClip();
                 OnPropertyChanged(nameof(SelectedClipHasSetTag));
