@@ -594,14 +594,14 @@ namespace PlayCutWin
             }
         }
 
-        private ICollectionView _teamAView;
+        private ICollectionView _teamAView = null!;
         public ICollectionView TeamAView
         {
             get => _teamAView;
             private set { _teamAView = value; OnPropertyChanged(); }
         }
 
-        private ICollectionView _teamBView;
+        private ICollectionView _teamBView = null!;
         public ICollectionView TeamBView
         {
             get => _teamBView;
@@ -1021,6 +1021,20 @@ private void RefreshClipViews()
 
             return parts;
         }
+
+// Team normalize helper (needed for Import inside VM)
+private static string NormalizeTeamToAB(string team)
+{
+    if (string.IsNullOrWhiteSpace(team)) return "A";
+    var t = team.Trim();
+    if (t.Equals("A", StringComparison.OrdinalIgnoreCase) || t.Contains("Team A", StringComparison.OrdinalIgnoreCase)) return "A";
+    if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B", StringComparison.OrdinalIgnoreCase)) return "B";
+    // Also accept Home/Away labels
+    if (t.Contains("Home", StringComparison.OrdinalIgnoreCase)) return "A";
+    if (t.Contains("Away", StringComparison.OrdinalIgnoreCase)) return "B";
+    return "A";
+}
+
 
         private static double ParseTimeToSeconds(string s)
         {
