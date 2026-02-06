@@ -5,9 +5,21 @@ namespace PlayCutWin.Views
 {
     public partial class ExportProgressDialog : Window
     {
+        public bool IsCanceled { get; private set; }
+        public event Action? CancelRequested;
+
         public ExportProgressDialog()
         {
             InitializeComponent();
+        }
+
+        private void Cancel_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsCanceled) return;
+            IsCanceled = true;
+            CancelButton.IsEnabled = false;
+            DetailText.Text = "Canceling...";
+            CancelRequested?.Invoke();
         }
 
         public void SetProgress(int current, int total, string detail)
@@ -38,6 +50,7 @@ namespace PlayCutWin.Views
 
             TitleText.Text = "Export complete";
             DetailText.Text = message;
+            CancelButton.IsEnabled = false;
         }
     }
 }

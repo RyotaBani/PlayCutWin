@@ -1,7 +1,7 @@
 <Window x:Class="PlayCutWin.Views.ExportProgressDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Export" Height="180" Width="520"
+        Title="Export" Height="210" Width="520"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         WindowStyle="ToolWindow"
@@ -13,10 +13,16 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="8"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold" Text="Exporting clips..."/>
         <TextBlock x:Name="DetailText" Grid.Row="2" FontSize="12" TextWrapping="Wrap"/>
         <ProgressBar x:Name="Progress" Grid.Row="4" Height="18" Minimum="0" Maximum="1" Value="0"/>
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Width="96" Height="28" Content="Cancel" Click="Cancel_Click"/>
+        </StackPanel>
     </Grid>
 </Window>
