@@ -578,6 +578,37 @@ namespace PlayCutWin
         public ObservableCollection<ClipRow> TeamAClips { get; } = new();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new();
 
+        // ===== Clip Filters (UI) =====
+        public ObservableCollection<string> ClipFilters { get; } = new ObservableCollection<string>(new[] { "All Clips", "Team A", "Team B" });
+
+        private string _selectedClipFilter = "All Clips";
+        public string SelectedClipFilter
+        {
+            get => _selectedClipFilter;
+            set
+            {
+                if (_selectedClipFilter == value) return;
+                _selectedClipFilter = value ?? "All Clips";
+                OnPropertyChanged();
+                RefreshClipViews();
+            }
+        }
+
+        private ICollectionView _teamAView;
+        public ICollectionView TeamAView
+        {
+            get => _teamAView;
+            private set { _teamAView = value; OnPropertyChanged(); }
+        }
+
+        private ICollectionView _teamBView;
+        public ICollectionView TeamBView
+        {
+            get => _teamBView;
+            private set { _teamBView = value; OnPropertyChanged(); }
+        }
+
+
         public ObservableCollection<TagItem> OffenseTags { get; } = new();
         public ObservableCollection<TagItem> DefenseTags { get; } = new();
         public ObservableCollection<TagItem> CustomTags { get; } = new();
@@ -648,8 +679,17 @@ namespace PlayCutWin
         public bool IsPlaying
         {
             get => _isPlaying;
-            set { _isPlaying = value; OnPropertyChanged(); }
+            set
+            {
+                if (_isPlaying == value) return;
+                _isPlaying = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlayPauseIcon));
+            }
         }
+
+        // Segoe MDL2 Assets: Play=E768, Pause=E769
+        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
 
         public string StatusText
         {
@@ -704,11 +744,29 @@ namespace PlayCutWin
             foreach (var t in OffenseTags) t.PropertyChanged += TagToggled;
             foreach (var t in DefenseTags) t.PropertyChanged += TagToggled;
 
-            TeamAClips.CollectionChanged += (_, __) => OnPropertyChanged(nameof(AllClipsCountText));
-            TeamBClips.CollectionChanged += (_, __) => OnPropertyChanged(nameof(AllClipsCountText));
+// Views for clip lists
+TeamAView = CollectionViewSource.GetDefaultView(TeamAClips);
+TeamBView = CollectionViewSource.GetDefaultView(TeamBClips);
+
+// Filter by clip dropdown (XAML values: All Clips / Team A / Team B)
+TeamAView.Filter = _ => SelectedClipFilter == "All Clips" || SelectedClipFilter == "Team A";
+TeamBView.Filter = _ => SelectedClipFilter == "All Clips" || SelectedClipFilter == "Team B";
+
+TeamAClips.CollectionChanged += (_, __) => RefreshClipViews();
+TeamBClips.CollectionChanged += (_, __) => RefreshClipViews();
+RefreshClipViews();
         }
 
         public string AllClipsCountText => $"Clips (Total {TeamAClips.Count + TeamBClips.Count})";
+
+
+private void RefreshClipViews()
+{
+    TeamAView?.Refresh();
+    TeamBView?.Refresh();
+    OnPropertyChanged(nameof(AllClipsCountText));
+}
+
 
         private void TagToggled(object? sender, PropertyChangedEventArgs e)
         {
@@ -829,13 +887,203 @@ namespace PlayCutWin
             return all;
         }
 
-        public void ImportCsv(string csvText)
+                public void ImportCsv(string csvText)
         {
-            // your existing import logic should be here; leaving as-is in your project.
-            // If your project already has a working Import, keep it.
-            // (This placeholder exists only so this file compiles as a full replacement.)
-            //
-            // If you want, paste your current ImportCsv implementation and I’ll merge “Mac v2 strict” into it.
+            if (string.IsNullOrWhiteSpace(csvText)) return;
+
+            TeamAClips.Clear();
+            TeamBClips.Clear();
+            SelectedClip = null;
+            HasSelectedClip = false;
+
+            var lines = csvText
+                .Split(new[] { "
+", "
+" }, StringSplitOptions.None)
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+
+            if (lines.Count < 2) return;
+
+            var header = SplitCsvLine(lines[0]).Select(h => (h ?? "").Trim()).ToList();
+            var hl = header.Select(h => h.ToLowerInvariant()).ToList();
+
+            bool isMacV2 = hl.Contains("schema") && hl.Contains("videoname") && hl.Contains("teamkey") && hl.Contains("startsec");
+
+            int idxTeamKey = hl.IndexOf("teamkey");
+            int idxTeamOld = hl.IndexOf("team");
+            int idxStartSec = hl.IndexOf("startsec");
+            int idxEndSec = hl.IndexOf("endsec");
+            int idxStart = hl.IndexOf("start");
+            int idxEnd = hl.IndexOf("end");
+            int idxDurSec = hl.IndexOf("durationsec");
+            int idxDuration = hl.IndexOf("duration");
+            int idxTags = hl.IndexOf("tags");
+            int idxSetPlay = hl.IndexOf("setplay");
+            int idxNote = hl.IndexOf("note");
+            int idxComment = hl.IndexOf("comment");
+
+            int imported = 0;
+
+            for (int i = 1; i < lines.Count; i++)
+            {
+                var cols = SplitCsvLine(lines[i]);
+
+                string teamKey = "A";
+                double startSec = 0;
+                double endSec = 0;
+
+                if (isMacV2)
+                {
+                    teamKey = NormalizeTeamToAB(GetSafe(cols, idxTeamKey));
+                    startSec = TryParseDouble(GetSafe(cols, idxStartSec));
+                    endSec = TryParseDouble(GetSafe(cols, idxEndSec));
+
+                    if (endSec <= 0 && idxDurSec >= 0)
+                    {
+                        var dur = TryParseDouble(GetSafe(cols, idxDurSec));
+                        if (dur > 0) endSec = startSec + dur;
+                    }
+
+                    if (startSec <= 0 && idxStart >= 0) startSec = ParseTimeToSeconds(GetSafe(cols, idxStart));
+                    if (endSec <= 0 && idxEnd >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, idxEnd));
+                }
+                else
+                {
+                    if (idxTeamOld >= 0) teamKey = NormalizeTeamToAB(GetSafe(cols, idxTeamOld));
+                    else teamKey = NormalizeTeamToAB(GetSafe(cols, idxTeamKey));
+
+                    if (idxStartSec >= 0) startSec = TryParseDouble(GetSafe(cols, idxStartSec));
+                    if (idxEndSec >= 0) endSec = TryParseDouble(GetSafe(cols, idxEndSec));
+
+                    if (startSec <= 0 && idxStart >= 0) startSec = ParseTimeToSeconds(GetSafe(cols, idxStart));
+                    if (endSec <= 0 && idxEnd >= 0) endSec = ParseTimeToSeconds(GetSafe(cols, idxEnd));
+
+                    if (endSec <= 0)
+                    {
+                        double dur = 0;
+                        if (idxDurSec >= 0) dur = TryParseDouble(GetSafe(cols, idxDurSec));
+                        else if (idxDuration >= 0) dur = ParseTimeToSeconds(GetSafe(cols, idxDuration));
+
+                        if (dur > 0) endSec = startSec + dur;
+                    }
+                }
+
+                if (endSec <= startSec) continue;
+
+                var tagsRaw = GetSafe(cols, idxTags);
+                var setPlay = GetSafe(cols, idxSetPlay);
+                var note = GetSafe(cols, idxNote);
+                if (string.IsNullOrWhiteSpace(note) && idxComment >= 0) note = GetSafe(cols, idxComment);
+
+                var clip = new ClipRow
+                {
+                    Team = teamKey,
+                    Start = startSec,
+                    End = endSec,
+                    Tags = ParseTags(tagsRaw),
+                    SetPlay = setPlay ?? string.Empty,
+                    Comment = note ?? string.Empty
+                };
+
+                if (teamKey == "A") TeamAClips.Add(clip);
+                else TeamBClips.Add(clip);
+
+                imported++;
+            }
+
+            StatusText = $"Imported {imported} clips";
+        }
+
+        private static double TryParseDouble(string s)
+        {
+            if (double.TryParse((s ?? "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) return v;
+            return 0;
+        }
+
+        private static string GetSafe(List<string> cols, int idx)
+        {
+            if (idx < 0) return "";
+            if (idx >= cols.Count) return "";
+            return cols[idx] ?? "";
+        }
+
+        private static List<string> ParseTags(string raw)
+        {
+            raw ??= "";
+            raw = raw.Trim();
+            if (raw.Length == 0) return new List<string>();
+
+            var parts = raw
+                .Split(new[] { ";", "|", "," }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Trim())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return parts;
+        }
+
+        private static double ParseTimeToSeconds(string s)
+        {
+            s ??= "";
+            s = s.Trim();
+            if (s.Length == 0) return 0;
+
+            if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var sec)) return sec;
+
+            var parts = s.Split(':');
+            if (parts.Length == 2)
+            {
+                if (int.TryParse(parts[0], out var m) && double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var ss))
+                    return m * 60 + ss;
+            }
+            else if (parts.Length == 3)
+            {
+                if (int.TryParse(parts[0], out var h) && int.TryParse(parts[1], out var m) && double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var ss))
+                    return h * 3600 + m * 60 + ss;
+            }
+
+            return 0;
+        }
+
+        private static List<string> SplitCsvLine(string line)
+        {
+            var result = new List<string>();
+            if (line == null) return result;
+
+            var sb = new StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (c == '"')
+                {
+                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        sb.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = !inQuotes;
+                    }
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    result.Add(sb.ToString());
+                    sb.Clear();
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+
+            result.Add(sb.ToString());
+            return result;
         }
 
         private static string FormatTime(double seconds)
