@@ -409,6 +409,27 @@ namespace PlayCutWin
             {
                 var text = File.ReadAllText(dlg.FileName, Encoding.UTF8);
 
+                // Mac同挙動：CSVのVideoNameが現在の動画と一致しない場合は警告
+                if (!string.IsNullOrWhiteSpace(VM.LoadedVideoName)
+                    && TryGetCsvVideoName(text, out var csvVideoName)
+                    && !string.IsNullOrWhiteSpace(csvVideoName))
+                {
+                    var current = Path.GetFileName(VM.LoadedVideoName.Trim());
+                    var incoming = Path.GetFileName(csvVideoName.Trim());
+
+                    if (!string.Equals(current, incoming, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var msg =
+                            "CSV の VideoName が現在読み込まれている動画と一致しません。\n\n" +
+                            $"現在: {current}\n" +
+                            $"CSV : {incoming}\n\n" +
+                            "このままインポートを続行しますか？";
+
+                        var res = MessageBox.Show(msg, "VideoName mismatch", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                        if (res != MessageBoxResult.Yes) return;
+                    }
+                }
+
                 VM.ImportCsv(text);
                 VM.StatusText = $"Imported CSV: {Path.GetFileName(dlg.FileName)}";
             }
@@ -428,7 +449,95 @@ namespace PlayCutWin
             return s;
         }
 
-        private static string NormalizeTeamToAB(string team)
+        
+
+        // CSV helper: parse a single CSV line (supports quotes)
+        private static List<string> SplitCsvLine(string line)
+        {
+            var result = new List<string>();
+            if (line == null) { result.Add(""); return result; }
+
+            var sb = new StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (inQuotes)
+                {
+                    if (c == '"')
+                    {
+                        // escaped quote
+                        if (i + 1 < line.Length && line[i + 1] == '"')
+                        {
+                            sb.Append('"');
+                            i++;
+                        }
+                        else
+                        {
+                            inQuotes = false;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                }
+                else
+                {
+                    if (c == '"')
+                    {
+                        inQuotes = true;
+                    }
+                    else if (c == ',')
+                    {
+                        result.Add(sb.ToString());
+                        sb.Clear();
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                }
+            }
+
+            result.Add(sb.ToString());
+            return result;
+        }
+
+        // CSV helper: try get VideoName from Mac schema v2 / compatible CSV
+        private static bool TryGetCsvVideoName(string csvText, out string videoName)
+        {
+            videoName = "";
+            if (string.IsNullOrWhiteSpace(csvText)) return false;
+
+            // normalize newlines
+            var lines = csvText.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            if (lines.Length < 2) return false;
+
+            // header
+            var header = SplitCsvLine(lines[0].Trim('\uFEFF'));
+            int idx = header.FindIndex(h => string.Equals((h ?? "").Trim(), "VideoName", StringComparison.OrdinalIgnoreCase));
+            if (idx < 0) return false;
+
+            // first non-empty data line
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var ln = lines[i];
+                if (string.IsNullOrWhiteSpace(ln)) continue;
+                var cols = SplitCsvLine(ln);
+                if (idx < cols.Count)
+                {
+                    videoName = (cols[idx] ?? "").Trim();
+                    return !string.IsNullOrWhiteSpace(videoName);
+                }
+                return false;
+            }
+
+            return false;
+        }
+private static string NormalizeTeamToAB(string team)
         {
             // team is stored as "A"/"B" or "Team A"/"Team B"
             if (string.IsNullOrWhiteSpace(team)) return "A";
