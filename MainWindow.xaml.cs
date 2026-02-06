@@ -655,7 +655,7 @@ namespace PlayCutWin
         {
             get => _statusText;
             set { _statusText = value; OnPropertyChanged(); }
-        
+        }
 
         private bool _hasSelectedClip;
         public bool HasSelectedClip
@@ -670,7 +670,6 @@ namespace PlayCutWin
             get => _customTagInput;
             set { _customTagInput = value ?? string.Empty; OnPropertyChanged(); }
         }
-}
 
         public double ClipStart
         {
