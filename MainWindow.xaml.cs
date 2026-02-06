@@ -653,7 +653,7 @@ private static string NormalizeTeamToAB(string team)
             if (cts.IsCancellationRequested)
             {
                 VM.StatusText = $"Export canceled. OK:{ok} / Fail:{fail}";
-                MessageBox.Show($"Export canceled at {canceledAt}/{clips.Count}.\n\nOutput folder:\n{sessionDir}",
+                MessageBox.Show($"Export canceled.\n\nOutput folder:\n{sessionDir}",
                     "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -680,11 +680,23 @@ private static string NormalizeTeamToAB(string team)
             // Mac-like: sort by start
             var sorted = clips.OrderBy(c => c.Start).ToList();
 
+            // Mac-like: duplicate export per tag (if multiple tags, same clip is exported to each tag folder)
+            // Total progress counts each exported file.
+            int totalExports = 0;
+            foreach (var c0 in sorted)
+            {
+                var tags0 = (c0.Tags ?? new List<string>()).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+                totalExports += Math.Max(1, tags0.Count);
+            }
+            if (totalExports <= 0) totalExports = sorted.Count;
+
+            int exportIndex = 0;
+
             for (int i = 0; i < sorted.Count; i++)
             {
                 if (token.IsCancellationRequested)
                 {
-                    canceledAt = i;
+                    canceledAt = exportIndex;
                     return;
                 }
 
@@ -694,35 +706,43 @@ private static string NormalizeTeamToAB(string team)
                 var teamKey = NormalizeTeamToAB(c.Team);
                 var teamDir = teamKey == "B" ? teamBDir : teamADir;
 
-                // Tag folder split: first tag is the primary folder (avoid duplicates)
                 var tags = (c.Tags ?? new List<string>()).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-                var primaryTag = tags.Count > 0 ? tags[0] : "NoTag";
-                var tagFolder = NormalizeTagFolderName(primaryTag);
-                var outDir = string.IsNullOrWhiteSpace(tagFolder) ? teamDir : Path.Combine(teamDir, tagFolder);
-                Directory.CreateDirectory(outDir);
+                if (tags.Count == 0) tags.Add("NoTag");
 
-                var safeTags = SanitizeFileName(string.Join("-", tags.Take(5)));
-                var file = $"{teamKey}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}";
-                if (!string.IsNullOrWhiteSpace(safeTags)) file += "_" + safeTags;
-                file += ".mp4";
-
-                var outPath = Path.Combine(outDir, file);
+                // base file name (same across tag folders to allow duplication without overwriting inside the same folder)
+                var fileBase = $"{teamKey}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}.mp4";
                 var duration = Math.Max(0.01, c.End - c.Start);
 
-                progress?.Report((i + 1, sorted.Count, $"{file}"));
-
-                var args = BuildFfmpegArgs(
-                    inputPath: VM.LoadedVideoPath,
-                    startSeconds: c.Start,
-                    durationSeconds: duration,
-                    outputPath: outPath);
-
-                var result = RunProcess(ffmpeg, args);
-                if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-                else
+                foreach (var tag in tags)
                 {
-                    fail++;
-                    Debug.WriteLine(result.stdErr);
+                    if (token.IsCancellationRequested)
+                    {
+                        canceledAt = exportIndex;
+                        return;
+                    }
+
+                    var tagFolder = NormalizeTagFolderName(tag);
+                    var outDir = string.IsNullOrWhiteSpace(tagFolder) ? teamDir : Path.Combine(teamDir, tagFolder);
+                    Directory.CreateDirectory(outDir);
+
+                    var outPath = Path.Combine(outDir, fileBase);
+
+                    exportIndex++;
+                    progress?.Report((exportIndex, totalExports, $"{teamKey}/{tagFolder}/{fileBase}"));
+
+                    var args = BuildFfmpegArgs(
+                        inputPath: VM.LoadedVideoPath,
+                        startSeconds: c.Start,
+                        durationSeconds: duration,
+                        outputPath: outPath);
+
+                    var result = RunProcess(ffmpeg, args);
+                    if (result.exitCode == 0 && File.Exists(outPath)) ok++;
+                    else
+                    {
+                        fail++;
+                        Debug.WriteLine(result.stdErr);
+                    }
                 }
             }
         }
