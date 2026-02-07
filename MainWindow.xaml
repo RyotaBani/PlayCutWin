@@ -33,11 +33,30 @@
 
                 <DockPanel Margin="0,0,0,10">
                     <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
-                        <TextBox Width="160" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="Team B" VerticalAlignment="Center" Margin="8,0,8,0" Opacity="0.85"/>
-                        <TextBox Width="160" Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <!-- Mac like: Team A/B label + segment style team name pill -->
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <Border Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="6,4" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="#242424" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,0,6,0">
+                                    <TextBlock Text="Team A" Opacity="0.9"/>
+                                </Border>
+                                <Border Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="6" Padding="10,2">
+                                    <TextBlock Text="{Binding TeamAName}"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="6,4">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="#242424" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,0,6,0">
+                                    <TextBlock Text="Team B" Opacity="0.9"/>
+                                </Border>
+                                <Border Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="6" Padding="10,2">
+                                    <TextBlock Text="{Binding TeamBName}"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </DockPanel>
 
@@ -300,9 +319,9 @@
                 <WrapPanel Margin="0,8,0,0">
                     <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
-                    <!-- Play/Pause (Mac-like text) -->
+                    <!-- Mac like: Play/Pause text button -->
                     <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseText}"
-                            FontWeight="SemiBold" FontSize="14"
+                            Width="90"
                             Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
                             Click="PlayPause_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>
