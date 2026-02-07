@@ -45,7 +45,7 @@
                     <Grid>
                         <!-- Hint (コードビハインドから参照されるので必ず存在させる) -->
                         <TextBlock x:Name="VideoHint"
-                                   Text="Load a video to start"
+                                   Text="Load video from the button →"
                                    Foreground="#8A8A8A"
                                    FontSize="14"
                                    HorizontalAlignment="Center"
@@ -300,9 +300,9 @@
                 <WrapPanel Margin="0,8,0,0">
                     <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
-                    <!-- Play/Pause は文字ではなくアイコン（Segoe MDL2 Assets） -->
-                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseIcon}"
-                            FontFamily="Segoe MDL2 Assets" FontSize="18"
+                    <!-- Play/Pause (Mac-like text) -->
+                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseText}"
+                            FontWeight="SemiBold" FontSize="14"
                             Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
                             Click="PlayPause_Click"/>
                     <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>

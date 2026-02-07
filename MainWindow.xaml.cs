@@ -1063,11 +1063,15 @@ private static string NormalizeTeamToAB(string team)
                 _isPlaying = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PlayPauseIcon));
+                OnPropertyChanged(nameof(PlayPauseText));
             }
         }
 
         // Segoe MDL2 Assets: Play=E768, Pause=E769
         public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
+
+        // Mac-like label
+        public string PlayPauseText => IsPlaying ? "Pause" : "Play";
 
         public string StatusText
         {
