@@ -34,18 +34,14 @@
                 <DockPanel Margin="0,0,0,10">
                     <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
 
-                    <!-- Mac like: Team A/B label + segment style team name pill -->
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-                        <Border Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="6,4" Margin="0,0,10,0">
-                            <StackPanel Orientation="Horizontal">
-                                <Border Background="#242424" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,0,6,0">
-                                    <TextBlock Text="Team A" Opacity="0.9"/>
-                                </Border>
-                                <Border Background="#2B2B2B" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="6" Padding="10,2">
-                                    <TextBlock Text="{Binding TeamAName}"/>
-                                </Border>
-                            </StackPanel>
-                        </Border>
+                    <!-- Mac-like (no pill): simple labels when team names are empty or set -->
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center" Opacity="0.9">
+                        <TextBlock Text="Team A" Opacity="0.7" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding TeamAName}" Margin="0,0,14,0" Opacity="0.95"/>
+                        <TextBlock Text="Team B" Opacity="0.7" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding TeamBName}" Opacity="0.95"/>
+                    </StackPanel>
+</Border>
 
                         <Border Background="#1B1B1B" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="6,4">
                             <StackPanel Orientation="Horizontal">
@@ -109,6 +105,19 @@
                 </DockPanel>
 
                 <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Opacity="0.75" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Row="1" Text="No video loaded" Opacity="0.65" Margin="0,0,0,10">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LoadedVideoName}" Value="">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
 
                 <Grid Grid.Row="2">
                     <Border Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
@@ -149,7 +158,9 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <ListView Grid.Row="1"
+                                        
+                                        <Grid Grid.Row="1">
+                                            <ListView x:Name="TeamAClipList" Grid.Row="1"
                                                   ItemsSource="{Binding TeamAView}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
@@ -163,6 +174,25 @@
                                                 </GridView>
                                             </ListView.View>
                                         </ListView>
+                                            <TextBlock Text="No clips for Team A with current filter."
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#8A8A8A"
+                                                       TextWrapping="Wrap"
+                                                       Margin="20">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ElementName=TeamAClipList, Path=HasItems}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
                                     </Grid>
 
                                     <!-- Team B -->
@@ -172,7 +202,9 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <ListView Grid.Row="1"
+                                        
+                                        <Grid Grid.Row="1">
+                                            <ListView x:Name="TeamBClipList" Grid.Row="1"
                                                   ItemsSource="{Binding TeamBView}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
@@ -186,6 +218,25 @@
                                                 </GridView>
                                             </ListView.View>
                                         </ListView>
+                                            <TextBlock Text="No clips for Team B with current filter."
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#8A8A8A"
+                                                       TextWrapping="Wrap"
+                                                       Margin="20">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ElementName=TeamBClipList, Path=HasItems}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
                                     </Grid>
                                 </Grid>
 
