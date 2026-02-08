@@ -1024,8 +1024,13 @@ private static string NormalizeTeamToAB(string team)
         public string LoadedVideoName
         {
             get => _loadedVideoName;
-            set { _loadedVideoName = value ?? ""; OnPropertyChanged(); }
+            set { _loadedVideoName = value ?? ""; OnPropertyChanged(); OnPropertyChanged(nameof(VideoHeaderText)); }
         }
+        public string VideoHeaderText
+        {
+            get => string.IsNullOrWhiteSpace(LoadedVideoName) ? "Video (16:9)" : LoadedVideoName;
+        }
+
 
         public string TeamAName { get => _teamAName; set { _teamAName = value; OnPropertyChanged(); } }
         public string TeamBName { get => _teamBName; set { _teamBName = value; OnPropertyChanged(); } }

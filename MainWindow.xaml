@@ -32,14 +32,16 @@
                 </Grid.RowDefinitions>
 
                 <DockPanel Margin="0,0,0,10">
-                    <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                        <TextBlock Text="{Binding VideoHeaderText}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB" Margin="0,0,12,0"/>
 
                     <!-- Mac-like (no pill): simple labels when team names are empty or set -->
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center" Opacity="0.9">
-                        <TextBlock Text="Team A" Opacity="0.7" Margin="0,0,6,0"/>
-                        <TextBlock Text="{Binding TeamAName}" Margin="0,0,14,0" Opacity="0.95"/>
-                        <TextBlock Text="Team B" Opacity="0.7" Margin="0,0,6,0"/>
-                        <TextBlock Text="{Binding TeamBName}" Opacity="0.95"/>
+                        <TextBlock Text="Team A" Foreground="#9CA3AF" Margin="0,0,0,0" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding TeamAName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="24" Margin="0,0,12,0" VerticalContentAlignment="Center"
+                                 Background="#111827" Foreground="#E5E7EB" BorderBrush="#374151" BorderThickness="1" Padding="6,0"/>
+                        <TextBlock Text="Team B" Foreground="#9CA3AF" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding TeamBName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="24" Margin="0,0,0,0" VerticalContentAlignment="Center"
+                                 Background="#111827" Foreground="#E5E7EB" BorderBrush="#374151" BorderThickness="1" Padding="6,0"/>
                     </StackPanel>
                 </DockPanel>
 
