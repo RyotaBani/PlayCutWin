@@ -38,11 +38,57 @@
                     <TextBlock Text="{Binding VideoTitle}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Opacity="0.9">
                         <TextBlock Text="Team A" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Text="{Binding TeamAName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="180" Height="24" Margin="0,0,18,0" VerticalContentAlignment="Center"
-                                 Background="#111827" Foreground="#E5E7EB" BorderBrush="#374151" BorderThickness="1" Padding="6,0"/>
+                        <Grid Width="180" Height="24" Margin="6,0,18,0">
+    <TextBox x:Name="TeamANameBox" Text="{Binding TeamAName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}"/>
+    <!-- Watermark (Mac-like): shown only when empty & not focused -->
+    <TextBlock Text="Home / Our Team"
+               Margin="10,0,0,0"
+               VerticalAlignment="Center"
+               Foreground="#7A7A7A"
+               Opacity="0.75"
+               IsHitTestVisible="False">
+        <TextBlock.Style>
+            <Style TargetType="TextBlock">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Text, ElementName=TeamANameBox}" Value=""/>
+                            <Condition Binding="{Binding IsKeyboardFocused, ElementName=TeamANameBox}" Value="False"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+        </TextBlock.Style>
+    </TextBlock>
+</Grid>
                         <TextBlock Text="Team B" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Text="{Binding TeamBName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="180" Height="24" VerticalContentAlignment="Center"
-                                 Background="#111827" Foreground="#E5E7EB" BorderBrush="#374151" BorderThickness="1" Padding="6,0"/>
+                        <Grid Width="180" Height="24" Margin="6,0,0,0">
+    <TextBox x:Name="TeamBNameBox" Text="{Binding TeamBName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}"/>
+    <!-- Watermark (Mac-like): shown only when empty & not focused -->
+    <TextBlock Text="Away / Opponent"
+               Margin="10,0,0,0"
+               VerticalAlignment="Center"
+               Foreground="#7A7A7A"
+               Opacity="0.75"
+               IsHitTestVisible="False">
+        <TextBlock.Style>
+            <Style TargetType="TextBlock">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Text, ElementName=TeamBNameBox}" Value=""/>
+                            <Condition Binding="{Binding IsKeyboardFocused, ElementName=TeamBNameBox}" Value="False"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+        </TextBlock.Style>
+    </TextBlock>
+</Grid>
                     </StackPanel>
                 </StackPanel>
 

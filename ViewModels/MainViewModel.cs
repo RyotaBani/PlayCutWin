@@ -14,7 +14,7 @@ namespace PlayCutWin.ViewModels
         // ====== 状態 ======
         // 上部ヘッダーに表示するタイトル
         // 未読み込み時は「Video (16:9)」、読み込み後はファイル名に切り替える
-        private string _videoTitle = "Video (16:9)";
+        private string _videoTitle = "";
         public string VideoTitle
         {
             get => _videoTitle;
@@ -24,14 +24,14 @@ namespace PlayCutWin.ViewModels
         // ビデオ表示領域の中央に出す案内文（Mac版の挙動に合わせる）
         public string VideoOverlayText => "Load video from the button →";
 
-        private string _teamAName = "Home / Our Team";
+        private string _teamAName = "";
         public string TeamAName
         {
             get => _teamAName;
             set { _teamAName = value; OnPropertyChanged(nameof(TeamAName)); }
         }
 
-        private string _teamBName = "Away / Opponent";
+        private string _teamBName = "";
         public string TeamBName
         {
             get => _teamBName;
