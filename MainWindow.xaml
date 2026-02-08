@@ -35,7 +35,7 @@
                      上段=動画名(未読み込み時は Video (16:9))
                      下段=Team A/Team B の入力(常時編集可能) -->
                 <StackPanel Margin="0,0,0,10">
-                    <TextBlock Text="{Binding VideoTitle}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB"/>
+                    <TextBlock Text="{Binding VideoHeaderText}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Opacity="0.9">
                         <TextBlock Text="Team A" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <Grid Width="180" Height="24" Margin="6,0,18,0">
