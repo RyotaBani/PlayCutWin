@@ -67,219 +67,351 @@
         </Border>
 
         <!-- =======================
-             Top-Right: CLIPS / BUTTONS
+             Top-Right: CLIPS
              ======================= -->
-        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Panel}" Margin="10,0,0,10">
+        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Panel}" Margin="0,0,0,10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Top bar -->
-                <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                    <ComboBox x:Name="ClipFilterComboBox"
-                              Width="160"
-                              VerticalContentAlignment="Center"
-                              Style="{StaticResource ComboBoxMacLike}"
-                              DockPanel.Dock="Left"
-                              SelectionChanged="ClipFilterComboBox_SelectionChanged">
-                        <ComboBoxItem Content="All Clips"/>
-                        <ComboBoxItem Content="Team A Clips"/>
-                        <ComboBoxItem Content="Team B Clips"/>
-                    </ComboBox>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                        <Button Content="Delete" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="DeleteSelectedClip_Click"/>
-                        <Button Content="Import CSV" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="ImportCsv_Click"/>
-                        <Button Content="Export CSV" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="ExportCsv_Click"/>
-                        <Button Content="Export All" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="ExportAll_Click"/>
-                        <Button Content="Load Video" Style="{StaticResource PrimaryButton}" Click="LoadVideo_Click"/>
+                <DockPanel>
+                    <TextBlock Text="{Binding ClipsHeader}" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                        <ComboBox Width="140"
+                                  ItemsSource="{Binding ClipFilters}"
+                                  SelectedItem="{Binding SelectedClipFilter}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteSelectedClip_Click" IsEnabled="{Binding HasSelectedClip}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Load Video" Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}" Click="LoadVideo_Click"/>
                     </StackPanel>
                 </DockPanel>
 
-                <!-- Loaded video name -->
-                <TextBlock Grid.Row="1"
-                           x:Name="LoadedVideoNameText"
-                           Text=""
-                           Foreground="#B9B9B9"
-                           TextTrimming="CharacterEllipsis"
-                           Margin="0,0,0,10"/>
+                <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Opacity="0.75" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Row="1" Text="No video loaded" Opacity="0.65" Margin="0,0,0,10">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LoadedVideoName}" Value="">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
-                <!-- Clips grids -->
+
                 <Grid Grid.Row="2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+                    <Border Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                    <TextBlock Text="Clips" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <TextBlock Text="Clips" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10">
-                        <!-- Team A -->
-                        <Border Style="{StaticResource InnerPanel}" Margin="0,0,5,0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <Grid Grid.Row="1">
+                                <!-- All Clips: Team A / Team B split -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="All Clips">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
 
-                                <!-- Empty message (mac-like) -->
-                                <TextBlock x:Name="TeamAEmptyText"
-                                           Text="No clips for Team A with current filter."
-                                           Foreground="#8A8A8A"
-                                           Visibility="Collapsed"
-                                           Margin="0,4,0,0"/>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <DataGrid x:Name="TeamAClipList"
-                                          Grid.Row="1"
-                                          AutoGenerateColumns="False"
-                                          HeadersVisibility="Column"
-                                          SelectionMode="Single"
-                                          IsReadOnly="True"
-                                          Style="{StaticResource DataGridMacLike}"
-                                          SelectionChanged="ClipList_SelectionChanged"
-                                          PreviewMouseDoubleClick="ClipList_PreviewMouseDoubleClick">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Team" Binding="{Binding TeamShort}" Width="60"/>
-                                        <DataGridTextColumn Header="Start" Binding="{Binding StartText}" Width="80"/>
-                                        <DataGridTextColumn Header="End" Binding="{Binding EndText}" Width="80"/>
-                                        <DataGridTextColumn Header="Tags" Binding="{Binding TagsText}" Width="*"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
+                                    <!-- Team A -->
+                                    <Grid Grid.Column="0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                        
+                                        <Grid Grid.Row="1">
+                                            <ListView x:Name="TeamAClipList" Grid.Row="1"
+                                                  ItemsSource="{Binding TeamAView}"
+                                                  SelectionChanged="ClipList_SelectionChanged"
+                                                  MouseDoubleClick="ClipList_DoubleClick"
+                                                  Style="{StaticResource DarkListView}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="50"/>
+                                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="280"/>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                            <TextBlock Text="No clips for Team A with current filter."
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#8A8A8A"
+                                                       TextWrapping="Wrap"
+                                                       Margin="20">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ElementName=TeamAClipList, Path=HasItems}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
+                                    </Grid>
+
+                                    <!-- Team B -->
+                                    <Grid Grid.Column="2">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                        
+                                        <Grid Grid.Row="1">
+                                            <ListView x:Name="TeamBClipList" Grid.Row="1"
+                                                  ItemsSource="{Binding TeamBView}"
+                                                  SelectionChanged="ClipList_SelectionChanged"
+                                                  MouseDoubleClick="ClipList_DoubleClick"
+                                                  Style="{StaticResource DarkListView}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="50"/>
+                                                    <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                    <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                    <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="280"/>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                            <TextBlock Text="No clips for Team B with current filter."
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#8A8A8A"
+                                                       TextWrapping="Wrap"
+                                                       Margin="20">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ElementName=TeamBClipList, Path=HasItems}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
+                                    </Grid>
+                                </Grid>
+
+                                <!-- Team A only -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team A">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+
+                                    <ListView ItemsSource="{Binding TeamAView}"
+                                              SelectionChanged="ClipList_SelectionChanged"
+                                              MouseDoubleClick="ClipList_DoubleClick"
+                                              Style="{StaticResource DarkListView}">
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
+                                                <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                                            </GridView>
+                                        </ListView.View>
+                                    </ListView>
+                                </Grid>
+
+                                <!-- Team B only -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedClipFilter}" Value="Team B">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+
+                                    <ListView ItemsSource="{Binding TeamBView}"
+                                              SelectionChanged="ClipList_SelectionChanged"
+                                              MouseDoubleClick="ClipList_DoubleClick"
+                                              Style="{StaticResource DarkListView}">
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="Team" DisplayMemberBinding="{Binding Team}" Width="60"/>
+                                                <GridViewColumn Header="Start" DisplayMemberBinding="{Binding StartText}" Width="70"/>
+                                                <GridViewColumn Header="End" DisplayMemberBinding="{Binding EndText}" Width="70"/>
+                                                <GridViewColumn Header="Tags" DisplayMemberBinding="{Binding TagsText}" Width="360"/>
+                                            </GridView>
+                                        </ListView.View>
+                                    </ListView>
+                                </Grid>
                             </Grid>
-                        </Border>
 
-                        <!-- Team B -->
-                        <Border Grid.Column="1" Style="{StaticResource InnerPanel}" Margin="5,0,0,0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <!-- Set Play (Mac-like: only when the selected clip includes 'Set') -->
+                            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedClipHasSetTag}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Set Play" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                <TextBox Height="34"
+                                         IsEnabled="{Binding SelectedClipHasSetTag}"
+                                         Text="{Binding SelectedClip.SetPlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#0F0F0F"
+                                         Foreground="#EAEAEA"
+                                         BorderBrush="#2A2A2A"
+                                         BorderThickness="1"
+                                         Padding="8"/>
+                            </StackPanel>
 
-                                <!-- Empty message (mac-like) -->
-                                <TextBlock x:Name="TeamBEmptyText"
-                                           Text="No clips for Team B with current filter."
-                                           Foreground="#8A8A8A"
-                                           Visibility="Collapsed"
-                                           Margin="0,4,0,0"/>
-
-                                <DataGrid x:Name="TeamBClipList"
-                                          Grid.Row="1"
-                                          AutoGenerateColumns="False"
-                                          HeadersVisibility="Column"
-                                          SelectionMode="Single"
-                                          IsReadOnly="True"
-                                          Style="{StaticResource DataGridMacLike}"
-                                          SelectionChanged="ClipList_SelectionChanged"
-                                          PreviewMouseDoubleClick="ClipList_PreviewMouseDoubleClick">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Team" Binding="{Binding TeamShort}" Width="60"/>
-                                        <DataGridTextColumn Header="Start" Binding="{Binding StartText}" Width="80"/>
-                                        <DataGridTextColumn Header="End" Binding="{Binding EndText}" Width="80"/>
-                                        <DataGridTextColumn Header="Tags" Binding="{Binding TagsText}" Width="*"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </Grid>
-                        </Border>
-                    </Grid>
+                            <!-- Selected Clip Note (Mac-like) -->
+                            <StackPanel Grid.Row="3" Margin="0,10,0,0">
+                                <TextBlock Text="Clip Note" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                <TextBox Height="56"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         IsEnabled="{Binding HasSelectedClip}"
+                                         Text="{Binding SelectedClip.Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#0F0F0F"
+                                         Foreground="#EAEAEA"
+                                         BorderBrush="#2A2A2A"
+                                         BorderThickness="1"
+                                         Padding="8"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </Grid>
-
-                <!-- Clip Note -->
-                <StackPanel Grid.Row="3" Margin="0,10,0,0">
-                    <TextBlock Text="Clip Note" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <TextBox x:Name="ClipNoteTextBox"
-                             Height="70"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             Style="{StaticResource TextBoxMacLike}"
-                             TextChanged="ClipNoteTextBox_TextChanged"/>
-                </StackPanel>
             </Grid>
         </Border>
 
         <!-- =======================
              Bottom-Left: CONTROLS
              ======================= -->
-        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,10,10,0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,10,0">
+            <StackPanel>
+                <TextBlock Text="Controls" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
-                <TextBlock Text="Controls" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <TextBlock Text="Load a video to show the timeline slider here." Opacity="0.6"/>
+                <Slider x:Name="TimelineSlider"
+                        Minimum="0"
+                        Maximum="{Binding DurationSeconds}"
+                        Value="{Binding CurrentSeconds, Mode=TwoWay}"
+                        PreviewMouseDown="TimelineSlider_PreviewMouseDown"
+                        PreviewMouseUp="TimelineSlider_PreviewMouseUp"/>
 
-                <StackPanel Grid.Row="1" Spacing="10">
-                    <TextBlock Text="Load a video to show the timeline slider here." Foreground="#8A8A8A"/>
+                <DockPanel Margin="0,0,0,6">
+                    <TextBlock Text="Playback Speed" Opacity="0.85" DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding TimeDisplay}" DockPanel.Dock="Right" Opacity="0.75" VerticalAlignment="Center"/>
+                </DockPanel>
 
-                    <Slider x:Name="TimelineSlider"
-                            Minimum="0"
-                            Maximum="1"
-                            Value="0"
-                            Margin="0,6,0,0"
-                            PreviewMouseDown="TimelineSlider_PreviewMouseDown"
-                            PreviewMouseUp="TimelineSlider_PreviewMouseUp"
-                            ValueChanged="TimelineSlider_ValueChanged"/>
+                <WrapPanel>
+                    <Button x:Name="Speed025Button" Style="{StaticResource DarkButton}" Content="0.25x" Click="Speed025_Click"/>
+                    <Button x:Name="Speed05Button"  Style="{StaticResource DarkButton}" Content="0.5x"  Click="Speed05_Click"/>
+                    <Button x:Name="Speed1Button"   Style="{StaticResource DarkButton}" Content="1x"    Click="Speed1_Click"/>
+                    <Button x:Name="Speed2Button"   Style="{StaticResource DarkButton}" Content="2x"    Click="Speed2_Click"/>
+                </WrapPanel>
 
-                    <TextBlock x:Name="PlaybackInfoText" Text="Playback Speed" Foreground="#B9B9B9"/>
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
+                    <!-- Mac like: Play/Pause text button -->
+                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseText}"
+                            Width="90"
+                            Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                            Click="PlayPause_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="+5s" Click="SeekPlus5_Click"/>
+                </WrapPanel>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="0.25x" Style="{StaticResource SecondaryButtonSmall}" Click="Speed025_Click"/>
-                        <Button Content="0.5x" Style="{StaticResource SecondaryButtonSmall}" Click="Speed05_Click"/>
-                        <Button Content="1x" Style="{StaticResource SecondaryButtonSmall}" Click="Speed1_Click"/>
-                        <Button Content="2x" Style="{StaticResource SecondaryButtonSmall}" Click="Speed2_Click"/>
+                <TextBlock Text="Clip Range" FontWeight="SemiBold" Margin="0,14,0,4"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <Button Style="{StaticResource DarkButton}" Content="Clip START" Click="ClipStart_Click"/>
+                        <TextBlock Text="{Binding ClipStartText}" Opacity="0.75" Margin="6,0,0,0"/>
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="-5s" Style="{StaticResource SecondaryButtonSmall}" Click="Back5_Click"/>
-                        <Button Content="-1s" Style="{StaticResource SecondaryButtonSmall}" Click="Back1_Click"/>
-                        <Button x:Name="PlayPauseButton" Content="Play" Style="{StaticResource PrimaryButtonSmall}" Click="PlayPause_Click"/>
-                        <Button Content="+1s" Style="{StaticResource SecondaryButtonSmall}" Click="Forward1_Click"/>
-                        <Button Content="+5s" Style="{StaticResource SecondaryButtonSmall}" Click="Forward5_Click"/>
+                    <StackPanel Grid.Column="1">
+                        <Button Style="{StaticResource DarkButton}" Content="Clip END" Click="ClipEnd_Click"/>
+                        <TextBlock Text="{Binding ClipEndText}" Opacity="0.75" Margin="6,0,0,0"/>
                     </StackPanel>
 
-                    <TextBlock Text="Clip Range" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Save Team A" Click="SaveTeamA_Click"/>
+                    <Button Grid.Column="3" Style="{StaticResource DarkButton}" Content="Save Team B" Click="SaveTeamB_Click"/>
+                </Grid>
 
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                        <Button Grid.Column="0" Content="Clip START" Style="{StaticResource SecondaryButton}" Click="SetClipStart_Click"/>
-                        <Button Grid.Column="1" Content="Clip END" Style="{StaticResource SecondaryButton}" Click="SetClipEnd_Click"/>
-                    </Grid>
-
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                        <Button Grid.Column="0" Content="Save Team A" Style="{StaticResource SecondaryButton}" Click="SaveTeamA_Click"/>
-                        <Button Grid.Column="1" Content="Save Team B" Style="{StaticResource SecondaryButton}" Click="SaveTeamB_Click"/>
-                    </Grid>
-
-                    <TextBlock x:Name="CsvStatusText" Text="" Foreground="#B9B9B9"/>
-                </StackPanel>
-            </Grid>
+                <TextBlock Text="{Binding StatusText}" Opacity="0.75" Margin="0,10,0,0"/>
+            </StackPanel>
         </Border>
 
         <!-- =======================
              Bottom-Right: TAGS
              ======================= -->
-        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Panel}" Margin="10,10,0,0">
+        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Panel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Margin="0,0,0,10">
-                    <TextBlock Text="Tags" FontSize="14" FontWeight="SemiBold" DockPanel.Dock="Left"/>
-                    <Button Content="Preferences..." Style="{StaticResource GhostButton}" DockPanel.Dock="Right" Click="Preferences_Click"/>
+                <DockPanel>
+                    <TextBlock Text="Tags" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <Button Style="{StaticResource DarkButton}" Content="Preferences…" DockPanel.Dock="Right" IsEnabled="False"/>
                 </DockPanel>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Offense Tags" Foreground="#B9B9B9"/>
-
+                    <StackPanel>
+                        <TextBlock Text="Offense Tags" Opacity="0.85" Margin="0,8,0,0"/>
                         <ItemsControl ItemsSource="{Binding OffenseTags}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -288,16 +420,14 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <ToggleButton Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected}"
-                                                  Style="{StaticResource TagToggleButtonRed}"
-                                                  Margin="0,0,8,8"/>
+                                    <ToggleButton Style="{StaticResource OffenseTagToggle}"
+                                                  Content="{Binding Name}"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Text="Defense Tags" Foreground="#B9B9B9"/>
-
+                        <TextBlock Text="Defense Tags" Opacity="0.85" Margin="0,12,0,0"/>
                         <ItemsControl ItemsSource="{Binding DefenseTags}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -306,38 +436,25 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <ToggleButton Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected}"
-                                                  Style="{StaticResource TagToggleButtonBlue}"
-                                                  Margin="0,0,8,8"/>
+                                    <ToggleButton Style="{StaticResource DefenseTagToggle}"
+                                                  Content="{Binding Name}"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Text="Custom Tag" Foreground="#B9B9B9"/>
+                        <TextBlock Text="Custom Tag" Opacity="0.85" Margin="0,14,0,0"/>
+                        <DockPanel Margin="0,6,0,0">
+                            <TextBox DockPanel.Dock="Left" Width="260" Text="{Binding CustomTagInput, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddCustomTag_Click"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Clear" Click="ClearTags_Click"/>
+                        </DockPanel>
 
-                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                            <TextBox x:Name="CustomTagTextBox" Grid.Column="0" Style="{StaticResource TextBoxMacLike}" Height="30" VerticalContentAlignment="Center"/>
-                            <Button Grid.Column="1" Content="Add" Style="{StaticResource SecondaryButton}" Click="AddCustomTag_Click"/>
-                            <Button Grid.Column="2" Content="Clear" Style="{StaticResource SecondaryButton}" Click="ClearTags_Click"/>
-                        </Grid>
-
-                        <TextBlock Text="Current Tags" Foreground="#B9B9B9"/>
-                        <TextBlock x:Name="CurrentTagsText" Text="" Foreground="#EAEAEA"/>
-
-                        <!-- Tag Note section (kept) -->
-                        <TextBlock Text="Tag Note" Foreground="#B9B9B9"/>
-                        <TextBlock x:Name="TagNoteHintText" Text="(No tag selected)" Foreground="#8A8A8A"/>
-
-                        <!-- Empty message for Video -->
-                        <TextBlock x:Name="NoVideoLoadedText"
-                                   Text="No video loaded"
-                                   Foreground="#8A8A8A"
-                                   Visibility="Collapsed"
-                                   Margin="0,10,0,0"/>
-
+                        <TextBlock Text="Current Tags" Opacity="0.85" Margin="0,14,0,0"/>
+                        <TextBlock Text="{Binding CurrentTagsText}" Opacity="0.8" TextWrapping="Wrap"/>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
         </Border>
-    </Grid></Window>
+    </Grid>
+</Window>
