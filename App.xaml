@@ -307,6 +307,9 @@
             <Setter Property="MinHeight" Value="38"/>
         </Style>
 
+        <!-- Alias: some views reference "DarkTextBoxStyle" -->
+        <Style x:Key="DarkTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}"/>
+
         <Style x:Key="WatermarkTextBox" TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}">
             <Setter Property="Template">
                 <Setter.Value>
