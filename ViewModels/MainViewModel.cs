@@ -12,12 +12,17 @@ namespace PlayCutWin.ViewModels
     public class MainViewModel : INotifyPropertyChanged
     {
         // ====== 状態 ======
-        private string _videoTitle = "Load video from the button →";
+        // 上部ヘッダーに表示するタイトル
+        // 未読み込み時は「Video (16:9)」、読み込み後はファイル名に切り替える
+        private string _videoTitle = "Video (16:9)";
         public string VideoTitle
         {
             get => _videoTitle;
             set { _videoTitle = value; OnPropertyChanged(nameof(VideoTitle)); }
         }
+
+        // ビデオ表示領域の中央に出す案内文（Mac版の挙動に合わせる）
+        public string VideoOverlayText => "Load video from the button →";
 
         private string _teamAName = "Home / Our Team";
         public string TeamAName

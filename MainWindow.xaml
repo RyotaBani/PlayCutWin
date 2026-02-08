@@ -31,25 +31,26 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Margin="0,0,0,10">
-                        <TextBlock Text="{Binding VideoHeaderText}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB" Margin="0,0,12,0"/>
-
-                    <!-- Mac-like (no pill): simple labels when team names are empty or set -->
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center" Opacity="0.9">
-                        <TextBlock Text="Team A" Foreground="#9CA3AF" Margin="0,0,0,0" VerticalAlignment="Center"/>
-                        <TextBox Text="{Binding TeamAName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="24" Margin="0,0,12,0" VerticalContentAlignment="Center"
+                <!-- Mac版の挙動に合わせる:
+                     上段=動画名(未読み込み時は Video (16:9))
+                     下段=Team A/Team B の入力(常時編集可能) -->
+                <StackPanel Margin="0,0,0,10">
+                    <TextBlock Text="{Binding VideoTitle}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Opacity="0.9">
+                        <TextBlock Text="Team A" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Text="{Binding TeamAName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="180" Height="24" Margin="0,0,18,0" VerticalContentAlignment="Center"
                                  Background="#111827" Foreground="#E5E7EB" BorderBrush="#374151" BorderThickness="1" Padding="6,0"/>
-                        <TextBlock Text="Team B" Foreground="#9CA3AF" Margin="12,0,0,0" VerticalAlignment="Center"/>
-                        <TextBox Text="{Binding TeamBName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="24" Margin="0,0,0,0" VerticalContentAlignment="Center"
+                        <TextBlock Text="Team B" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Text="{Binding TeamBName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="180" Height="24" VerticalContentAlignment="Center"
                                  Background="#111827" Foreground="#E5E7EB" BorderBrush="#374151" BorderThickness="1" Padding="6,0"/>
                     </StackPanel>
-                </DockPanel>
+                </StackPanel>
 
                 <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
                         <!-- Hint (コードビハインドから参照されるので必ず存在させる) -->
                         <TextBlock x:Name="VideoHint"
-                                   Text="Load video from the button →"
+                                   Text="{Binding VideoOverlayText}"
                                    Foreground="#8A8A8A"
                                    FontSize="14"
                                    HorizontalAlignment="Center"
@@ -85,7 +86,6 @@
                         <ComboBox Width="140"
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>
-                        <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteSelectedClip_Click" IsEnabled="{Binding HasSelectedClip}"/>
                         <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
