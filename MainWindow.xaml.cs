@@ -476,6 +476,11 @@ private void ExportCSV_Click(object sender, RoutedEventArgs e)
             if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B")) return "B";
             return "A";
         }
+
+// Alias for older code paths (typo-safe)
+private static string NormalizeTeamToAtoB(string team)
+    => NormalizeTeamToAB(team);
+
     
         // ===== Compatibility handlers for MainWindow.xaml event names =====
 
