@@ -396,22 +396,23 @@
                 </DockPanel>
 
                 <WrapPanel>
-                    <Button x:Name="Speed025Button" Style="{StaticResource DarkButton}" Content="0.25x" Click="Speed025_Click"/>
-                    <Button x:Name="Speed05Button"  Style="{StaticResource DarkButton}" Content="0.5x"  Click="Speed05_Click"/>
-                    <Button x:Name="Speed1Button"   Style="{StaticResource DarkButton}" Content="1x"    Click="Speed1_Click"/>
-                    <Button x:Name="Speed2Button"   Style="{StaticResource DarkButton}" Content="2x"    Click="Speed2_Click"/>
+                    <Button x:Name="Speed025Button" Style="{StaticResource ControlSmallButton}" Content="0.25x" Click="Speed025_Click"/>
+                    <Button x:Name="Speed05Button"  Style="{StaticResource ControlSmallButton}" Content="0.5x"  Click="Speed05_Click"/>
+                    <Button x:Name="Speed1Button"   Style="{StaticResource ControlSmallButton}" Content="1x"    Click="Speed1_Click"/>
+                    <Button x:Name="Speed2Button"   Style="{StaticResource ControlSmallButton}" Content="2x"    Click="Speed2_Click"/>
                 </WrapPanel>
 
                 <WrapPanel Margin="0,8,0,0">
-                    <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
-                    <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
-                    <!-- Mac like: Play/Pause text button -->
-                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseText}"
-                            Width="90"
-                            Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
-                            Click="PlayPause_Click"/>
-                    <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>
-                    <Button Style="{StaticResource DarkButton}" Content="+5s" Click="SeekPlus5_Click"/>
+                    <Button Style="{StaticResource ControlSmallButton}" Content="-5s" Click="SeekMinus5_Click"/>
+                    <Button Style="{StaticResource ControlSmallButton}" Content="-1s" Click="SeekMinus1_Click"/>
+
+                    <!-- Windows: Start / Stop icon button (Segoe MDL2 Assets) -->
+                    <Button Style="{StaticResource ControlAccentButton}" Width="70" Click="PlayPause_Click">
+                        <TextBlock Text="{Binding PlayPauseGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    </Button>
+
+                    <Button Style="{StaticResource ControlSmallButton}" Content="+1s" Click="SeekPlus1_Click"/>
+                    <Button Style="{StaticResource ControlSmallButton}" Content="+5s" Click="SeekPlus5_Click"/>
                 </WrapPanel>
 
                 <TextBlock Text="Clip Range" FontWeight="SemiBold" Margin="0,14,0,4"/>
@@ -425,17 +426,17 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
-                        <Button Style="{StaticResource DarkButton}" Content="Clip START" Click="ClipStart_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Height="34" Content="Clip START" Click="ClipStart_Click"/>
                         <TextBlock Text="{Binding ClipStartText}" Opacity="0.75" Margin="6,0,0,0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1">
-                        <Button Style="{StaticResource DarkButton}" Content="Clip END" Click="ClipEnd_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Height="34" Content="Clip END" Click="ClipEnd_Click"/>
                         <TextBlock Text="{Binding ClipEndText}" Opacity="0.75" Margin="6,0,0,0"/>
                     </StackPanel>
 
-                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Save Team A" Click="SaveTeamA_Click"/>
-                    <Button Grid.Column="3" Style="{StaticResource DarkButton}" Content="Save Team B" Click="SaveTeamB_Click"/>
+                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Height="34" MinWidth="120" Content="Save Team A" Click="SaveTeamA_Click"/>
+                    <Button Grid.Column="3" Style="{StaticResource DarkButton}" Height="34" MinWidth="120" Content="Save Team B" Click="SaveTeamB_Click"/>
                 </Grid>
 
                 <TextBlock Text="{Binding StatusText}" Opacity="0.75" Margin="0,10,0,0"/>
