@@ -24,36 +24,6 @@
             <Setter Property="FontSize" Value="13"/>
         </Style>
 
-        <!-- Primary accent button (Play / Load Video, etc.) -->
-        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
-            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-            <Setter Property="BorderBrush" Value="#2D5FB4"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#3D7BDC"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.55"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Controls row buttons (speed / seek) should look uniform -->
-        <Style x:Key="ControlSmallButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="MinWidth" Value="56"/>
-            <Setter Property="Padding" Value="12,0"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <Style x:Key="ControlAccentButton" TargetType="Button" BasedOn="{StaticResource AccentButton}">
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="MinWidth" Value="70"/>
-            <Setter Property="Padding" Value="12,0"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
         <Style x:Key="H1" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#EAEAEA"/>
             <Setter Property="FontSize" Value="16"/>
@@ -134,7 +104,7 @@
 
         <!-- Primary accent button (Play / Load Video, etc.) -->
         <Style x:Key="AccentButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Background" Value="{StaticResource Accent}"/>
             <Setter Property="BorderBrush" Value="#2D5FB4"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="White"/>
