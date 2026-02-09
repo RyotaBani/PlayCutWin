@@ -309,15 +309,18 @@ namespace PlayCutWin
 
         // ----------------------------
         // CSV Export/Import
-        // ----------------------------
-        
-private void ExportCSV_Click(object sender, RoutedEventArgs e)
+        // ----------------------------private void ExportCSV_Click(object sender, RoutedEventArgs e)
 {
     // A方針：CSV品質最優先（VideoName 必須 / Schema固定 / Tag表記統一）
     if (Player.Source == null || string.IsNullOrWhiteSpace(VM.LoadedVideoName))
     {
-        MessageBox.Show("動画が読み込まれていません。\n先に「Load Video」を行ってからCSVを書き出してください。", "Export CSV",
-            MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show(
+            "動画が読み込まれていません。
+先に「Load Video」を行ってからCSVを書き出してください。",
+            "Export CSV",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning
+        );
         return;
     }
 
@@ -349,7 +352,7 @@ private void ExportCSV_Click(object sender, RoutedEventArgs e)
         var videoName = VM.LoadedVideoName.Trim();
         var inv = CultureInfo.InvariantCulture;
 
-        // Tag order stabilization: Offense -> Defense -> Custom (A-Z)
+        // Tag order stabilization: Offense -> Defense (preset order), then others A-Z
         var presetNames = VM.OffenseTags.Select(t => t.Name)
             .Concat(VM.DefenseTags.Select(t => t.Name))
             .Where(n => !string.IsNullOrWhiteSpace(n))
@@ -400,7 +403,6 @@ private void ExportCSV_Click(object sender, RoutedEventArgs e)
                 .ToList();
 
             var tagsStr = string.Join("; ", sortedTags);
-
             var setPlayStr = c.SetPlay ?? string.Empty;
             var noteStr = c.Comment ?? string.Empty;
 
@@ -433,6 +435,8 @@ private void ExportCSV_Click(object sender, RoutedEventArgs e)
         MessageBox.Show(ex.ToString(), "Export CSV Error");
     }
 }
+
+        
 
         private void ImportCSV_Click(object sender, RoutedEventArgs e)
         {
@@ -476,11 +480,6 @@ private void ExportCSV_Click(object sender, RoutedEventArgs e)
             if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B")) return "B";
             return "A";
         }
-
-// Alias for older code paths (typo-safe)
-private static string NormalizeTeamToAtoB(string team)
-    => NormalizeTeamToAB(team);
-
     
         // ===== Compatibility handlers for MainWindow.xaml event names =====
 
@@ -619,33 +618,7 @@ private static string NormalizeTeamToAtoB(string team)
         private double _clipStart;
         private double _clipEnd;
 
-        public ObservableCollection<ClipRow> TeamAClips {
-
-// --- CSV/Import helpers (kept inside VM so "NormalizeTeamToAB" resolves in this context) ---
-private static string NormalizeTeamToAB(string? team)
-{
-    if (string.IsNullOrWhiteSpace(team)) return "A";
-    var t = team.Trim();
-
-    // Accept "A"/"B"
-    if (string.Equals(t, "A", StringComparison.OrdinalIgnoreCase)) return "A";
-    if (string.Equals(t, "B", StringComparison.OrdinalIgnoreCase)) return "B";
-
-    // Accept "Team A"/"Team B" and variants
-    if (t.IndexOf("Team A", StringComparison.OrdinalIgnoreCase) >= 0) return "A";
-    if (t.IndexOf("Team B", StringComparison.OrdinalIgnoreCase) >= 0) return "B";
-
-    // Accept "Home"/"Away"
-    if (t.Equals("Home", StringComparison.OrdinalIgnoreCase) || t.Contains("Home", StringComparison.OrdinalIgnoreCase)) return "A";
-    if (t.Equals("Away", StringComparison.OrdinalIgnoreCase) || t.Contains("Away", StringComparison.OrdinalIgnoreCase)) return "B";
-
-    return "A";
-}
-
-// Alias for older/typo code paths
-private static string NormalizeTeamToAtoB(string? team) => NormalizeTeamToAB(team);
-
- get; } = new();
+        public ObservableCollection<ClipRow> TeamAClips { get; } = new();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new();
 
         // ===== Clip Filters (UI) =====
@@ -967,7 +940,9 @@ private void RefreshClipViews()
             HasSelectedClip = false;
 
             var lines = csvText
-                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                .Split(new[] { "
+", "
+" }, StringSplitOptions.None)
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .ToList();
 
