@@ -1036,7 +1036,23 @@ private void RefreshClipViews()
             StatusText = $"Imported {imported} clips";
         }
 
-        private static double TryParseDouble(string s)
+        
+        // Team normalization helper (VM scope)
+        private static string NormalizeTeamToAB(string team)
+        {
+            if (string.IsNullOrWhiteSpace(team)) return "A";
+            var t = team.Trim();
+            if (t.Equals("A", StringComparison.OrdinalIgnoreCase) || t.Contains("Team A", StringComparison.OrdinalIgnoreCase) || t.Contains("Home", StringComparison.OrdinalIgnoreCase))
+                return "A";
+            if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B", StringComparison.OrdinalIgnoreCase) || t.Contains("Away", StringComparison.OrdinalIgnoreCase))
+                return "B";
+            return "A";
+        }
+
+        // Alias (typo-safe)
+        private static string NormalizeTeamToAtoB(string team) => NormalizeTeamToAB(team);
+
+private static double TryParseDouble(string s)
         {
             if (double.TryParse((s ?? "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) return v;
             return 0;
