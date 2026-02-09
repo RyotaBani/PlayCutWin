@@ -940,9 +940,7 @@ private void RefreshClipViews()
             HasSelectedClip = false;
 
             var lines = csvText
-                .Split(new[] { "
-", "
-" }, StringSplitOptions.None)
+                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .ToList();
 
