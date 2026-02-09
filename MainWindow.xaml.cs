@@ -316,8 +316,7 @@ private void ExportCSV_Click(object sender, RoutedEventArgs e)
     // A方針：CSV品質最優先（VideoName 必須 / Schema固定 / Tag表記統一）
     if (Player.Source == null || string.IsNullOrWhiteSpace(VM.LoadedVideoName))
     {
-        MessageBox.Show("動画が読み込まれていません。
-先に「Load Video」を行ってからCSVを書き出してください。", "Export CSV",
+        MessageBox.Show("動画が読み込まれていません。\n先に「Load Video」を行ってからCSVを書き出してください。", "Export CSV",
             MessageBoxButton.OK, MessageBoxImage.Warning);
         return;
     }
