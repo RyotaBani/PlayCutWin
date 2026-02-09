@@ -310,90 +310,130 @@ namespace PlayCutWin
         // ----------------------------
         // CSV Export/Import
         // ----------------------------
-        private void ExportCSV_Click(object sender, RoutedEventArgs e)
+        
+private void ExportCSV_Click(object sender, RoutedEventArgs e)
+{
+    // A方針：CSV品質最優先（VideoName 必須 / Schema固定 / Tag表記統一）
+    if (Player.Source == null || string.IsNullOrWhiteSpace(VM.LoadedVideoName))
+    {
+        MessageBox.Show("動画が読み込まれていません。
+先に「Load Video」を行ってからCSVを書き出してください。", "Export CSV",
+            MessageBoxButton.OK, MessageBoxImage.Warning);
+        return;
+    }
+
+    var clips = VM.GetAllClipsForExport();
+    if (clips.Count == 0)
+    {
+        MessageBox.Show("No clips to export.", "Export CSV",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+        return;
+    }
+
+    var dlg = new SaveFileDialog
+    {
+        Title = "Export CSV",
+        Filter = "CSV (*.csv)|*.csv",
+        FileName = "play_by_play.csv"
+    };
+
+    if (dlg.ShowDialog() != true) return;
+
+    try
+    {
+        var sb = new StringBuilder();
+
+        // Mac (BBVideoTagger) CSV Schema v2
+        // Header must match exactly for round-trip compatibility.
+        sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
+
+        var videoName = VM.LoadedVideoName.Trim();
+        var inv = CultureInfo.InvariantCulture;
+
+        // Tag order stabilization: Offense -> Defense -> Custom (A-Z)
+        var presetNames = VM.OffenseTags.Select(t => t.Name)
+            .Concat(VM.DefenseTags.Select(t => t.Name))
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n.Trim())
+            .ToList();
+
+        var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < presetNames.Count; i++)
         {
-            var clips = VM.GetAllClipsForExport();
-            if (clips.Count == 0)
-            {
-                MessageBox.Show("No clips to export.");
-                return;
-            }
-
-            var dlg = new SaveFileDialog
-            {
-                Title = "Export CSV",
-                Filter = "CSV (*.csv)|*.csv",
-                FileName = "play_by_play.csv"
-            };
-
-            if (dlg.ShowDialog() != true) return;
-
-            try
-            {
-                var sb = new StringBuilder();
-
-                // Mac (BBVideoTagger) CSV Schema v2
-                // Header must match exactly for round-trip compatibility.
-                sb.AppendLine("Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note");
-
-                // ✅ FIX: MainWindow側のフィールドではなくVMの値を使う
-                var videoName = string.IsNullOrWhiteSpace(VM.LoadedVideoName) ? "UnknownVideo" : VM.LoadedVideoName;
-                var inv = CultureInfo.InvariantCulture;
-
-                // Sort by start time to match Mac export order
-                var sorted = clips.OrderBy(c => c.Start).ToList();
-
-                for (int i = 0; i < sorted.Count; i++)
-                {
-                    var c = sorted[i];
-
-                    var teamKey = NormalizeTeamToAB(c.Team);
-                    var teamSide = teamKey == "A" ? "Home" : "Away";
-
-                    // ✅ FIX: Team名もVMから
-                    var teamName = teamKey == "A" ? VM.TeamAName : VM.TeamBName;
-
-                    var startStr = FormatTime(c.Start);
-                    var endStr = FormatTime(c.End);
-
-                    var startSec = c.Start.ToString("0.000", inv);
-                    var endSec = c.End.ToString("0.000", inv);
-                    var durationSec = Math.Max(0, c.End - c.Start).ToString("0.000", inv);
-
-                    // Tags: "; " (semicolon + space)
-                    var tagsStr = string.Join("; ", c.Tags ?? new List<string>());
-                    var setPlayStr = c.SetPlay ?? string.Empty;
-                    var noteStr = c.Comment ?? string.Empty;
-
-                    var row = string.Join(",", new[]
-                    {
-                        EscapeCsv("2"),
-                        EscapeCsv(videoName),
-                        EscapeCsv((i + 1).ToString(inv)),
-                        EscapeCsv(teamKey),
-                        EscapeCsv(teamSide),
-                        EscapeCsv(teamName),
-                        EscapeCsv(startStr),
-                        EscapeCsv(endStr),
-                        EscapeCsv(startSec),
-                        EscapeCsv(endSec),
-                        EscapeCsv(durationSec),
-                        EscapeCsv(tagsStr),
-                        EscapeCsv(setPlayStr),
-                        EscapeCsv(noteStr),
-                    });
-
-                    sb.AppendLine(row);
-                }
-
-                File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-                VM.StatusText = $"Exported CSV: {Path.GetFileName(dlg.FileName)}";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.ToString(), "Export CSV Error");
-            }
+            var key = presetNames[i];
+            if (!order.ContainsKey(key)) order[key] = i;
         }
+
+        // Sort by start time to match Mac export order
+        var sorted = clips.OrderBy(c => c.Start).ToList();
+
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            var c = sorted[i];
+
+            var teamKey = NormalizeTeamToAB(c.Team);
+            var teamSide = teamKey == "A" ? "Home" : "Away";
+            var teamName = teamKey == "A" ? VM.TeamAName : VM.TeamBName;
+
+            var startStr = FormatTime(c.Start);
+            var endStr = FormatTime(c.End);
+
+            var startSec = c.Start.ToString("0.000", inv);
+            var endSec = c.End.ToString("0.000", inv);
+            var durationSec = Math.Max(0, c.End - c.Start).ToString("0.000", inv);
+
+            // Tags: "; " (semicolon + space) + stable ordering + distinct (case-insensitive)
+            var rawTags = (c.Tags ?? new List<string>())
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim())
+                .ToList();
+
+            var distinctTags = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in rawTags)
+            {
+                if (seen.Add(t)) distinctTags.Add(t);
+            }
+
+            var sortedTags = distinctTags
+                .OrderBy(t => order.TryGetValue(t, out var idx) ? idx : int.MaxValue)
+                .ThenBy(t => order.ContainsKey(t) ? "" : t, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var tagsStr = string.Join("; ", sortedTags);
+
+            var setPlayStr = c.SetPlay ?? string.Empty;
+            var noteStr = c.Comment ?? string.Empty;
+
+            var row = string.Join(",", new[]
+            {
+                EscapeCsv("2"),
+                EscapeCsv(videoName),
+                EscapeCsv((i + 1).ToString(inv)),
+                EscapeCsv(teamKey),
+                EscapeCsv(teamSide),
+                EscapeCsv(teamName),
+                EscapeCsv(startStr),
+                EscapeCsv(endStr),
+                EscapeCsv(startSec),
+                EscapeCsv(endSec),
+                EscapeCsv(durationSec),
+                EscapeCsv(tagsStr),
+                EscapeCsv(setPlayStr),
+                EscapeCsv(noteStr),
+            });
+
+            sb.AppendLine(row);
+        }
+
+        File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        VM.StatusText = $"Exported CSV: {Path.GetFileName(dlg.FileName)}";
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(ex.ToString(), "Export CSV Error");
+    }
+}
 
         private void ImportCSV_Click(object sender, RoutedEventArgs e)
         {
@@ -408,27 +448,6 @@ namespace PlayCutWin
             try
             {
                 var text = File.ReadAllText(dlg.FileName, Encoding.UTF8);
-
-                // Mac同挙動：CSVのVideoNameが現在の動画と一致しない場合は警告
-                if (!string.IsNullOrWhiteSpace(VM.LoadedVideoName)
-                    && TryGetCsvVideoName(text, out var csvVideoName)
-                    && !string.IsNullOrWhiteSpace(csvVideoName))
-                {
-                    var current = Path.GetFileName(VM.LoadedVideoName.Trim());
-                    var incoming = Path.GetFileName(csvVideoName.Trim());
-
-                    if (!string.Equals(current, incoming, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var msg =
-                            "CSV の VideoName が現在読み込まれている動画と一致しません。\n\n" +
-                            $"現在: {current}\n" +
-                            $"CSV : {incoming}\n\n" +
-                            "このままインポートを続行しますか？";
-
-                        var res = MessageBox.Show(msg, "VideoName mismatch", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                        if (res != MessageBoxResult.Yes) return;
-                    }
-                }
 
                 VM.ImportCsv(text);
                 VM.StatusText = $"Imported CSV: {Path.GetFileName(dlg.FileName)}";
@@ -449,95 +468,7 @@ namespace PlayCutWin
             return s;
         }
 
-        
-
-        // CSV helper: parse a single CSV line (supports quotes)
-        private static List<string> SplitCsvLine(string line)
-        {
-            var result = new List<string>();
-            if (line == null) { result.Add(""); return result; }
-
-            var sb = new StringBuilder();
-            bool inQuotes = false;
-
-            for (int i = 0; i < line.Length; i++)
-            {
-                char c = line[i];
-
-                if (inQuotes)
-                {
-                    if (c == '"')
-                    {
-                        // escaped quote
-                        if (i + 1 < line.Length && line[i + 1] == '"')
-                        {
-                            sb.Append('"');
-                            i++;
-                        }
-                        else
-                        {
-                            inQuotes = false;
-                        }
-                    }
-                    else
-                    {
-                        sb.Append(c);
-                    }
-                }
-                else
-                {
-                    if (c == '"')
-                    {
-                        inQuotes = true;
-                    }
-                    else if (c == ',')
-                    {
-                        result.Add(sb.ToString());
-                        sb.Clear();
-                    }
-                    else
-                    {
-                        sb.Append(c);
-                    }
-                }
-            }
-
-            result.Add(sb.ToString());
-            return result;
-        }
-
-        // CSV helper: try get VideoName from Mac schema v2 / compatible CSV
-        private static bool TryGetCsvVideoName(string csvText, out string videoName)
-        {
-            videoName = "";
-            if (string.IsNullOrWhiteSpace(csvText)) return false;
-
-            // normalize newlines
-            var lines = csvText.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-            if (lines.Length < 2) return false;
-
-            // header
-            var header = SplitCsvLine(lines[0].Trim('\uFEFF'));
-            int idx = header.FindIndex(h => string.Equals((h ?? "").Trim(), "VideoName", StringComparison.OrdinalIgnoreCase));
-            if (idx < 0) return false;
-
-            // first non-empty data line
-            for (int i = 1; i < lines.Length; i++)
-            {
-                var ln = lines[i];
-                if (string.IsNullOrWhiteSpace(ln)) continue;
-                var cols = SplitCsvLine(ln);
-                if (idx < cols.Count)
-                {
-                    videoName = (cols[idx] ?? "").Trim();
-                    return !string.IsNullOrWhiteSpace(videoName);
-                }
-                return false;
-            }
-
-            return false;
-        }
-private static string NormalizeTeamToAB(string team)
+        private static string NormalizeTeamToAB(string team)
         {
             // team is stored as "A"/"B" or "Team A"/"Team B"
             if (string.IsNullOrWhiteSpace(team)) return "A";
@@ -575,280 +506,11 @@ private static string NormalizeTeamToAB(string team)
             ExportCSV_Click(sender, e);
         }
 
-        private async void ExportAll_Click(object sender, RoutedEventArgs e)
+        private void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            await ExportClipsInternalWithDialogAsync(VM.GetAllClipsForExport());
-        }
-
-        // ----------------------------
-        // Video export (ffmpeg) + progress + cancel
-        // ----------------------------
-        private async System.Threading.Tasks.Task ExportClipsInternalWithDialogAsync(List<ClipRow> clips)
-        {
-            if (clips == null || clips.Count == 0)
-            {
-                MessageBox.Show("No clips to export.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(VM.LoadedVideoPath) || !File.Exists(VM.LoadedVideoPath))
-            {
-                MessageBox.Show("Please load a video first.", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var outFolder = ChooseFolder("Select export folder");
-            if (string.IsNullOrWhiteSpace(outFolder)) return;
-
-            var ffmpeg = ResolveFfmpegPath();
-            if (ffmpeg == null)
-            {
-                MessageBox.Show(
-                    "ffmpeg was not found. Please install ffmpeg and make sure it's available in PATH.\n\n" +
-                    "Tip: Open cmd and run: ffmpeg -version",
-                    "Export Clips", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            var baseName = Path.GetFileNameWithoutExtension(VM.LoadedVideoPath);
-            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var sessionDir = Path.Combine(outFolder, $"{SanitizeFileName(baseName)}_clips_{stamp}");
-            Directory.CreateDirectory(sessionDir);
-
-            using var cts = new System.Threading.CancellationTokenSource();
-
-            var dlg = new ExportProgressDialog
-            {
-                Owner = this,
-                Title = "Export Clips"
-            };
-            dlg.CancelRequested += () => cts.Cancel();
-
-            SetUiEnabled(false);
-            dlg.Show();
-
-            int ok = 0;
-            int fail = 0;
-            int canceledAt = 0;
-
-            var progress = new Progress<(int current, int total, string detail)>(p =>
-            {
-                dlg.SetProgress(p.current, p.total, p.detail);
-                VM.StatusText = p.detail;
-            });
-
-            try
-            {
-                await System.Threading.Tasks.Task.Run(() =>
-                {
-                    ExportClipsCore(clips, ffmpeg, sessionDir, progress, cts.Token, ref ok, ref fail, ref canceledAt);
-                });
-            }
-            finally
-            {
-                dlg.Close();
-                SetUiEnabled(true);
-            }
-
-            if (cts.IsCancellationRequested)
-            {
-                VM.StatusText = $"Export canceled. OK:{ok} / Fail:{fail}";
-                MessageBox.Show($"Export canceled.\n\nOutput folder:\n{sessionDir}",
-                    "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            VM.StatusText = $"Export done. OK:{ok} / Fail:{fail}";
-            MessageBox.Show($"Exported {ok} clip(s) to:\n{sessionDir}", "Export Clips", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void ExportClipsCore(
-            List<ClipRow> clips,
-            string ffmpeg,
-            string sessionDir,
-            IProgress<(int current, int total, string detail)> progress,
-            System.Threading.CancellationToken token,
-            ref int ok,
-            ref int fail,
-            ref int canceledAt)
-        {
-            var teamADir = Path.Combine(sessionDir, "A");
-            var teamBDir = Path.Combine(sessionDir, "B");
-            Directory.CreateDirectory(teamADir);
-            Directory.CreateDirectory(teamBDir);
-
-            // Mac-like: sort by start
-            var sorted = clips.OrderBy(c => c.Start).ToList();
-
-            // Mac-like: duplicate export per tag (if multiple tags, same clip is exported to each tag folder)
-            // Total progress counts each exported file.
-            int totalExports = 0;
-            foreach (var c0 in sorted)
-            {
-                var tags0 = (c0.Tags ?? new List<string>()).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-                totalExports += Math.Max(1, tags0.Count);
-            }
-            if (totalExports <= 0) totalExports = sorted.Count;
-
-            int exportIndex = 0;
-
-            for (int i = 0; i < sorted.Count; i++)
-            {
-                if (token.IsCancellationRequested)
-                {
-                    canceledAt = exportIndex;
-                    return;
-                }
-
-                var c = sorted[i];
-                if (c.End <= c.Start) { fail++; continue; }
-
-                var teamKey = NormalizeTeamToAB(c.Team);
-                var teamDir = teamKey == "B" ? teamBDir : teamADir;
-
-                var tags = (c.Tags ?? new List<string>()).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-                if (tags.Count == 0) tags.Add("NoTag");
-
-                // base file name (same across tag folders to allow duplication without overwriting inside the same folder)
-                var fileBase = $"{teamKey}_{(i + 1):0000}_{FormatTimeForFile(c.Start)}_{FormatTimeForFile(c.End)}.mp4";
-                var duration = Math.Max(0.01, c.End - c.Start);
-
-                foreach (var tag in tags)
-                {
-                    if (token.IsCancellationRequested)
-                    {
-                        canceledAt = exportIndex;
-                        return;
-                    }
-
-                    var tagFolder = NormalizeTagFolderName(tag);
-                    var outDir = string.IsNullOrWhiteSpace(tagFolder) ? teamDir : Path.Combine(teamDir, tagFolder);
-                    Directory.CreateDirectory(outDir);
-
-                    var outPath = Path.Combine(outDir, fileBase);
-
-                    exportIndex++;
-                    progress?.Report((exportIndex, totalExports, $"{teamKey}/{tagFolder}/{fileBase}"));
-
-                    var args = BuildFfmpegArgs(
-                        inputPath: VM.LoadedVideoPath,
-                        startSeconds: c.Start,
-                        durationSeconds: duration,
-                        outputPath: outPath);
-
-                    var result = RunProcess(ffmpeg, args);
-                    if (result.exitCode == 0 && File.Exists(outPath)) ok++;
-                    else
-                    {
-                        fail++;
-                        Debug.WriteLine(result.stdErr);
-                    }
-                }
-            }
-        }
-
-        private static string NormalizeTagFolderName(string raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
-            return SanitizeFileName(raw)
-                .Replace('-', '_')
-                .Replace(' ', '_')
-                .Trim('_');
-        }
-
-        private void SetUiEnabled(bool enabled)
-        {
-            if (RootGrid != null) RootGrid.IsEnabled = enabled;
-        }
-
-        private static string BuildFfmpegArgs(string inputPath, double startSeconds, double durationSeconds, string outputPath)
-        {
-            var ss = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-            var t = durationSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-            return $"-y -hide_banner -loglevel error -ss {ss} -i \"{inputPath}\" -t {t} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k \"{outputPath}\"";
-        }
-
-        private static (int exitCode, string stdOut, string stdErr) RunProcess(string exePath, string args)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    Arguments = args,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-                using var p = Process.Start(psi);
-                if (p == null) return (-1, "", "Process start failed.");
-                var stdout = p.StandardOutput.ReadToEnd();
-                var stderr = p.StandardError.ReadToEnd();
-                p.WaitForExit();
-                return (p.ExitCode, stdout, stderr);
-            }
-            catch (Exception ex)
-            {
-                return (-1, "", ex.ToString());
-            }
-        }
-
-        private static string? ResolveFfmpegPath()
-        {
-            var r = RunProcess("ffmpeg", "-version");
-            if (r.exitCode == 0) return "ffmpeg";
-
-            var candidates = new[]
-            {
-                @"C:\\ffmpeg\\bin\\ffmpeg.exe",
-                @"C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
-                @"C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe"
-            };
-            foreach (var c in candidates)
-            {
-                if (File.Exists(c)) return c;
-            }
-            return null;
-        }
-
-        private static string? ChooseFolder(string title)
-        {
-            var sfd = new SaveFileDialog
-            {
-                Title = title,
-                FileName = "export_here",
-                DefaultExt = ".txt",
-                Filter = "Folder (select location)|*.txt"
-            };
-
-            var ok = sfd.ShowDialog();
-            if (ok == true)
-            {
-                var dir = Path.GetDirectoryName(sfd.FileName);
-                return string.IsNullOrWhiteSpace(dir) ? null : dir;
-            }
-            return null;
-        }
-
-        private static string SanitizeFileName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name)) return "";
-            var invalid = Path.GetInvalidFileNameChars();
-            var sb = new StringBuilder();
-            foreach (var ch in name)
-            {
-                sb.Append(invalid.Contains(ch) ? '_' : ch);
-            }
-            return sb.ToString().Trim().Trim('_');
-        }
-
-        private static string FormatTimeForFile(double seconds)
-        {
-            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) return "0_00";
-            var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
-            if (ts.Hours > 0) return $"{ts.Hours}_{ts.Minutes:00}_{ts.Seconds:00}";
-            return $"{ts.Minutes}_{ts.Seconds:00}";
+            // If you later add real ExportAll, replace this.
+            MessageBox.Show("Export All は次で実装（現状はCSV出力のみ）", "Export",
+                MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void Player_MediaOpened(object sender, RoutedEventArgs e)
@@ -972,14 +634,14 @@ private static string NormalizeTeamToAB(string team)
             }
         }
 
-        private ICollectionView _teamAView = null!;
+        private ICollectionView _teamAView;
         public ICollectionView TeamAView
         {
             get => _teamAView;
             private set { _teamAView = value; OnPropertyChanged(); }
         }
 
-        private ICollectionView _teamBView = null!;
+        private ICollectionView _teamBView;
         public ICollectionView TeamBView
         {
             get => _teamBView;
@@ -1024,13 +686,8 @@ private static string NormalizeTeamToAB(string team)
         public string LoadedVideoName
         {
             get => _loadedVideoName;
-            set { _loadedVideoName = value ?? ""; OnPropertyChanged(); OnPropertyChanged(nameof(VideoHeaderText)); }
+            set { _loadedVideoName = value ?? ""; OnPropertyChanged(); }
         }
-        public string VideoHeaderText
-        {
-            get => string.IsNullOrWhiteSpace(LoadedVideoName) ? "Video (16:9)" : LoadedVideoName;
-        }
-
 
         public string TeamAName { get => _teamAName; set { _teamAName = value; OnPropertyChanged(); } }
         public string TeamBName { get => _teamBName; set { _teamBName = value; OnPropertyChanged(); } }
@@ -1067,16 +724,12 @@ private static string NormalizeTeamToAB(string team)
                 if (_isPlaying == value) return;
                 _isPlaying = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(PlayPauseGlyph));
-                OnPropertyChanged(nameof(PlayPauseText));
+                OnPropertyChanged(nameof(PlayPauseIcon));
             }
         }
 
-        // Segoe MDL2 Assets: Play=E768, Stop=E71A
-        public string PlayPauseGlyph => IsPlaying ? "\uE71A" : "\uE768";
-
-        // Mac-like label
-        public string PlayPauseText => IsPlaying ? "Pause" : "Play";
+        // Segoe MDL2 Assets: Play=E768, Pause=E769
+        public string PlayPauseIcon => IsPlaying ? "\uE769" : "\uE768";
 
         public string StatusText
         {
@@ -1284,7 +937,9 @@ private void RefreshClipViews()
             HasSelectedClip = false;
 
             var lines = csvText
-                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                .Split(new[] { "
+", "
+" }, StringSplitOptions.None)
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .ToList();
 
@@ -1408,20 +1063,6 @@ private void RefreshClipViews()
 
             return parts;
         }
-
-// Team normalize helper (needed for Import inside VM)
-private static string NormalizeTeamToAB(string team)
-{
-    if (string.IsNullOrWhiteSpace(team)) return "A";
-    var t = team.Trim();
-    if (t.Equals("A", StringComparison.OrdinalIgnoreCase) || t.Contains("Team A", StringComparison.OrdinalIgnoreCase)) return "A";
-    if (t.Equals("B", StringComparison.OrdinalIgnoreCase) || t.Contains("Team B", StringComparison.OrdinalIgnoreCase)) return "B";
-    // Also accept Home/Away labels
-    if (t.Contains("Home", StringComparison.OrdinalIgnoreCase)) return "A";
-    if (t.Contains("Away", StringComparison.OrdinalIgnoreCase)) return "B";
-    return "A";
-}
-
 
         private static double ParseTimeToSeconds(string s)
         {

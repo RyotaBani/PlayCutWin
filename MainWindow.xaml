@@ -31,72 +31,21 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- Mac版の挙動に合わせる:
-                     上段=動画名(未読み込み時は Video (16:9))
-                     下段=Team A/Team B の入力(常時編集可能) -->
-                <StackPanel Margin="0,0,0,10">
-                    <TextBlock Text="{Binding VideoHeaderText}" FontSize="16" FontWeight="Bold" Foreground="#E5E7EB"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Opacity="0.9">
-                        <TextBlock Text="Team A" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <Grid Width="180" Height="24" Margin="6,0,18,0">
-    <TextBox x:Name="TeamANameBox" Text="{Binding TeamAName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}"/>
-    <!-- Watermark (Mac-like): shown only when empty & not focused -->
-    <TextBlock Text="Home / Our Team"
-               Margin="10,0,0,0"
-               VerticalAlignment="Center"
-               Foreground="#7A7A7A"
-               Opacity="0.75"
-               IsHitTestVisible="False">
-        <TextBlock.Style>
-            <Style TargetType="TextBlock">
-                <Setter Property="Visibility" Value="Collapsed"/>
-                <Style.Triggers>
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Text, ElementName=TeamANameBox}" Value=""/>
-                            <Condition Binding="{Binding IsKeyboardFocused, ElementName=TeamANameBox}" Value="False"/>
-                        </MultiDataTrigger.Conditions>
-                        <Setter Property="Visibility" Value="Visible"/>
-                    </MultiDataTrigger>
-                </Style.Triggers>
-            </Style>
-        </TextBlock.Style>
-    </TextBlock>
-</Grid>
-                        <TextBlock Text="Team B" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <Grid Width="180" Height="24" Margin="6,0,0,0">
-    <TextBox x:Name="TeamBNameBox" Text="{Binding TeamBName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}"/>
-    <!-- Watermark (Mac-like): shown only when empty & not focused -->
-    <TextBlock Text="Away / Opponent"
-               Margin="10,0,0,0"
-               VerticalAlignment="Center"
-               Foreground="#7A7A7A"
-               Opacity="0.75"
-               IsHitTestVisible="False">
-        <TextBlock.Style>
-            <Style TargetType="TextBlock">
-                <Setter Property="Visibility" Value="Collapsed"/>
-                <Style.Triggers>
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Text, ElementName=TeamBNameBox}" Value=""/>
-                            <Condition Binding="{Binding IsKeyboardFocused, ElementName=TeamBNameBox}" Value="False"/>
-                        </MultiDataTrigger.Conditions>
-                        <Setter Property="Visibility" Value="Visible"/>
-                    </MultiDataTrigger>
-                </Style.Triggers>
-            </Style>
-        </TextBlock.Style>
-    </TextBlock>
-</Grid>
+                <DockPanel Margin="0,0,0,10">
+                    <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                        <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
+                        <TextBox Width="160" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Team B" VerticalAlignment="Center" Margin="8,0,8,0" Opacity="0.85"/>
+                        <TextBox Width="160" Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
-                </StackPanel>
+                </DockPanel>
 
                 <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
                         <!-- Hint (コードビハインドから参照されるので必ず存在させる) -->
                         <TextBlock x:Name="VideoHint"
-                                   Text="{Binding VideoOverlayText}"
+                                   Text="Load a video to start"
                                    Foreground="#8A8A8A"
                                    FontSize="14"
                                    HorizontalAlignment="Center"
@@ -132,6 +81,7 @@
                         <ComboBox Width="140"
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteSelectedClip_Click" IsEnabled="{Binding HasSelectedClip}"/>
                         <Button Style="{StaticResource DarkButton}" Content="Import CSV" Click="ImportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export CSV" Click="ExportCsv_Click"/>
                         <Button Style="{StaticResource DarkButton}" Content="Export All" Click="ExportAll_Click"/>
@@ -140,19 +90,6 @@
                 </DockPanel>
 
                 <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Opacity="0.75" Margin="0,8,0,10" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Grid.Row="1" Text="No video loaded" Opacity="0.65" Margin="0,0,0,10">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding LoadedVideoName}" Value="">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
 
                 <Grid Grid.Row="2">
                     <Border Background="#161616" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="8" Padding="10">
@@ -193,9 +130,7 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team A Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        
-                                        <Grid Grid.Row="1">
-                                            <ListView x:Name="TeamAClipList" Grid.Row="1"
+                                        <ListView Grid.Row="1"
                                                   ItemsSource="{Binding TeamAView}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
@@ -209,25 +144,6 @@
                                                 </GridView>
                                             </ListView.View>
                                         </ListView>
-                                            <TextBlock Text="No clips for Team A with current filter."
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="#8A8A8A"
-                                                       TextWrapping="Wrap"
-                                                       Margin="20">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding ElementName=TeamAClipList, Path=HasItems}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
-
                                     </Grid>
 
                                     <!-- Team B -->
@@ -237,9 +153,7 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="Team B Clips" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        
-                                        <Grid Grid.Row="1">
-                                            <ListView x:Name="TeamBClipList" Grid.Row="1"
+                                        <ListView Grid.Row="1"
                                                   ItemsSource="{Binding TeamBView}"
                                                   SelectionChanged="ClipList_SelectionChanged"
                                                   MouseDoubleClick="ClipList_DoubleClick"
@@ -253,25 +167,6 @@
                                                 </GridView>
                                             </ListView.View>
                                         </ListView>
-                                            <TextBlock Text="No clips for Team B with current filter."
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="#8A8A8A"
-                                                       TextWrapping="Wrap"
-                                                       Margin="20">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding ElementName=TeamBClipList, Path=HasItems}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
-
                                     </Grid>
                                 </Grid>
 
@@ -396,23 +291,22 @@
                 </DockPanel>
 
                 <WrapPanel>
-                    <Button x:Name="Speed025Button" Style="{StaticResource ControlSmallButton}" Content="0.25x" Click="Speed025_Click"/>
-                    <Button x:Name="Speed05Button"  Style="{StaticResource ControlSmallButton}" Content="0.5x"  Click="Speed05_Click"/>
-                    <Button x:Name="Speed1Button"   Style="{StaticResource ControlSmallButton}" Content="1x"    Click="Speed1_Click"/>
-                    <Button x:Name="Speed2Button"   Style="{StaticResource ControlSmallButton}" Content="2x"    Click="Speed2_Click"/>
+                    <Button x:Name="Speed025Button" Style="{StaticResource DarkButton}" Content="0.25x" Click="Speed025_Click"/>
+                    <Button x:Name="Speed05Button"  Style="{StaticResource DarkButton}" Content="0.5x"  Click="Speed05_Click"/>
+                    <Button x:Name="Speed1Button"   Style="{StaticResource DarkButton}" Content="1x"    Click="Speed1_Click"/>
+                    <Button x:Name="Speed2Button"   Style="{StaticResource DarkButton}" Content="2x"    Click="Speed2_Click"/>
                 </WrapPanel>
 
                 <WrapPanel Margin="0,8,0,0">
-                    <Button Style="{StaticResource ControlSmallButton}" Content="-5s" Click="SeekMinus5_Click"/>
-                    <Button Style="{StaticResource ControlSmallButton}" Content="-1s" Click="SeekMinus1_Click"/>
-
-                    <!-- Windows: Start / Stop icon button (Segoe MDL2 Assets) -->
-                    <Button Style="{StaticResource ControlAccentButton}" Width="70" Click="PlayPause_Click">
-                        <TextBlock Text="{Binding PlayPauseGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                    </Button>
-
-                    <Button Style="{StaticResource ControlSmallButton}" Content="+1s" Click="SeekPlus1_Click"/>
-                    <Button Style="{StaticResource ControlSmallButton}" Content="+5s" Click="SeekPlus5_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="-5s" Click="SeekMinus5_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="-1s" Click="SeekMinus1_Click"/>
+                    <!-- Play/Pause は文字ではなくアイコン（Segoe MDL2 Assets） -->
+                    <Button Style="{StaticResource DarkButton}" Content="{Binding PlayPauseIcon}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="18"
+                            Background="{StaticResource Accent}" BorderBrush="{StaticResource Accent}"
+                            Click="PlayPause_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="+1s" Click="SeekPlus1_Click"/>
+                    <Button Style="{StaticResource DarkButton}" Content="+5s" Click="SeekPlus5_Click"/>
                 </WrapPanel>
 
                 <TextBlock Text="Clip Range" FontWeight="SemiBold" Margin="0,14,0,4"/>
@@ -426,17 +320,17 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
-                        <Button Style="{StaticResource DarkButton}" Height="34" Content="Clip START" Click="ClipStart_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Clip START" Click="ClipStart_Click"/>
                         <TextBlock Text="{Binding ClipStartText}" Opacity="0.75" Margin="6,0,0,0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1">
-                        <Button Style="{StaticResource DarkButton}" Height="34" Content="Clip END" Click="ClipEnd_Click"/>
+                        <Button Style="{StaticResource DarkButton}" Content="Clip END" Click="ClipEnd_Click"/>
                         <TextBlock Text="{Binding ClipEndText}" Opacity="0.75" Margin="6,0,0,0"/>
                     </StackPanel>
 
-                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Height="34" MinWidth="120" Content="Save Team A" Click="SaveTeamA_Click"/>
-                    <Button Grid.Column="3" Style="{StaticResource DarkButton}" Height="34" MinWidth="120" Content="Save Team B" Click="SaveTeamB_Click"/>
+                    <Button Grid.Column="2" Style="{StaticResource DarkButton}" Content="Save Team A" Click="SaveTeamA_Click"/>
+                    <Button Grid.Column="3" Style="{StaticResource DarkButton}" Content="Save Team B" Click="SaveTeamB_Click"/>
                 </Grid>
 
                 <TextBlock Text="{Binding StatusText}" Opacity="0.75" Margin="0,10,0,0"/>
