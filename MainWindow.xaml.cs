@@ -619,7 +619,33 @@ private static string NormalizeTeamToAtoB(string team)
         private double _clipStart;
         private double _clipEnd;
 
-        public ObservableCollection<ClipRow> TeamAClips { get; } = new();
+        public ObservableCollection<ClipRow> TeamAClips {
+
+// --- CSV/Import helpers (kept inside VM so "NormalizeTeamToAB" resolves in this context) ---
+private static string NormalizeTeamToAB(string? team)
+{
+    if (string.IsNullOrWhiteSpace(team)) return "A";
+    var t = team.Trim();
+
+    // Accept "A"/"B"
+    if (string.Equals(t, "A", StringComparison.OrdinalIgnoreCase)) return "A";
+    if (string.Equals(t, "B", StringComparison.OrdinalIgnoreCase)) return "B";
+
+    // Accept "Team A"/"Team B" and variants
+    if (t.IndexOf("Team A", StringComparison.OrdinalIgnoreCase) >= 0) return "A";
+    if (t.IndexOf("Team B", StringComparison.OrdinalIgnoreCase) >= 0) return "B";
+
+    // Accept "Home"/"Away"
+    if (t.Equals("Home", StringComparison.OrdinalIgnoreCase) || t.Contains("Home", StringComparison.OrdinalIgnoreCase)) return "A";
+    if (t.Equals("Away", StringComparison.OrdinalIgnoreCase) || t.Contains("Away", StringComparison.OrdinalIgnoreCase)) return "B";
+
+    return "A";
+}
+
+// Alias for older/typo code paths
+private static string NormalizeTeamToAtoB(string? team) => NormalizeTeamToAB(team);
+
+ get; } = new();
         public ObservableCollection<ClipRow> TeamBClips { get; } = new();
 
         // ===== Clip Filters (UI) =====
