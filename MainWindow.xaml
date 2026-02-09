@@ -31,18 +31,49 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Margin="0,0,0,10">
-                    <!-- Mac-like: show loaded video name in the left panel header -->
-                    <TextBlock Text="{Binding VideoPanelTitle}" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
-                        <TextBox Width="160" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="Team B" VerticalAlignment="Center" Margin="8,0,8,0" Opacity="0.85"/>
-                        <TextBox Width="160" Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                </DockPanel>
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
 
-                <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
+    <!-- Title (trim so it never hides inputs) -->
+    <TextBlock Grid.Row="0"
+               Text="{Binding VideoPanelTitle}"
+               FontSize="16"
+               FontWeight="SemiBold"
+               VerticalAlignment="Center"
+               TextTrimming="CharacterEllipsis"
+               Margin="0,0,0,0"/>
+
+    <!-- Team inputs (Mac-like: under title) -->
+    <Grid Grid.Row="1" Margin="0,8,0,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+            <TextBlock Text="Team A" Opacity="0.85" Margin="0,0,0,4"/>
+            <TextBox Width="240" Height="28"
+                     Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
+                     Background="#0F0F0F" Foreground="#EAEAEA"
+                     BorderBrush="#2A2A2A" BorderThickness="1" Padding="6"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2">
+            <TextBlock Text="Team B" Opacity="0.85" Margin="0,0,0,4"/>
+            <TextBox Width="240" Height="28"
+                     Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
+                     Background="#0F0F0F" Foreground="#EAEAEA"
+                     BorderBrush="#2A2A2A" BorderThickness="1" Padding="6"/>
+        </StackPanel>
+    </Grid>
+</Grid>
+
+<Border Grid.Row="1"  Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
                         <!-- Hint (コードビハインドから参照されるので必ず存在させる) -->
                         <TextBlock x:Name="VideoHint"
