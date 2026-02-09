@@ -32,7 +32,8 @@
                 </Grid.RowDefinitions>
 
                 <DockPanel Margin="0,0,0,10">
-                    <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                    <!-- Mac-like: show loaded video name in the left panel header -->
+                    <TextBlock Text="{Binding VideoPanelTitle}" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                         <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
                         <TextBox Width="160" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />

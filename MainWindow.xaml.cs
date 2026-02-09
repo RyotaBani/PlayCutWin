@@ -637,14 +637,16 @@ namespace PlayCutWin
             }
         }
 
-        private ICollectionView _teamAView;
+        // Initialized in ctor; use null-forgiving to avoid CS8618 warnings in CI
+        private ICollectionView _teamAView = null!;
         public ICollectionView TeamAView
         {
             get => _teamAView;
             private set { _teamAView = value; OnPropertyChanged(); }
         }
 
-        private ICollectionView _teamBView;
+        // Initialized in ctor; use null-forgiving to avoid CS8618 warnings in CI
+        private ICollectionView _teamBView = null!;
         public ICollectionView TeamBView
         {
             get => _teamBView;
@@ -689,8 +691,17 @@ namespace PlayCutWin
         public string LoadedVideoName
         {
             get => _loadedVideoName;
-            set { _loadedVideoName = value ?? ""; OnPropertyChanged(); }
+            set
+            {
+                _loadedVideoName = value ?? "";
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(VideoPanelTitle));
+            }
         }
+
+        // Mac-like header for the left video panel
+        public string VideoPanelTitle
+            => string.IsNullOrWhiteSpace(LoadedVideoName) ? "Video (16:9)" : $"Video (16:9)  {LoadedVideoName}";
 
         public string TeamAName { get => _teamAName; set { _teamAName = value; OnPropertyChanged(); } }
         public string TeamBName { get => _teamBName; set { _teamBName = value; OnPropertyChanged(); } }
