@@ -10,7 +10,48 @@
         MinWidth="1200" MinHeight="740"
         Background="#121212"
         Foreground="#EAEAEA"
-        WindowStartupLocation="CenterScreen"><Grid x:Name="RootGrid" Margin="12">
+        WindowStartupLocation="CenterScreen">    <Window.Resources>
+        <!-- Watermark / placeholder TextBox -->
+        <Style x:Key="WatermarkTextBox" TargetType="{x:Type TextBox}">
+            <Setter Property="Background" Value="#0F0F0F"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="BorderBrush" Value="#2A2A2A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Grid>
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                            <TextBlock x:Name="Watermark"
+                                       Text="{TemplateBinding Tag}"
+                                       Margin="{TemplateBinding Padding}"
+                                       Foreground="#7A7A7A"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Text" Value=""/>
+                                    <Condition Property="IsKeyboardFocusWithin" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Watermark" Property="Visibility" Value="Visible"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Watermark" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <!-- Mac-like: click/focus selects all so typing replaces -->
+            <EventSetter Event="GotKeyboardFocus" Handler="TextBox_SelectAllOnFocus"/>
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="TextBox_PreviewMouseLeftButtonDown_SelectAll"/>
+        </Style>
+    </Window.Resources>
+<Grid x:Name="RootGrid" Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
@@ -31,49 +72,33 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="0,0,0,10">
-    <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-    <!-- Title (trim so it never hides inputs) -->
-    <TextBlock Grid.Row="0"
-               Text="{Binding VideoPanelTitle}"
-               FontSize="16"
-               FontWeight="SemiBold"
-               VerticalAlignment="Center"
-               TextTrimming="CharacterEllipsis"
-               Margin="0,0,0,0"/>
+                    <!-- Left: title (trim so the right controls never disappear) -->
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding VideoPanelTitle}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0"/>
 
-    <!-- Team inputs (Mac-like: under title) -->
-    <Grid Grid.Row="1" Margin="0,8,0,0">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="16"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+                    <!-- Right: Team name inputs -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
+                        <TextBox Width="200" Height="28" Style="{StaticResource WatermarkTextBox}" Tag="Home / Our Team"
+                                 Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Team B" VerticalAlignment="Center" Margin="8,0,8,0" Opacity="0.85"/>
+                        <TextBox Width="200" Height="28" Style="{StaticResource WatermarkTextBox}" Tag="Away / Opponent"
+                                 Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </Grid>
 
-        <StackPanel Grid.Column="0">
-            <TextBlock Text="Team A" Opacity="0.85" Margin="0,0,0,4"/>
-            <TextBox Width="240" Height="28"
-                     Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
-                     Background="#0F0F0F" Foreground="#EAEAEA"
-                     BorderBrush="#2A2A2A" BorderThickness="1" Padding="6"/>
-        </StackPanel>
-
-        <StackPanel Grid.Column="2">
-            <TextBlock Text="Team B" Opacity="0.85" Margin="0,0,0,4"/>
-            <TextBox Width="240" Height="28"
-                     Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
-                     Background="#0F0F0F" Foreground="#EAEAEA"
-                     BorderBrush="#2A2A2A" BorderThickness="1" Padding="6"/>
-        </StackPanel>
-    </Grid>
-</Grid>
-
-<Border Grid.Row="1"  Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
+                <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
                         <!-- Hint (コードビハインドから参照されるので必ず存在させる) -->
                         <TextBlock x:Name="VideoHint"
@@ -107,9 +132,9 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel>
+                <DockPanel LastChildFill="False">
                     <TextBlock Text="{Binding ClipsHeader}" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                         <ComboBox Width="140"
                                   ItemsSource="{Binding ClipFilters}"
                                   SelectedItem="{Binding SelectedClipFilter}"/>

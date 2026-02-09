@@ -376,6 +376,8 @@ namespace PlayCutWin
             var teamKey = NormalizeTeamToAB(c.Team);
             var teamSide = teamKey == "A" ? "Home" : "Away";
             var teamName = teamKey == "A" ? VM.TeamAName : VM.TeamBName;
+            if (string.IsNullOrWhiteSpace(teamName))
+                teamName = teamKey == "A" ? "Home / Our Team" : "Away / Opponent";
 
             var startStr = FormatTime(c.Start);
             var endStr = FormatTime(c.End);

@@ -19,14 +19,14 @@ namespace PlayCutWin.ViewModels
             set { _videoTitle = value; OnPropertyChanged(nameof(VideoTitle)); }
         }
 
-        private string _teamAName = "Home / Our Team";
+        private string _teamAName = "";
         public string TeamAName
         {
             get => _teamAName;
             set { _teamAName = value; OnPropertyChanged(nameof(TeamAName)); }
         }
 
-        private string _teamBName = "Away / Opponent";
+        private string _teamBName = "";
         public string TeamBName
         {
             get => _teamBName;
