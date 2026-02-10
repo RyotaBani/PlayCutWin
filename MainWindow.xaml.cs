@@ -56,6 +56,33 @@ namespace PlayCutWin
         }
 
         // ----------------------------
+        // TextBox UX (mac-like)
+        // - Click into unfocused TextBox: focus and select-all
+        // - Focus gained: select-all (so typing replaces placeholder/name)
+        // NOTE: Placeholder itself is handled in XAML via Adorner/Style;
+        // these handlers only improve editing behavior.
+        // ----------------------------
+        private void TextBox_SelectAllOnFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is not TextBox tb) return;
+
+            // Delay selection until after focus is fully established.
+            tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()), DispatcherPriority.Input);
+        }
+
+        private void TextBox_PreviewMouseLeftButtonDown_SelectAll(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not TextBox tb) return;
+
+            // If not already focused, focus first and prevent caret placement.
+            if (!tb.IsKeyboardFocusWithin)
+            {
+                e.Handled = true;
+                tb.Focus();
+            }
+        }
+
+        // ----------------------------
         // Video
         // ----------------------------
         private void LoadVideo_Click(object sender, RoutedEventArgs e)
