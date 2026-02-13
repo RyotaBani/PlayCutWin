@@ -1,416 +1,256 @@
 <Window x:Class="PlayCutWin.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PlayCutWin" Width="1500" Height="900"
-        Background="#121212"
-        KeyDown="Window_KeyDown">
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PlayCutWin"
+        mc:Ignorable="d"
+        Title="PlayCutWin" Width="1400" Height="850" Background="#121212">
 
-    <Window.Resources>
-        <!-- ===== Theme ===== -->
-        <SolidColorBrush x:Key="Bg0" Color="#121212"/>
-        <SolidColorBrush x:Key="Card" Color="#1E1E1E"/>
-        <SolidColorBrush x:Key="Card2" Color="#232323"/>
-        <SolidColorBrush x:Key="Border" Color="#2B2B2B"/>
-        <SolidColorBrush x:Key="Text" Color="#EAEAEA"/>
-        <SolidColorBrush x:Key="TextDim" Color="#9A9A9A"/>
-        <SolidColorBrush x:Key="Accent" Color="#2D7DFF"/>
-
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
-        </Style>
-
-        <Style x:Key="CardBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource Card}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="14"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-        </Style>
-
-        <Style x:Key="TopButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource Card2}"/>
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="6,0,0,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A2A"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource TopButtonStyle}">
-            <Setter Property="Background" Value="{StaticResource Accent}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
-        </Style>
-
-        <Style x:Key="TextBoxDark" TargetType="TextBox">
-            <Setter Property="Background" Value="#2A2A2A"/>
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="6,0,0,0"/>
-            <Setter Property="CaretBrush" Value="{StaticResource Text}"/>
-        </Style>
-
-        <!-- Tag ToggleButton -->
-        <Style x:Key="TagToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Background" Value="#1F1F1F"/>
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
-            <Setter Property="BorderBrush" Value="#7A2B2B"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="6,6,0,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="14">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Background" Value="#6A1F1F"/>
-                    <Setter Property="BorderBrush" Value="#9A2E2E"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A2A"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="TagToggleStyleDefense" TargetType="ToggleButton" BasedOn="{StaticResource TagToggleStyle}">
-            <Setter Property="BorderBrush" Value="#2B4E7A"/>
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Background" Value="#1F3F6A"/>
-                    <Setter Property="BorderBrush" Value="#2D65B3"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
-
-    <Grid Margin="14">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="290"/>
-        </Grid.RowDefinitions>
+    <Grid Margin="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1.65*"/>
-            <ColumnDefinition Width="1.35*"/>
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="2*"/>
         </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- ================= LEFT TOP : Video ================= -->
-        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CardBorderStyle}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <!-- Top Left Title -->
+        <TextBlock x:Name="TopLeftTitle"
+                   Grid.Column="0" Grid.Row="0"
+                   Foreground="White"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Text="Video (16:9)"
+                   Margin="0,0,0,8"/>
 
-                <!-- Header row -->
-                <DockPanel Grid.Row="0" LastChildFill="True">
-                    <TextBlock FontSize="16" FontWeight="SemiBold"
-                               Text="{Binding VideoHeaderText, FallbackValue=Video (16:9)}"
-                               VerticalAlignment="Center"/>
+        <!-- Top Right Toolbar (right aligned) -->
+        <StackPanel Grid.Column="1" Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Margin="0,0,0,8">
+            <ComboBox x:Name="FilterCombo" Width="140" Height="28" Margin="0,0,8,0"
+                      Background="#1E1E1E" Foreground="White"/>
+            <Button Content="Import CSV" Width="90" Height="28" Margin="0,0,6,0" Click="ImportCsv_Click"/>
+            <Button Content="Export CSV" Width="90" Height="28" Margin="0,0,6,0" Click="ExportCsv_Click"/>
+            <Button Content="Export All" Width="90" Height="28" Margin="0,0,6,0" Click="ExportAll_Click"/>
+            <Button Content="Load Video" Width="90" Height="28" Background="#2D7DFF" Foreground="White" Click="LoadVideo_Click"/>
+        </StackPanel>
 
-                    <!-- right aligned controls -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <TextBlock Text="Team A" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <!-- Team A textbox + placeholder -->
-                        <Grid Margin="0,0,10,0" Width="230">
-                            <TextBox x:Name="TeamATextBox"
-                                     Style="{StaticResource TextBoxDark}"
-                                     Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}"
-                                     GotKeyboardFocus="TextBox_SelectAllOnFocus"
-                                     PreviewMouseLeftButtonDown="TextBox_PreviewMouseLeftButtonDown_SelectAll"/>
-                            <TextBlock Text="Home / Our Team"
-                                       Foreground="{StaticResource TextDim}"
-                                       Margin="16,0,0,0"
-                                       VerticalAlignment="Center"
-                                       IsHitTestVisible="False">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Text, ElementName=TeamATextBox}" Value="">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
+        <!-- Left Panel -->
+        <Grid Grid.Column="0" Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-                        <TextBlock Text="Team B" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <Grid Width="230">
-                            <TextBox x:Name="TeamBTextBox"
-                                     Style="{StaticResource TextBoxDark}"
-                                     Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}"
-                                     GotKeyboardFocus="TextBox_SelectAllOnFocus"
-                                     PreviewMouseLeftButtonDown="TextBox_PreviewMouseLeftButtonDown_SelectAll"/>
-                            <TextBlock Text="Away / Opponent"
-                                       Foreground="{StaticResource TextDim}"
-                                       Margin="16,0,0,0"
-                                       VerticalAlignment="Center"
-                                       IsHitTestVisible="False">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Text, ElementName=TeamBTextBox}" Value="">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-                    </StackPanel>
-                </DockPanel>
+            <!-- Team Inputs -->
+            <Grid Grid.Row="0" Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-                <!-- Video surface -->
-                <Border Grid.Row="1" Background="#000000" CornerRadius="14" BorderBrush="{StaticResource Border}" BorderThickness="1" Margin="0,12,0,12">
-                    <Grid>
-                        <MediaElement x:Name="Player"
-                                      LoadedBehavior="Manual"
-                                      UnloadedBehavior="Manual"
-                                      Stretch="Uniform" />
+                <TextBlock Grid.Column="0" Foreground="#BDBDBD" VerticalAlignment="Center" Text="Team A" Margin="0,0,8,0"/>
+                <TextBox x:Name="TeamABox" Grid.Column="1" Height="28"
+                         Background="#1E1E1E" Foreground="#BDBDBD" BorderBrush="#333" BorderThickness="1"
+                         GotFocus="TeamBox_GotFocus" LostFocus="TeamBox_LostFocus" PreviewMouseLeftButtonDown="TeamBox_PreviewMouseLeftButtonDown"/>
 
-                        <TextBlock Text="Load a video to begin"
-                                   Foreground="{StaticResource TextDim}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="14">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasVideo}" Value="False">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Grid>
-                </Border>
+                <TextBlock Grid.Column="3" Foreground="#BDBDBD" VerticalAlignment="Center" Text="Team B" Margin="0,0,8,0"/>
+                <TextBox x:Name="TeamBBox" Grid.Column="4" Height="28"
+                         Background="#1E1E1E" Foreground="#BDBDBD" BorderBrush="#333" BorderThickness="1"
+                         GotFocus="TeamBox_GotFocus" LostFocus="TeamBox_LostFocus" PreviewMouseLeftButtonDown="TeamBox_PreviewMouseLeftButtonDown"/>
+            </Grid>
 
-                <!-- Playback / timeline row -->
-                <Grid Grid.Row="2">
+            <!-- Video -->
+            <Border Grid.Row="1" Background="#0E0E0E" CornerRadius="12" BorderBrush="#2A2A2A" BorderThickness="1">
+                <Grid>
+                    <MediaElement x:Name="Player" LoadedBehavior="Manual" UnloadedBehavior="Manual"
+                                  MediaOpened="Player_MediaOpened" MediaFailed="Player_MediaFailed"/>
+                    <TextBlock x:Name="VideoHint" Text="Load a video to begin"
+                               Foreground="#8F8F8F" FontSize="14"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Controls -->
+            <Border Grid.Row="2" Margin="0,8,0,0" Background="#151515" CornerRadius="12" BorderBrush="#2A2A2A" BorderThickness="1" Padding="10">
+                <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Slider x:Name="TimelineSlider"
-                            Grid.Row="0"
-                            Minimum="0"
-                            Maximum="1"
-                            ValueChanged="TimelineSlider_ValueChanged"/>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Foreground="#BDBDBD" VerticalAlignment="Center" Text="Playback Speed" Margin="0,0,10,0"/>
+                        <Button Content="0.25x" Width="60" Margin="0,0,6,0" Click="Speed025_Click"/>
+                        <Button Content="0.5x" Width="60" Margin="0,0,6,0" Click="Speed05_Click"/>
+                        <Button Content="1x" Width="60" Margin="0,0,6,0" Click="Speed1_Click"/>
+                        <Button Content="2x" Width="60" Margin="0,0,6,0" Click="Speed2_Click"/>
+                    </StackPanel>
 
-                    <DockPanel Grid.Row="1" Margin="0,10,0,0">
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                            <Button Content="⏯" Width="44" Height="34"
-                                    Style="{StaticResource PrimaryButtonStyle}"
-                                    Click="PlayPause_Click"/>
-                            <Button Content="-5s" Style="{StaticResource TopButtonStyle}" Click="Back5_Click" Margin="10,0,0,0"/>
-                            <Button Content="-1s" Style="{StaticResource TopButtonStyle}" Click="Back1_Click"/>
-                            <Button Content="+1s" Style="{StaticResource TopButtonStyle}" Click="Fwd1_Click"/>
-                            <Button Content="+5s" Style="{StaticResource TopButtonStyle}" Click="Fwd5_Click"/>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="-5s" Width="60" Margin="0,0,6,0" Click="Minus5_Click"/>
+                        <Button Content="-1s" Width="60" Margin="0,0,6,0" Click="Minus1_Click"/>
+                        <Button x:Name="PlayButton" Content="▶" Width="60" Background="#2D7DFF" Foreground="White" Margin="0,0,6,0" Click="PlayPause_Click"/>
+                        <Button Content="+1s" Width="60" Margin="0,0,6,0" Click="Plus1_Click"/>
+                        <Button Content="+5s" Width="60" Margin="0,0,6,0" Click="Plus5_Click"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Content="Clip START" Width="110" Click="ClipStart_Click"/>
+                        <TextBlock Grid.Column="1" x:Name="StartLabel" Foreground="#BDBDBD" VerticalAlignment="Center" Margin="8,0,0,0" Text="START: --:--"/>
+                        <Button Grid.Column="3" Content="Clip END" Width="110" Click="ClipEnd_Click"/>
+                        <TextBlock Grid.Column="4" x:Name="EndLabel" Foreground="#BDBDBD" VerticalAlignment="Center" Margin="8,0,0,0" Text="END: --:--"/>
+
+                        <StackPanel Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Save Team A" Width="110" Margin="0,0,6,0" Click="SaveTeamA_Click"/>
+                            <Button Content="Save Team B" Width="110" Click="SaveTeamB_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Right Panel -->
+        <Grid Grid.Column="1" Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="2*"/>
+                <RowDefinition Height="3*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Clips -->
+            <Border Grid.Row="0" Background="#151515" CornerRadius="12" BorderBrush="#2A2A2A" BorderThickness="1" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="ClipsTitle" Foreground="White" FontWeight="SemiBold" Text="Clips" Margin="0,0,0,8"/>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Foreground="#BDBDBD" Text="Team A Clips" Margin="0,0,0,4"/>
+                            <DataGrid x:Name="TeamAList" AutoGenerateColumns="False" HeadersVisibility="Column"
+                                      Background="#0F0F0F" Foreground="White" BorderBrush="#2A2A2A"
+                                      CanUserAddRows="False" IsReadOnly="True"
+                                      MouseDoubleClick="ClipGrid_DoubleClick"
+                                      SelectionChanged="ClipGrid_SelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Team" Binding="{Binding Team}" Width="60"/>
+                                    <DataGridTextColumn Header="Start" Binding="{Binding StartDisplay}" Width="80"/>
+                                    <DataGridTextColumn Header="End" Binding="{Binding EndDisplay}" Width="80"/>
+                                    <DataGridTextColumn Header="Tags" Binding="{Binding Tags}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                            <Button Content="Save Team A" Style="{StaticResource TopButtonStyle}" Click="SaveTeamA_Click" Margin="0,0,6,0"/>
-                            <Button Content="Save Team B" Style="{StaticResource TopButtonStyle}" Click="SaveTeamB_Click"/>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Foreground="#BDBDBD" Text="Team B Clips" Margin="0,0,0,4"/>
+                            <DataGrid x:Name="TeamBList" AutoGenerateColumns="False" HeadersVisibility="Column"
+                                      Background="#0F0F0F" Foreground="White" BorderBrush="#2A2A2A"
+                                      CanUserAddRows="False" IsReadOnly="True"
+                                      MouseDoubleClick="ClipGrid_DoubleClick"
+                                      SelectionChanged="ClipGrid_SelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Team" Binding="{Binding Team}" Width="60"/>
+                                    <DataGridTextColumn Header="Start" Binding="{Binding StartDisplay}" Width="80"/>
+                                    <DataGridTextColumn Header="End" Binding="{Binding EndDisplay}" Width="80"/>
+                                    <DataGridTextColumn Header="Tags" Binding="{Binding Tags}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </StackPanel>
+                    </Grid>
 
-                        <TextBlock Text="{Binding TimeText}" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="14,0,0,0"/>
-                    </DockPanel>
-                </Grid>
-            </Grid>
-        </Border>
+                    <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                        <TextBlock Foreground="#BDBDBD" Text="Clip Note"/>
+                        <TextBox x:Name="ClipNoteBox" Height="60" AcceptsReturn="True"
+                                 Background="#0F0F0F" Foreground="White" BorderBrush="#2A2A2A" TextWrapping="Wrap"
+                                 TextChanged="ClipNoteBox_TextChanged"/>
 
-        <!-- ================= RIGHT TOP : Clips ================= -->
-        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Margin="14,0,0,0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <!-- Header row: filter + buttons (right aligned like Mac) -->
-                <DockPanel Grid.Row="0" LastChildFill="True">
-                    <TextBlock Text="{Binding ClipsHeaderText, FallbackValue=Clips (Total 0)}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
-
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <ComboBox x:Name="FilterCombo"
-                                  Width="140"
-                                  Margin="0,0,8,0"
-                                  SelectionChanged="AllClips_Click">
-                            <ComboBoxItem Content="All Clips" IsSelected="True"/>
-                            <ComboBoxItem Content="Team A only"/>
-                            <ComboBoxItem Content="Team B only"/>
-                        </ComboBox>
-
-                        <Button Content="Import CSV" Style="{StaticResource TopButtonStyle}" Click="ImportCsv_Click"/>
-                        <Button Content="Export CSV" Style="{StaticResource TopButtonStyle}" Click="ExportCsv_Click"/>
-                        <Button Content="Export All" Style="{StaticResource TopButtonStyle}" Click="ExportAll_Click"/>
-                        <Button Content="Load Video" Style="{StaticResource PrimaryButtonStyle}" Click="LoadVideo_Click"/>
-                    </StackPanel>
-                </DockPanel>
-
-                <!-- video name line -->
-                <TextBlock Grid.Row="1" Text="{Binding LoadedVideoName}" Foreground="{StaticResource TextDim}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"/>
-
-                <!-- Clip lists -->
-                <Grid Grid.Row="2" Margin="0,12,0,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                        <TextBlock Text="Team A Clips" Foreground="{StaticResource TextDim}" Margin="0,0,0,6"/>
-                        <DataGrid x:Name="TeamAClipGrid"
-                                  ItemsSource="{Binding TeamAClips}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  SelectionChanged="ClipGrid_SelectionChanged"
-                                  MouseDoubleClick="ClipGrid_MouseDoubleClick"
-                                  HeadersVisibility="Column"
-                                  Background="#101010"
-                                  Foreground="{StaticResource Text}"
-                                  GridLinesVisibility="None">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Team" Binding="{Binding Team}" Width="70"/>
-                                <DataGridTextColumn Header="Start" Binding="{Binding StartText}" Width="90"/>
-                                <DataGridTextColumn Header="End" Binding="{Binding EndText}" Width="90"/>
-                                <DataGridTextColumn Header="Tags" Binding="{Binding TagsText}" Width="*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                        <TextBlock Text="Team B Clips" Foreground="{StaticResource TextDim}" Margin="0,0,0,6"/>
-                        <DataGrid x:Name="TeamBClipGrid"
-                                  ItemsSource="{Binding TeamBClips}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  SelectionChanged="ClipGrid_SelectionChanged"
-                                  MouseDoubleClick="ClipGrid_MouseDoubleClick"
-                                  HeadersVisibility="Column"
-                                  Background="#101010"
-                                  Foreground="{StaticResource Text}"
-                                  GridLinesVisibility="None">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Team" Binding="{Binding Team}" Width="70"/>
-                                <DataGridTextColumn Header="Start" Binding="{Binding StartText}" Width="90"/>
-                                <DataGridTextColumn Header="End" Binding="{Binding EndText}" Width="90"/>
-                                <DataGridTextColumn Header="Tags" Binding="{Binding TagsText}" Width="*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <TextBlock Foreground="#BDBDBD" Text="Set Play" Margin="0,8,0,0"/>
+                        <TextBox x:Name="SetPlayBox" Height="28"
+                                 Background="#0F0F0F" Foreground="White" BorderBrush="#2A2A2A"
+                                 TextChanged="SetPlayBox_TextChanged"/>
                     </StackPanel>
                 </Grid>
+            </Border>
 
-                <!-- Notes -->
-                <StackPanel Grid.Row="3">
-                    <TextBlock Text="Clip Note" Foreground="{StaticResource TextDim}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="ClipNoteBox"
-                             Height="72"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             Style="{StaticResource TextBoxDark}"
-                             Margin="0"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+            <!-- Tags -->
+            <Border Grid.Row="1" Margin="0,10,0,0" Background="#151515" CornerRadius="12" BorderBrush="#2A2A2A" BorderThickness="1" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-        <!-- ================= LEFT BOTTOM : (empty for now / keeps layout) ================= -->
-        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource CardBorderStyle}" Margin="0,14,14,0">
-            <StackPanel>
-                <TextBlock Text="Controls" FontSize="16" FontWeight="SemiBold"/>
-                <TextBlock Text="Space: Play/Pause   ←/→: Step   (Ctrlなし単独ショートカットはここから戻していく)"
-                           Foreground="{StaticResource TextDim}" Margin="0,8,0,0"/>
-            </StackPanel>
-        </Border>
+                    <TextBlock Foreground="White" FontWeight="SemiBold" Text="Tags" Margin="0,0,0,8"/>
 
-        <!-- ================= RIGHT BOTTOM : Tags ================= -->
-        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Margin="0,14,0,0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <DockPanel Grid.Row="0">
-                    <TextBlock Text="Tags" FontSize="16" FontWeight="SemiBold"/>
-                    <Button DockPanel.Dock="Right" Content="Preferences..." Style="{StaticResource TopButtonStyle}" Click="Preferences_Click"/>
-                </DockPanel>
-
-                <TextBlock Grid.Row="1" Text="Offense Tags" Foreground="{StaticResource TextDim}" Margin="0,10,0,0"/>
-                <WrapPanel Grid.Row="2" Margin="0,6,0,0">
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="Transition" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="Set" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="PnR" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="BLOB" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="SLOB" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="vs M/M" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="vs Zone" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="2nd Attack" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                    <ToggleButton Style="{StaticResource TagToggleStyle}" Content="3rd Attack more" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                </WrapPanel>
-
-                <StackPanel Grid.Row="3" Margin="0,14,0,0">
-                    <TextBlock Text="Defense Tags" Foreground="{StaticResource TextDim}"/>
-                    <WrapPanel Margin="0,6,0,0">
-                        <ToggleButton Style="{StaticResource TagToggleStyleDefense}" Content="M/M" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                        <ToggleButton Style="{StaticResource TagToggleStyleDefense}" Content="Zone" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                        <ToggleButton Style="{StaticResource TagToggleStyleDefense}" Content="Rebound" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
-                        <ToggleButton Style="{StaticResource TagToggleStyleDefense}" Content="Steal" Checked="Tag_Checked" Unchecked="Tag_Unchecked"/>
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+                        <ToggleButton Content="Transition" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="Set" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="PnR" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="BLOB" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="SLOB" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="vs M/M" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="vs Zone" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="2nd Attack" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="3rd Attack more" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="M/M" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="Zone" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="Rebound" Margin="0,0,6,6" Click="TagToggle_Click"/>
+                        <ToggleButton Content="Steal" Margin="0,0,6,6" Click="TagToggle_Click"/>
                     </WrapPanel>
 
-                    <TextBlock Text="Custom Tag" Foreground="{StaticResource TextDim}" Margin="0,14,0,6"/>
-                    <DockPanel>
-                        <TextBox x:Name="CustomTagBox" Style="{StaticResource TextBoxDark}" Margin="0" />
-                        <Button Content="Add" Style="{StaticResource TopButtonStyle}" Click="AddCustomTag_Click" Margin="10,0,0,0"/>
-                        <Button Content="Clear" Style="{StaticResource TopButtonStyle}" Click="ClearTags_Click"/>
-                    </DockPanel>
+                    <Grid Grid.Row="2" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="80"/>
+                        </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="Current Tags" Foreground="{StaticResource TextDim}" Margin="0,14,0,6"/>
-                    <TextBlock Text="{Binding CurrentTagsText}" Foreground="{StaticResource Text}"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+                        <TextBox x:Name="CustomTagBox" Grid.Column="0" Height="28"
+                                 Background="#0F0F0F" Foreground="White" BorderBrush="#2A2A2A"/>
+                        <Button Grid.Column="1" Content="Add" Margin="6,0,6,0" Click="AddCustomTag_Click"/>
+                        <Button Grid.Column="2" Content="Clear" Click="ClearTags_Click"/>
+                    </Grid>
+
+                    <StackPanel Grid.Row="3">
+                        <TextBlock Foreground="#BDBDBD" Text="Current Tags"/>
+                        <TextBlock x:Name="CurrentTagsText" Foreground="White" Text="(No tags selected)" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
