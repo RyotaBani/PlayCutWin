@@ -29,8 +29,8 @@ namespace PlayCutWin
             SelectedTags = new ObservableCollection<string>();
             Clips = new ObservableCollection<ClipItem>();
 
-            TeamAName = "";
-            TeamBName = "";
+            TeamAName = "Home / Our Team";
+            TeamBName = "Away / Opponent";
 
             StatusMessage = "Ready";
             PlaybackSpeed = 1.0;
