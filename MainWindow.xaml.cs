@@ -43,6 +43,9 @@ namespace PlayCutWin
             InitializeComponent();
             DataContext = VM;
 
+            // Global shortcuts (Mac-like)
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
+
             HighlightSpeedButtons(_currentSpeed);
 
             _timer = new DispatcherTimer
@@ -921,6 +924,145 @@ namespace PlayCutWin
             return ts.ToString(@"m\:ss");
         }
     }
+
+
+        // ----------------------------
+        // Keyboard Shortcuts (Mac-like)
+        // ----------------------------
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Don't steal keys while typing in text inputs (team names / custom tag / clip note)
+            if (IsTextInputFocused()) return;
+
+            // Ignore if any modifier except Shift (we use Shift for seek amount)
+            if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != 0)
+                return;
+
+            // Space: Play/Pause
+            if (e.Key == Key.Space)
+            {
+                PlayPause_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            // i/o: Mark in/out
+            if (e.Key == Key.I)
+            {
+                ClipStart_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.O)
+            {
+                ClipEnd_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            // a/b: Save clip to Team A/B
+            if (e.Key == Key.A)
+            {
+                SaveTeamA_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.B)
+            {
+                SaveTeamB_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            // Arrow seek (Shift = +/-5s, no shift = +/-1s)
+            if (e.Key == Key.Left)
+            {
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) SeekBy(-5);
+                else SeekBy(-1);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Right)
+            {
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) SeekBy(+5);
+                else SeekBy(+1);
+                e.Handled = true;
+                return;
+            }
+
+            // Number keys: toggle Offense tags (1-9)
+            // 1:Transition 2:Set 3:PnR 4:BLOB 5:SLOB 6:vs M/M 7:vs Zone 8:2nd Attack 9:3rd Attack more
+            int offenseIndex = e.Key switch
+            {
+                Key.D1 => 0,
+                Key.D2 => 1,
+                Key.D3 => 2,
+                Key.D4 => 3,
+                Key.D5 => 4,
+                Key.D6 => 5,
+                Key.D7 => 6,
+                Key.D8 => 7,
+                Key.D9 => 8,
+                _ => -1
+            };
+            if (offenseIndex >= 0)
+            {
+                ToggleTagByIndex(VM.OffenseTags, offenseIndex);
+                e.Handled = true;
+                return;
+            }
+
+            // Defense tags: j/k/l/u (Mac defaults)
+            // j:M/M, k:Zone, l:Rebound, u:Steal
+            if (e.Key == Key.J)
+            {
+                ToggleTagByIndex(VM.DefenseTags, 0);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.K)
+            {
+                ToggleTagByIndex(VM.DefenseTags, 1);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.L)
+            {
+                ToggleTagByIndex(VM.DefenseTags, 2);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.U)
+            {
+                ToggleTagByIndex(VM.DefenseTags, 3);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        private static void ToggleTagByIndex(IList<TagToggleModel> tags, int index)
+        {
+            if (index < 0 || index >= tags.Count) return;
+            tags[index].IsSelected = !tags[index].IsSelected;
+        }
+
+        private static bool IsTextInputFocused()
+        {
+            var fe = Keyboard.FocusedElement as DependencyObject;
+            if (fe == null) return false;
+
+            // TextBox, RichTextBox, etc.
+            if (fe is TextBoxBase) return true;
+
+            // If focus is inside a TextBoxBase
+            var p = fe;
+            while (p != null)
+            {
+                if (p is TextBoxBase) return true;
+                p = VisualTreeHelper.GetParent(p);
+            }
+            return false;
+        }
 
     // ============================
     // ViewModel / Models (self-contained for this project)
