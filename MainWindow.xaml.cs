@@ -460,16 +460,32 @@ namespace PlayCutWin
                 var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
                 var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
 
-                int teamIdx = headerLower.IndexOf("team");
-                int startIdx = headerLower.IndexOf("start");
-                int endIdx = headerLower.IndexOf("end");
-                int durationIdx = headerLower.IndexOf("duration");
-                int tagsIdx = headerLower.IndexOf("tags");
-                int commentIdx = headerLower.IndexOf("comment");
+                // Accept both PlayCutWin CSV and BBVideoTagger (Mac) schema.
+                // Mac schema example header:
+                // Schema,VideoName,No,TeamKey,TeamSide,TeamName,Start,End,StartSec,EndSec,DurationSec,Tags,SetPlay,Note
+                int FindIndex(params string[] keys)
+                {
+                    foreach (var k in keys)
+                    {
+                        var idx = headerLower.IndexOf(k);
+                        if (idx >= 0) return idx;
+                    }
+                    return -1;
+                }
+
+                int teamIdx = FindIndex("team", "teamside", "teamkey", "side");
+                int startIdx = FindIndex("start", "startsec", "startseconds", "start_time", "in", "markin");
+                int endIdx = FindIndex("end", "endsec", "endseconds", "end_time", "out", "markout");
+                int durationIdx = FindIndex("duration", "durationsec", "length", "len");
+                int tagsIdx = FindIndex("tags", "tag");
+                int commentIdx = FindIndex("comment", "note", "memo");
 
                 if (teamIdx < 0 || startIdx < 0)
                 {
-                    MessageBox.Show("CSV format not recognized. Need at least 'team' and 'start' columns.");
+                    MessageBox.Show(
+                        "CSV format not recognized. Need at least TEAM and START columns.\n\n" +
+                        "Supported headers include: team / teamSide / teamKey and start / startSec.\n" +
+                        "(BBVideoTagger Mac export is supported)");
                     return;
                 }
 
@@ -496,6 +512,7 @@ namespace PlayCutWin
                     string teamRaw = (cols[teamIdx] ?? string.Empty).Trim();
                     string team = NormalizeTeamToAB(teamRaw);
 
+                    // start/end may be in seconds or timecode.
                     double startSec = ParseTimeToSeconds(GetSafe(cols, startIdx));
                     double endSec = endIdx >= 0 ? ParseTimeToSeconds(GetSafe(cols, endIdx)) : 0;
 
