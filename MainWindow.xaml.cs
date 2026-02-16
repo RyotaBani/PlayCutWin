@@ -459,17 +459,31 @@ namespace PlayCutWin
 
                 var header = SplitCsv(lines[0]).Select(h => (h ?? string.Empty).Trim()).ToList();
                 var headerLower = header.Select(h => h.ToLowerInvariant()).ToList();
+                var headerNorm = headerLower.Select(NormalizeHeaderKey).ToList();
 
-                int teamIdx = headerLower.IndexOf("team");
-                int startIdx = headerLower.IndexOf("start");
-                int endIdx = headerLower.IndexOf("end");
-                int durationIdx = headerLower.IndexOf("duration");
-                int tagsIdx = headerLower.IndexOf("tags");
-                int commentIdx = headerLower.IndexOf("comment");
+                // Accept multiple header variants to stay compatible with Mac (BBVideoTagger) exports.
+                // Examples: TeamSide/TeamKey, StartSec/EndSec/DurationSec, Note, etc.
+                int teamIdx = FindHeaderIndex(headerNorm, "team", "teamside", "teamkey", "side", "teams");
+                int startIdx = FindHeaderIndex(headerNorm, "start", "startsec", "startseconds", "starttime", "markin", "in", "begin");
+                int endIdx = FindHeaderIndex(headerNorm, "end", "endsec", "endseconds", "endtime", "markout", "out", "finish");
+                int durationIdx = FindHeaderIndex(headerNorm, "duration", "durationsec", "dursec", "length");
+                int tagsIdx = FindHeaderIndex(headerNorm, "tags", "tag", "setplay", "playtype");
+                int commentIdx = FindHeaderIndex(headerNorm, "comment", "note", "memo", "remarks");
 
                 if (teamIdx < 0 || startIdx < 0)
                 {
-                    MessageBox.Show("CSV format not recognized. Need at least 'team' and 'start' columns.");
+                    MessageBox.Show(
+                        "CSV format not recognized. Need at least Team + Start columns.\n\n" +
+                        "Accepted header examples:\n" +
+                        "Team: team / teamSide / teamKey / side\n" +
+                        "Start: start / startSec / startTime\n" +
+                        "End: end / endSec (or duration/durationSec)\n" +
+                        "Tags: tags / setPlay\n" +
+                        "Note: note / comment\n\n" +
+                        "Detected headers:\n" + string.Join(", ", header),
+                        "Import CSV",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return;
                 }
 
@@ -814,6 +828,30 @@ namespace PlayCutWin
             return cols[index] ?? string.Empty;
         }
 
+        // Normalize header keys so we can match "Start Sec", "start_sec", "StartSec" etc.
+        private static string NormalizeHeaderKey(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            return s.Trim()
+                .ToLowerInvariant()
+                .Replace(" ", string.Empty)
+                .Replace("_", string.Empty)
+                .Replace("-", string.Empty);
+        }
+
+        private static int FindHeaderIndex(IReadOnlyList<string> normalizedHeaders, params string[] candidates)
+        {
+            foreach (var c in candidates)
+            {
+                var key = NormalizeHeaderKey(c);
+                for (int i = 0; i < normalizedHeaders.Count; i++)
+                {
+                    if (normalizedHeaders[i] == key) return i;
+                }
+            }
+            return -1;
+        }
+
         private static string NormalizeTeamToAB(string team)
         {
             var t = (team ?? string.Empty).Trim();
@@ -864,7 +902,7 @@ namespace PlayCutWin
             if (string.IsNullOrWhiteSpace(tagsRaw)) return result;
 
             string raw = tagsRaw.Trim();
-            char[] seps = new[] { ';', '|' };
+            char[] seps = new[] { ';', '|', ',' };
             var tokens = raw.Split(seps, StringSplitOptions.RemoveEmptyEntries);
             foreach (var t in tokens)
             {
