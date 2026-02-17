@@ -230,8 +230,21 @@
         <!-- =========================
              Tag Toggles
              ========================= -->
+        <!--
+          Tag chips (Mac-like): keep readable by avoiding full solid fills.
+          - Unchecked: dark chip with colored outline
+          - Checked: slightly tinted fill + brighter outline
+        -->
+        <SolidColorBrush x:Key="TagChipBg" Color="#242424"/>
+        <SolidColorBrush x:Key="TagChipBgCheckedOffense" Color="#2A1717"/>
+        <SolidColorBrush x:Key="TagChipBgCheckedDefense" Color="#161C2A"/>
+        <SolidColorBrush x:Key="TagChipOffenseBorder" Color="#8B2A2A"/>
+        <SolidColorBrush x:Key="TagChipDefenseBorder" Color="#2A4A8B"/>
+        <SolidColorBrush x:Key="TagChipOffenseBorderHot" Color="#B33A3A"/>
+        <SolidColorBrush x:Key="TagChipDefenseBorderHot" Color="#3A6BB3"/>
+
         <Style x:Key="TagToggleBase" TargetType="ToggleButton">
-            <Setter Property="Background" Value="{StaticResource BtnBg}"/>
+            <Setter Property="Background" Value="{StaticResource TagChipBg}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="#EAEAEA"/>
@@ -239,6 +252,8 @@
             <Setter Property="Margin" Value="6,6,0,0"/>
             <Setter Property="MinWidth" Value="90"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <!-- remove the dotted focus rectangle like macOS chips -->
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -250,18 +265,8 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <!--
-                                  Avoid TemplateBinding in Trigger Setter.Value.
-                                  Some WPF versions can throw XamlParseException at startup.
-                                  Use a normal Binding to TemplatedParent instead.
-                                -->
-                                <Setter TargetName="bd" Property="Background"
-                                        Value="{Binding BorderBrush, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="#4A4A4A"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.85"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5"/>
@@ -273,11 +278,31 @@
         </Style>
 
         <Style x:Key="OffenseTagToggle" TargetType="ToggleButton" BasedOn="{StaticResource TagToggleBase}">
-            <Setter Property="BorderBrush" Value="#8B2A2A"/>
+            <Setter Property="BorderBrush" Value="{StaticResource TagChipOffenseBorder}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource TagChipOffenseBorderHot}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="{StaticResource TagChipBgCheckedOffense}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource TagChipOffenseBorderHot}"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="DefenseTagToggle" TargetType="ToggleButton" BasedOn="{StaticResource TagToggleBase}">
-            <Setter Property="BorderBrush" Value="#2A4A8B"/>
+            <Setter Property="BorderBrush" Value="{StaticResource TagChipDefenseBorder}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource TagChipDefenseBorderHot}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="{StaticResource TagChipBgCheckedDefense}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource TagChipDefenseBorderHot}"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!-- =========================
