@@ -8,9 +8,9 @@
         Title="Play Cut"
         Width="1400" Height="860"
         MinWidth="1200" MinHeight="740"
-        Background="{StaticResource Bg0}"
+        Background="#121212"
         Foreground="#EAEAEA"
-WindowStartupLocation="CenterScreen"><Grid x:Name="RootGrid" Margin="12">
+        WindowStartupLocation="CenterScreen"><Grid x:Name="RootGrid" Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
@@ -235,8 +235,8 @@ WindowStartupLocation="CenterScreen"><Grid x:Name="RootGrid" Margin="12">
                                          IsEnabled="{Binding HasSelectedClip}"
                                          Text="{Binding SelectedClip.Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          Background="#0F0F0F"
-        Foreground="#EAEAEA"
-BorderBrush="#2A2A2A"
+                                         Foreground="#EAEAEA"
+                                         BorderBrush="#2A2A2A"
                                          BorderThickness="1"
                                          Padding="8"/>
                             </StackPanel>
