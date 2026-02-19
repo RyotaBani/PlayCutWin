@@ -5,6 +5,18 @@
     <Application.Resources>
 
         <!-- =========================
+             Typography (mac-like density)
+             ========================= -->
+        <Style TargetType="{x:Type Control}">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="{x:Type TextBlock}">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <!-- =========================
              Base Colors / Brushes
              ========================= -->
         <SolidColorBrush x:Key="Bg0" Color="#1F1F1F"/>
@@ -48,9 +60,9 @@
             <Setter Property="Background" Value="{StaticResource PanelBg}"/>
             <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="CornerRadius" Value="12"/>
             <!-- IMPORTANT: keep a reasonable default padding. A large value will collapse layouts (caused empty UI). -->
-            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Padding" Value="14"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
 
@@ -73,20 +85,20 @@
             <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="#EAEAEA"/>
-            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Margin" Value="4"/>
             <Setter Property="MinWidth" Value="72"/>
             <Setter Property="MinHeight" Value="28"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -145,7 +157,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6"/>
+                                    CornerRadius="8"/>
 
                             <ContentPresenter x:Name="ContentSite"
                                               IsHitTestVisible="False"
@@ -174,7 +186,7 @@
                                    AllowsTransparency="True"
                                    Focusable="False"
                                    PopupAnimation="Fade">
-                                <Border Background="#202020" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="2">
+                                <Border Background="#202020" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="2">
                                     <ScrollViewer Margin="0" SnapsToDevicePixels="True">
                                         <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
                                     </ScrollViewer>
@@ -202,7 +214,7 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ComboBoxItem">
-                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6">
+                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="8">
                                         <ContentPresenter/>
                                     </Border>
                                     <ControlTemplate.Triggers>
@@ -261,7 +273,7 @@
                         Background="Transparent"
                         BorderBrush="Transparent"
                         BorderThickness="1"
-                        CornerRadius="6">
+                        CornerRadius="8">
                     <ContentPresenter SnapsToDevicePixels="True"/>
                 </Border>
                 <ControlTemplate.Triggers>
@@ -275,7 +287,7 @@
                     <MultiTrigger>
                         <MultiTrigger.Conditions>
                             <Condition Property="IsSelected" Value="True"/>
-                            <Condition Property="IsSelectionActive" Value="True"/>
+                            <Condition Property="(primitives:Selector.IsSelectionActive)" Value="True"/>
                         </MultiTrigger.Conditions>
                         <Setter TargetName="Bd" Property="Background" Value="#2F2F33"/>
                         <Setter TargetName="Bd" Property="BorderBrush" Value="#4A4A4D"/>
@@ -285,7 +297,7 @@
                     <MultiTrigger>
                         <MultiTrigger.Conditions>
                             <Condition Property="IsSelected" Value="True"/>
-                            <Condition Property="IsSelectionActive" Value="False"/>
+                            <Condition Property="(primitives:Selector.IsSelectionActive)" Value="False"/>
                         </MultiTrigger.Conditions>
                         <Setter TargetName="Bd" Property="Background" Value="#2B2B2F"/>
                         <Setter TargetName="Bd" Property="BorderBrush" Value="#3E3E41"/>

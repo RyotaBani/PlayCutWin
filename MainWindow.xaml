@@ -13,7 +13,7 @@
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized">
 
-    <Grid x:Name="RootGrid" Margin="12">
+    <Grid x:Name="RootGrid" Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
@@ -27,7 +27,7 @@
         <!-- =======================
              Top-Left: VIDEO
              ======================= -->
-        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,10,10">
+        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,12,12">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -46,7 +46,7 @@
                 </DockPanel>
 
                 <!-- Team names row: move under the header like macOS -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                     <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
                     <TextBox Width="190" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Text="Team B" VerticalAlignment="Center" Margin="16,0,8,0" Opacity="0.85"/>
@@ -79,7 +79,7 @@
         <!-- =======================
              Top-Right: CLIPS
              ======================= -->
-        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Panel}" Margin="0,0,0,10">
+        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Panel}" Margin="0,0,0,12">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -239,7 +239,7 @@
                             </Grid>
 
                             <!-- Selected Clip Note (Mac-like) -->
-                            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                            <StackPanel Grid.Row="2" Margin="0,12,0,0">
                                 <TextBlock Text="Clip Note" FontWeight="SemiBold" Margin="0,0,0,6"/>
                                 <TextBox Height="56"
                                          TextWrapping="Wrap"
@@ -261,7 +261,7 @@ BorderBrush="#2A2A2A"
         <!-- =======================
              Bottom-Left: CONTROLS
              ======================= -->
-        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,10,0">
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,12,0">
             <StackPanel>
                 <TextBlock Text="Controls" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
@@ -321,7 +321,7 @@ BorderBrush="#2A2A2A"
                     <Button Grid.Column="3" Style="{StaticResource DarkButton}" Content="Save Team B" Click="SaveTeamB_Click"/>
                 </Grid>
 
-                <TextBlock Text="{Binding StatusText}" Opacity="0.75" Margin="0,10,0,0"/>
+                <TextBlock Text="{Binding StatusText}" Opacity="0.75" Margin="0,12,0,0"/>
             </StackPanel>
         </Border>
 
