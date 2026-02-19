@@ -923,8 +923,6 @@ namespace PlayCutWin
             if (ts.Hours > 0) return ts.ToString(@"h\:mm\:ss");
             return ts.ToString(@"m\:ss");
         }
-    }
-
 
         // ----------------------------
         // Keyboard Shortcuts (Mac-like)
@@ -1063,6 +1061,8 @@ namespace PlayCutWin
             }
             return false;
         }
+
+    }
 
     // ============================
     // ViewModel / Models (self-contained for this project)

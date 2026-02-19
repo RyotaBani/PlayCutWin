@@ -10,7 +10,8 @@
         MinWidth="1200" MinHeight="740"
         Background="#121212"
         Foreground="#EAEAEA"
-        WindowStartupLocation="CenterScreen" WindowState="Maximized"><Grid x:Name="RootGrid" Margin="12">
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"><Grid x:Name="RootGrid" Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
