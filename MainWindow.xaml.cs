@@ -924,6 +924,7 @@ namespace PlayCutWin
             return ts.ToString(@"m\:ss");
         }
 
+
         // ----------------------------
         // Keyboard Shortcuts (Mac-like)
         // ----------------------------
@@ -935,9 +936,15 @@ namespace PlayCutWin
             // Ignore if any modifier except Shift (we use Shift for seek amount)
             if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != 0)
                 return;
+            // Normalize key (IME / dead keys can report ImeProcessed)
+            var key = e.Key;
+            if (key == Key.System) key = e.SystemKey;
+            if (key == Key.ImeProcessed) key = e.ImeProcessedKey;
+            if (key == Key.DeadCharProcessed) key = e.DeadCharProcessedKey;
+            if (key == Key.System) key = e.SystemKey;
 
             // Space: Play/Pause
-            if (e.Key == Key.Space)
+            if (key == Key.Space)
             {
                 PlayPause_Click(this, new RoutedEventArgs());
                 e.Handled = true;
@@ -945,13 +952,13 @@ namespace PlayCutWin
             }
 
             // i/o: Mark in/out
-            if (e.Key == Key.I)
+            if (key == Key.I)
             {
                 ClipStart_Click(this, new RoutedEventArgs());
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.O)
+            if (key == Key.O)
             {
                 ClipEnd_Click(this, new RoutedEventArgs());
                 e.Handled = true;
@@ -959,13 +966,13 @@ namespace PlayCutWin
             }
 
             // a/b: Save clip to Team A/B
-            if (e.Key == Key.A)
+            if (key == Key.A)
             {
                 SaveTeamA_Click(this, new RoutedEventArgs());
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.B)
+            if (key == Key.B)
             {
                 SaveTeamB_Click(this, new RoutedEventArgs());
                 e.Handled = true;
@@ -973,14 +980,14 @@ namespace PlayCutWin
             }
 
             // Arrow seek (Shift = +/-5s, no shift = +/-1s)
-            if (e.Key == Key.Left)
+            if (key == Key.Left)
             {
                 if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) SeekBy(-5);
                 else SeekBy(-1);
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.Right)
+            if (key == Key.Right)
             {
                 if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) SeekBy(+5);
                 else SeekBy(+1);
@@ -1012,25 +1019,25 @@ namespace PlayCutWin
 
             // Defense tags: j/k/l/u (Mac defaults)
             // j:M/M, k:Zone, l:Rebound, u:Steal
-            if (e.Key == Key.J)
+            if (key == Key.J)
             {
                 ToggleTagByIndex(VM.DefenseTags, 0);
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.K)
+            if (key == Key.K)
             {
                 ToggleTagByIndex(VM.DefenseTags, 1);
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.L)
+            if (key == Key.L)
             {
                 ToggleTagByIndex(VM.DefenseTags, 2);
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.U)
+            if (key == Key.U)
             {
                 ToggleTagByIndex(VM.DefenseTags, 3);
                 e.Handled = true;
@@ -1063,6 +1070,7 @@ namespace PlayCutWin
         }
 
     }
+
 
     // ============================
     // ViewModel / Models (self-contained for this project)

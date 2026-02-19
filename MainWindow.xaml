@@ -8,10 +8,12 @@
         Title="Play Cut"
         Width="1400" Height="860"
         MinWidth="1200" MinHeight="740"
-        Background="#121212"
+        Background="{StaticResource Bg0}"
         Foreground="#EAEAEA"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized"><Grid x:Name="RootGrid" Margin="12">
+        WindowState="Maximized">
+
+    <Grid x:Name="RootGrid" Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="3*"/>
             <RowDefinition Height="2*"/>
@@ -32,15 +34,24 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Margin="0,0,0,10">
+                <!-- Header row: match macOS (aspect label + loaded video name on the right) -->
+                <DockPanel Margin="0,0,0,8">
                     <TextBlock Text="Video (16:9)" FontSize="16" FontWeight="SemiBold" DockPanel.Dock="Left"/>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
-                        <TextBox Width="160" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="Team B" VerticalAlignment="Center" Margin="8,0,8,0" Opacity="0.85"/>
-                        <TextBox Width="160" Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
+                    <TextBlock Text="{Binding LoadedVideoName}"
+                               DockPanel.Dock="Right"
+                               Opacity="0.75"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"
+                               MaxWidth="520"/>
                 </DockPanel>
+
+                <!-- Team names row: move under the header like macOS -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="Team A" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.85"/>
+                    <TextBox Width="190" Text="{Binding TeamAName, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="Team B" VerticalAlignment="Center" Margin="16,0,8,0" Opacity="0.85"/>
+                    <TextBox Width="190" Text="{Binding TeamBName, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
 
                 <Border Grid.Row="1" Background="#0F0F0F" CornerRadius="10" BorderBrush="#2A2A2A" BorderThickness="1">
                     <Grid>
@@ -236,8 +247,8 @@
                                          IsEnabled="{Binding HasSelectedClip}"
                                          Text="{Binding SelectedClip.Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          Background="#0F0F0F"
-                                         Foreground="#EAEAEA"
-                                         BorderBrush="#2A2A2A"
+        Foreground="#EAEAEA"
+BorderBrush="#2A2A2A"
                                          BorderThickness="1"
                                          Padding="8"/>
                             </StackPanel>
