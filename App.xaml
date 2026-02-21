@@ -275,7 +275,8 @@
                     <MultiTrigger>
                         <MultiTrigger.Conditions>
                             <Condition Property="IsSelected" Value="True"/>
-                            <Condition Property="IsSelectionActive" Value="True"/>
+	                            <!-- Use attached property to detect active selection (WPF) -->
+	                            <Condition Property="primitives:Selector.IsSelectionActive" Value="True"/>
                         </MultiTrigger.Conditions>
                         <Setter TargetName="Bd" Property="Background" Value="#2F2F33"/>
                         <Setter TargetName="Bd" Property="BorderBrush" Value="#4A4A4D"/>
@@ -285,7 +286,7 @@
                     <MultiTrigger>
                         <MultiTrigger.Conditions>
                             <Condition Property="IsSelected" Value="True"/>
-                            <Condition Property="IsSelectionActive" Value="False"/>
+	                            <Condition Property="primitives:Selector.IsSelectionActive" Value="False"/>
                         </MultiTrigger.Conditions>
                         <Setter TargetName="Bd" Property="Background" Value="#2B2B2F"/>
                         <Setter TargetName="Bd" Property="BorderBrush" Value="#3E3E41"/>
