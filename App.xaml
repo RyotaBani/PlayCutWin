@@ -231,7 +231,7 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="2"/>
         
-            <Setter Property="ItemContainerStyle" Value="{StaticResource MacListViewItem}"/>
+            <Setter Property="ItemContainerStyle" Value="{DynamicResource MacListViewItem}"/>
         </Style>
 
         
