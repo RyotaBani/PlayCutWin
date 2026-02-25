@@ -1,15 +1,24 @@
-name: Build Windows EXE
+name: build-windows
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+
+    env:
+      CONFIGURATION: Release
+      RUNTIME: win-x64
+      PROJECT_PATH: src/PlayCutWin/PlayCutWin.csproj
+      APP_NAME: PlayCutWin
+      ARTIFACT_NAME: PlayCutWin-win-x64
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -17,20 +26,34 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore ${{ env.PROJECT_PATH }}
 
-      - name: Publish (win-x64, self-contained)
+      - name: Build
+        run: dotnet build ${{ env.PROJECT_PATH }} -c ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Publish (self-contained)
         run: >
-          dotnet publish PlayCutWin.csproj
-          -c Release
-          -r win-x64
+          dotnet publish ${{ env.PROJECT_PATH }}
+          -c ${{ env.CONFIGURATION }}
+          -r ${{ env.RUNTIME }}
           --self-contained true
-          /p:PublishSingleFile=true
-          /p:IncludeNativeLibrariesForSelfExtract=true
-          -o out
+          -p:PublishSingleFile=false
+          -p:PublishTrimmed=false
+          -o "${{ github.workspace }}\publish"
 
-      - name: Upload artifact
+      # ✅ publishフォルダを zip にする（Artifactsが“ファイル扱い”になる問題を根本解決）
+      - name: Zip publish folder
+        shell: pwsh
+        run: |
+          $zipPath = "${{ github.workspace }}\${{ env.ARTIFACT_NAME }}.zip"
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path "${{ github.workspace }}\publish\*" -DestinationPath $zipPath
+          Write-Host "Zipped -> $zipPath"
+          Get-Item $zipPath | Format-List Name,Length,FullName
+
+      - name: Upload Artifact (ZIP)
         uses: actions/upload-artifact@v4
         with:
-          name: PlayCutWin-win-x64
-          path: out/**
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_NAME }}.zip
+          if-no-files-found: error
