@@ -12,8 +12,6 @@ jobs:
     env:
       CONFIGURATION: Release
       RUNTIME: win-x64
-      PROJECT_PATH: src/PlayCutWin/PlayCutWin.csproj
-      APP_NAME: PlayCutWin
       ARTIFACT_NAME: PlayCutWin-win-x64
 
     steps:
@@ -25,15 +23,61 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      # ✅ ここが肝：sln があればそれを、無ければ WPF csproj を自動で拾う
+      - name: Detect solution/project
+        shell: pwsh
+        run: |
+          $sln = Get-ChildItem -Recurse -Filter *.sln | Select-Object -First 1
+          if ($sln) {
+            "BUILD_TARGET=$($sln.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+            "TARGET_KIND=sln" | Out-File -FilePath $env:GITHUB_ENV -Append
+            Write-Host "Using solution: $($sln.FullName)"
+            exit 0
+          }
+
+          $csproj = Get-ChildItem -Recurse -Filter *.csproj | Where-Object {
+            # WPFっぽいプロジェクト優先（UseWPF を含むやつ）
+            (Get-Content $_.FullName -Raw) -match "<UseWPF>\s*true\s*</UseWPF>"
+          } | Select-Object -First 1
+
+          if (-not $csproj) {
+            # 最悪 fallback：最初のcsproj
+            $csproj = Get-ChildItem -Recurse -Filter *.csproj | Select-Object -First 1
+          }
+
+          if (-not $csproj) {
+            Write-Error "No .sln or .csproj found."
+            exit 1
+          }
+
+          "BUILD_TARGET=$($csproj.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TARGET_KIND=csproj" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Using project: $($csproj.FullName)"
+
       - name: Restore
-        run: dotnet restore ${{ env.PROJECT_PATH }}
+        run: dotnet restore "${{ env.BUILD_TARGET }}"
 
       - name: Build
-        run: dotnet build ${{ env.PROJECT_PATH }} -c ${{ env.CONFIGURATION }} --no-restore
+        run: dotnet build "${{ env.BUILD_TARGET }}" -c ${{ env.CONFIGURATION }} --no-restore
+
+      # ✅ publish は「csproj」を渡すのが確実（slnだと複数プロジェクトで崩れやすい）
+      - name: Detect app csproj for publish
+        shell: pwsh
+        run: |
+          $csproj = Get-ChildItem -Recurse -Filter *.csproj | Where-Object {
+            (Get-Content $_.FullName -Raw) -match "<UseWPF>\s*true\s*</UseWPF>"
+          } | Select-Object -First 1
+
+          if (-not $csproj) {
+            $csproj = Get-ChildItem -Recurse -Filter *.csproj | Select-Object -First 1
+          }
+
+          "PUBLISH_PROJECT=$($csproj.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Publish project: $($csproj.FullName)"
 
       - name: Publish (self-contained)
         run: >
-          dotnet publish ${{ env.PROJECT_PATH }}
+          dotnet publish "${{ env.PUBLISH_PROJECT }}"
           -c ${{ env.CONFIGURATION }}
           -r ${{ env.RUNTIME }}
           --self-contained true
@@ -41,7 +85,6 @@ jobs:
           -p:PublishTrimmed=false
           -o "${{ github.workspace }}\publish"
 
-      # ✅ publishフォルダを zip にする（Artifactsが“ファイル扱い”になる問題を根本解決）
       - name: Zip publish folder
         shell: pwsh
         run: |
